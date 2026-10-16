@@ -85,7 +85,6 @@ class Y4APK_PWA {
 			'banner_text'      => '',
 			'owner_title'      => '',
 			'owner_text'       => '',
-			'dl_help'          => 1,
 			'apk_url'          => '',
 			'assetlinks'       => '',
 			'rev'              => 1,
@@ -725,15 +724,6 @@ class Y4APK_PWA {
 		inApp = inApp || sessionStorage.getItem('y4apk_in_app') === '1';
 	} catch (e) {}
 	window.__y4apkInApp = inApp;
-	if (inApp && /Android/i.test(navigator.userAgent)) {
-		// Downloads in the app get no browser download bar: explain where they went.
-		document.documentElement.classList.add('y4apk-app-android');
-		document.addEventListener('click', function (e) {
-			var link = e.target.closest && e.target.closest('[data-y4apk-download]');
-			var help = document.getElementById('y4apk-dl-help');
-			if (link && help) setTimeout(function () { help.hidden = false; }, 800);
-		}, true);
-	}
 	if (c.banner) {
 		window.addEventListener('beforeinstallprompt', function (e) {
 			e.preventDefault();
@@ -746,41 +736,6 @@ class Y4APK_PWA {
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', register); else register();
 })();
 </script>
-		<?php
-	}
-
-	/**
-	 * Under the Download button: inside the installed app there is no browser
-	 * download bar and no Downloads list, so progress only shows in the phone's
-	 * notifications. A line saying so, and a short guide after the tap, both
-	 * shown only in the app on Android (the boot script marks <html>).
-	 */
-	public static function download_help() {
-		if (!self::get('enabled') || !self::get('dl_help')) {
-			return;
-		}
-		$theme = sanitize_hex_color(self::get('theme_color')) ?: '#29b1d8';
-		?>
-<p class="y4apk-dl-note"><?php esc_html_e('In the app, downloads show in your notifications: swipe down from the top of the screen to follow them.', 'y4apk'); ?></p>
-<div id="y4apk-dl-help" class="y4apk-dl-help" role="dialog" aria-modal="true" aria-labelledby="y4apk-dl-help-title" hidden onclick="if (event.target === this) this.hidden = true">
-	<div class="y4apk-dl-help__box">
-		<strong id="y4apk-dl-help-title" class="y4apk-dl-help__title"><?php esc_html_e('Your download is starting', 'y4apk'); ?></strong>
-		<p><?php esc_html_e('Swipe down from the top of the screen to see its progress. When it finishes, tap it there to install.', 'y4apk'); ?></p>
-		<p class="y4apk-dl-help__small"><?php esc_html_e('Nothing there? Allow notifications for Chrome in your phone’s settings, or on the download page tap ⋮ then “Open in Chrome” to download in the browser instead.', 'y4apk'); ?></p>
-		<button type="button" class="y4apk-dl-help__ok" onclick="this.closest('.y4apk-dl-help').hidden = true"><?php esc_html_e('OK', 'y4apk'); ?></button>
-	</div>
-</div>
-<style>
-.y4apk-dl-note{display:none;max-width:22rem;margin:.75rem auto 0;font-size:.8125rem;line-height:1.4;color:#51605f;text-align:center}
-.y4apk-app-android .y4apk-dl-note{display:block}
-.y4apk-dl-help{position:fixed;inset:0;z-index:1000000;display:flex;align-items:flex-end;justify-content:center;padding:.75rem;background:rgba(23,32,33,.45)}
-.y4apk-dl-help[hidden]{display:none}
-.y4apk-dl-help__box{width:100%;max-width:30rem;padding:1.25rem;border-radius:1rem;background:#fff;color:#172021;box-shadow:0 .5rem 2rem rgba(23,32,33,.25);line-height:1.45;text-align:left}
-.y4apk-dl-help__title{display:block;margin-bottom:.4rem;font-size:1.0625rem}
-.y4apk-dl-help__box p{margin:0 0 .6rem;font-size:.9375rem}
-.y4apk-dl-help__box .y4apk-dl-help__small{font-size:.8125rem;color:#51605f}
-.y4apk-dl-help__ok{display:block;width:100%;margin-top:.4rem;padding:.65rem;border:0;border-radius:2rem;font:inherit;font-weight:700;color:#fff;background:<?php echo esc_attr($theme); ?>;cursor:pointer}
-</style>
 		<?php
 	}
 
@@ -935,7 +890,6 @@ class Y4APK_PWA {
 			'banner_open'      => empty($in['banner_open']) ? 0 : 1,
 			'owner_title'      => sanitize_text_field(isset($in['owner_title']) ? $in['owner_title'] : ''),
 			'owner_text'       => sanitize_text_field(isset($in['owner_text']) ? $in['owner_text'] : ''),
-			'dl_help'          => empty($in['dl_help']) ? 0 : 1,
 			'banner_title'     => sanitize_text_field(isset($in['banner_title']) ? $in['banner_title'] : ''),
 			'banner_text'      => sanitize_text_field(isset($in['banner_text']) ? $in['banner_text'] : ''),
 			'apk_url'          => esc_url_raw(isset($in['apk_url']) ? trim($in['apk_url']) : ''),
@@ -1155,13 +1109,6 @@ class Y4APK_PWA {
 						<td><input id="pwa-otext" class="large-text" name="owner_text" value="<?php echo $field('owner_text'); ?>" placeholder="<?php esc_attr_e('Open this page in the app, or keep browsing here.', 'y4apk'); ?>"></td></tr>
 				</tbody></table>
 
-				<h3><?php esc_html_e('Downloads inside the app', 'y4apk'); ?></h3>
-				<table class="form-table" role="presentation"><tbody>
-					<tr><th scope="row"><?php esc_html_e('Download guide', 'y4apk'); ?></th>
-						<td><label><input type="checkbox" name="dl_help" value="1" <?php checked($s['dl_help']); ?>>
-							<?php esc_html_e('Explain where downloads go when the site is used as the app', 'y4apk'); ?></label>
-							<p class="description"><?php esc_html_e('An installed app has no browser download bar and no Downloads list; progress only shows in the phone’s notifications. On Android, inside the app, download pages get a line under the Download button saying so, and a short guide after it is tapped. Visitors in the browser see no change.', 'y4apk'); ?></p></td></tr>
-				</tbody></table>
 
 				<h2><?php esc_html_e('2. Android APK', 'y4apk'); ?></h2>
 				<p><?php esc_html_e('Google Play does not accept apps that distribute modified APKs, so the app is offered as an APK file from this site. PWABuilder turns the installable site into one, free and in the browser:', 'y4apk'); ?></p>

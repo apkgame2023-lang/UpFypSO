@@ -38,11 +38,10 @@ foreach($download_links as $index => $download) : if ($index === $download_id) :
         </svg>
     </div>
     <div class="p-file-timer-btn" style="opacity:0;pointer-events:none;visibility:hidden;">
-        <a class="btn blue-style" id="check" data-y4apk-download onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo $download['download_url']; ?>" target="_blank">
+        <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo $download['download_url']; ?>" target="_blank">
 			<?php esc_html_e('Download', 'Y4Apk'); ?> (<?php echo $download['download_size']; ?>)
 		</a>
     </div>
 </div>
-<?php if (class_exists('Y4APK_PWA')) Y4APK_PWA::download_help(); ?>
 <?php if(function_exists('download_bottom_ad')) download_bottom_ad(); ?>
 <?php endif; endforeach; ?>

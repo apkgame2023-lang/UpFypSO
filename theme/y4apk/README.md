@@ -87,6 +87,30 @@ The Customizer panel is registered on `customize_register` and
 See "The database abuse this theme caused" below; loading it on the front end is
 what took the site down.
 
+## Direct Link ads (2.13)
+
+Y4APK ▸ **Direct Link** opens an ad link — a Monetag *Direct Link* (SmartLink) or
+any other address — in a new tab. It replaces the "Unlock Content" box that was
+written into `single.php`, and keeps it as an option:
+
+| When | What visitors see |
+| --- | --- |
+| **When a download button is tapped** (default) | Tapping a link to a `/download/N/` page on a game page opens the ad in a new tab; the visitor carries on to the download page. Once per visit, once a day, or every tap. |
+| "Unlock Content" box | The old full-screen box over every game page until the ad is tapped, once per visit. |
+| Off | Nothing. |
+
+Why the default changed: Google may rank pages lower in mobile results when
+their content is covered as the visitor arrives from search, and the box covered
+every game page. Opening the ad on the download tap keeps most of the clicks —
+nearly everyone who comes for a file taps Download — without covering anything.
+
+The link defaults to `/update-ads`, the address the box opened, so nothing stops
+earning after an update; paste the Monetag link straight in to skip that page.
+The script is in the footer of game pages only, carries the `y4apk-pwa` keyword and
+the don't-delay markers (a speed plugin that waits for the first tap would miss
+the tap that matters), and opens the ad with `noopener`, so the ad page cannot
+redirect the tab the visitor came from.
+
 ## The Y4APK app (2.10; install banner rules 2.11–2.12)
 
 `inc/pwa.php` makes the site installable as an app — an icon on the home screen
@@ -133,13 +157,6 @@ browsers — get **Download** pointing at the APK, if one is set.
 - Never inside the app (standalone display, or the APK's `android-app://`
   referrer, which the boot script remembers for the visit) or on download pages. iPhones cannot tell a page whether the app is
   on the home screen, so Safari keeps the hint on the same schedule.
-
-**Downloads inside the app.** An installed app has no browser download bar and
-no Downloads list: Chrome only reports progress in the phone's notifications. On
-Android, inside the app, download pages show a line under the Download button
-saying so, and a short guide after it is tapped (where to look, allowing Chrome
-notifications, or ⋮ ▸ Open in Chrome). The browser is unchanged. Switch:
-*Downloads inside the app ▸ Download guide*.
 
 **Startup script and speed plugins.** A small script in `<head>`
 (`#y4apk-pwa-boot`) registers the service worker as soon as the page has parsed —
