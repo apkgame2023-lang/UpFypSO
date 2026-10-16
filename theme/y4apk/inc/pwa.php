@@ -79,6 +79,8 @@ class Y4APK_PWA {
 			'screenshots'      => [],
 			'generated'        => [],
 			'banner'           => 1,
+			'banner_again'     => 5,
+			'banner_open'      => 1,
 			'banner_title'     => '',
 			'banner_text'      => '',
 			'apk_url'          => '',
@@ -356,7 +358,8 @@ class Y4APK_PWA {
 	/** Android package name from the pasted assetlinks.json, or ''. */
 	public static function apk_package() {
 		$links = json_decode((string) self::get('assetlinks'), true);
-		return isset($links[0]['target']['package_name']) ? (string) $links[0]['target']['package_name'] : '';
+		$package = isset($links[0]['target']['package_name']) ? (string) $links[0]['target']['package_name'] : '';
+		return preg_match('/^[a-zA-Z]\w*(\.[a-zA-Z]\w*)+$/', $package) ? $package : '';
 	}
 
 	/**
@@ -498,12 +501,16 @@ class Y4APK_PWA {
 			$manifest['screenshots'] = $screenshots;
 		}
 
-		// The APK built from this site, once its assetlinks.json is in: lets the
-		// banner stay quiet for visitors who already installed it.
+		// Lets the banner ask Chrome (getInstalledRelatedApps) whether this
+		// visitor already has the app: the web app itself, found by this
+		// manifest's address, and the APK built from it once its assetlinks.json
+		// is in.
+		$related = [['platform' => 'webapp', 'url' => self::endpoint('manifest')]];
 		$package = self::apk_package();
 		if ($package) {
-			$manifest['related_applications'] = [['platform' => 'play', 'id' => $package]];
+			array_unshift($related, ['platform' => 'play', 'id' => $package]);
 		}
+		$manifest['related_applications'] = $related;
 
 		return apply_filters('y4apk_pwa_manifest', $manifest);
 	}
@@ -665,6 +672,12 @@ class Y4APK_PWA {
 			'apkLabel'     => __('Download', 'y4apk'),
 			'closeLabel'   => __('Close', 'y4apk'),
 			'apkUrl'       => esc_url_raw((string) self::get('apk_url')),
+			'package'      => self::apk_package(),
+			'openInApp'    => (bool) self::get('banner_open'),
+			'openTitle'    => sprintf(__('Open in the %s app', 'y4apk'), self::short_name()),
+			'openText'     => __('The app is already on this phone.', 'y4apk'),
+			'openLabel'    => __('Open', 'y4apk'),
+			'again'        => max(0, (int) self::get('banner_again')),
 			'delay'        => 4000,
 		];
 	}
@@ -859,6 +872,8 @@ class Y4APK_PWA {
 			'orientation'      => (isset($in['orientation']) && $in['orientation'] === 'portrait') ? 'portrait' : 'any',
 			'screenshots'      => array_values(array_filter(array_map('absint', explode(',', isset($in['screenshots']) ? (string) $in['screenshots'] : '')), 'wp_attachment_is_image')),
 			'banner'           => empty($in['banner']) ? 0 : 1,
+			'banner_again'     => (isset($in['banner_again']) && trim((string) $in['banner_again']) !== '') ? min(43200, absint($in['banner_again'])) : 5,
+			'banner_open'      => empty($in['banner_open']) ? 0 : 1,
 			'banner_title'     => sanitize_text_field(isset($in['banner_title']) ? $in['banner_title'] : ''),
 			'banner_text'      => sanitize_text_field(isset($in['banner_text']) ? $in['banner_text'] : ''),
 			'apk_url'          => esc_url_raw(isset($in['apk_url']) ? trim($in['apk_url']) : ''),
@@ -1052,8 +1067,18 @@ class Y4APK_PWA {
 				<table class="form-table" role="presentation"><tbody>
 					<tr><th scope="row"><?php esc_html_e('Show the banner', 'y4apk'); ?></th>
 						<td><label><input type="checkbox" name="banner" value="1" <?php checked($s['banner']); ?>>
-							<?php esc_html_e('Invite visitors to install, a few seconds after the page loads', 'y4apk'); ?></label>
-							<p class="description"><?php esc_html_e('Shown once; a visitor who closes it is not asked again for 14 days. Never shown inside the installed app or on download pages.', 'y4apk'); ?></p></td></tr>
+							<?php esc_html_e('Invite visitors who do not have the app yet, a few seconds after each page loads', 'y4apk'); ?></label>
+							<p class="description"><?php esc_html_e('Never shown inside the app, to visitors whose browser reports the app as installed, or on download pages. Someone who uninstalls the app is invited again.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><label for="pwa-again"><?php esc_html_e('After it is closed', 'y4apk'); ?></label></th>
+						<td><?php printf(
+							/* translators: %s: number field */
+							esc_html__('Show it again after %s minutes', 'y4apk'),
+							'<input id="pwa-again" type="number" min="0" max="43200" step="1" class="small-text" name="banner_again" value="' . esc_attr((string) (int) $s['banner_again']) . '">'); ?>
+							<p class="description"><?php esc_html_e('On whichever page the visitor is on by then. 0 = on the next page they open. Tapping Install or Download keeps it away for at least 10 minutes, to give the install time to finish.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Visitors who have the APK', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="banner_open" value="1" <?php checked($s['banner_open']); ?>>
+							<?php esc_html_e('Offer “Open in app” instead, which opens the same page in the app', 'y4apk'); ?></label>
+							<p class="description"><?php esc_html_e('Android with Chrome, once the assetlinks.json below is saved. Visitors who installed the web app from the browser get no banner at all: browsers give pages no way to open it. iPhones cannot tell a page whether the app is on the home screen, so Safari keeps showing the Add to Home Screen hint on the schedule above.', 'y4apk'); ?></p></td></tr>
 					<tr><th scope="row"><label for="pwa-btitle"><?php esc_html_e('Title', 'y4apk'); ?></label></th>
 						<td><input id="pwa-btitle" class="regular-text" name="banner_title" value="<?php echo $field('banner_title'); ?>" placeholder="<?php echo esc_attr(sprintf(__('Get the %s app', 'y4apk'), self::short_name())); ?>"></td></tr>
 					<tr><th scope="row"><label for="pwa-btext"><?php esc_html_e('Text', 'y4apk'); ?></label></th>
@@ -1067,8 +1092,8 @@ class Y4APK_PWA {
 						/* translators: %s: link to PWABuilder */
 						esc_html__('Save these settings with the app switched on, clear the cache, then open %s and enter your site address.', 'y4apk'),
 						'<a href="https://www.pwabuilder.com/" target="_blank" rel="noopener">pwabuilder.com</a>'); ?></li>
-					<li><?php esc_html_e('Choose Package for stores ▸ Android ▸ Generate Package. Pick a package ID such as com.y4apk.app and keep "Signing key: New".', 'y4apk'); ?></li>
-					<li><strong><?php esc_html_e('Keep the downloaded zip safe, especially signing.keystore and signing-key-info.txt — every future update of the app must be signed with the same key.', 'y4apk'); ?></strong></li>
+					<li><?php esc_html_e('Choose Package for stores ▸ Android, then the Other Android tab (made for APKs handed out directly; Google Play does not take this kind of site). Package ID: com.y4apk.app — it can never change once people have installed the app. Then Download Package.', 'y4apk'); ?></li>
+					<li><strong><?php esc_html_e('Keep the downloaded zip safe, especially signing.keystore and signing-key-info.txt — every future update of the app must be signed with the same key. Lose it and the installed app can never be updated; leak it and others can publish updates in your name.', 'y4apk'); ?></strong></li>
 					<li><?php esc_html_e('Open assetlinks.json from the zip and paste all of it below. Without it the app opens with a browser address bar.', 'y4apk'); ?></li>
 					<li><?php esc_html_e('Upload the .apk from the zip to the Media Library and paste its URL below. Visitors on Android browsers that cannot install apps (TikTok, Facebook and LINE in-app browsers) then get a Download button instead.', 'y4apk'); ?></li>
 				</ol>

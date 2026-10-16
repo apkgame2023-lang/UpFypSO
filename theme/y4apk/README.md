@@ -87,7 +87,7 @@ The Customizer panel is registered on `customize_register` and
 See "The database abuse this theme caused" below; loading it on the front end is
 what took the site down.
 
-## The Y4APK app (2.10)
+## The Y4APK app (2.10; install banner rules 2.11)
 
 `inc/pwa.php` makes the site installable as an app — an icon on the home screen
 that opens full screen, keeps recently viewed pages for offline use, and updates
@@ -111,13 +111,26 @@ theme version plus a settings revision, so updates roll over cleanly.
 worker that deletes its caches and unregisters itself, so browsers that already
 installed the app are cleaned up on their next visit rather than left holding it.
 
-**Install banner** (`assets/js/y4apk-pwa-install.js`), a few seconds after the page
-loads: Chrome, Edge and Samsung Internet get a one-tap **Install**; iPhone Safari
-gets the *Share ▸ Add to Home Screen* hint; Android browsers that cannot install
-apps — the TikTok, Facebook and LINE in-app browsers — get **Download** pointing at
-the APK, if one is set. Never shown inside the installed app, on download pages,
-or to visitors who already installed the APK (Chrome reports it through
-`related_applications`); closing it snoozes it for 14 days.
+**Install banner** (`assets/js/y4apk-pwa-install.js`), a few seconds after each page
+loads, for visitors who do not have the app: Chrome, Edge and Samsung Internet get
+a one-tap **Install**; iPhone Safari gets the *Share ▸ Add to Home Screen* hint;
+Android browsers that cannot install apps — the TikTok, Facebook and LINE in-app
+browsers — get **Download** pointing at the APK, if one is set.
+
+- **Closed:** it comes back after *N* minutes (setting, default 5; `0` = on the
+  next page), on whatever page the visitor is on by then. After a tap on Install
+  or Download it stays away for at least 10 minutes while the install finishes.
+- **Already installed:** the manifest lists the web app (by its manifest address)
+  and, once `assetlinks.json` is in, the APK under `related_applications`, and the
+  banner asks Chrome through `getInstalledRelatedApps()`. APK on the phone →
+  **Open in app** instead (an `intent://` link that opens the same page in the
+  APK, falling back to this page; can be switched off). Web app installed →
+  nothing, since browsers give pages no way to open it.
+- **Uninstalled:** Chrome stops reporting the app and offers the install again,
+  so the banner returns by itself.
+- Never inside the app (standalone display, or the APK's `android-app://`
+  referrer) or on download pages. iPhones cannot tell a page whether the app is
+  on the home screen, so Safari keeps the hint on the same schedule.
 
 **Startup script and speed plugins.** A small script in `<head>`
 (`#y4apk-pwa-boot`) registers the service worker as soon as the page has parsed —
@@ -142,7 +155,8 @@ aggregated); and does the worker actually start in this browser.
 portrait); up to 8 screenshots picked from the Media Library, which Android shows
 in its larger app-store style install sheet — the admin warns when Chrome would
 ignore them (a side outside 320–3840 px, longer than 2.3:1, or mixed shapes);
-`related_applications` with the APK's package once its `assetlinks.json` is in.
+`related_applications` with the web app and, once its `assetlinks.json` is in,
+the APK's package.
 PWABuilder's IARC age-rating suggestion needs a certificate from the IARC rating
 process, which is not available for an app outside the stores, so it stays unset.
 
@@ -167,10 +181,13 @@ offered as an APK file from the site itself.
 
 1. Switch the app on, save, clear the 10Web cache.
 2. Open [pwabuilder.com](https://www.pwabuilder.com/), enter the site address, then
-   *Package for stores ▸ Android ▸ Generate Package*. Package ID e.g.
-   `com.y4apk.app`, signing key *New*.
+   *Package for stores ▸ Android*, tab **Other Android** (for APKs handed out
+   directly). Package ID `com.y4apk.app` — it can never change once people have
+   installed the app. *Download Package*.
 3. **Keep the zip safe** — especially `signing.keystore` and `signing-key-info.txt`.
-   Every future update of the app must be signed with that same key.
+   Every future update of the app must be signed with that same key; lose it and
+   the installed app can never be updated, leak it and others can sign updates in
+   your name.
 4. Paste the zip's `assetlinks.json` into Y4APK ▸ App. Without it the app opens with
    a browser address bar.
 5. Upload the `.apk` to the Media Library (the theme allows `.apk`) and paste its
