@@ -83,6 +83,9 @@ class Y4APK_PWA {
 			'banner_open'      => 1,
 			'banner_title'     => '',
 			'banner_text'      => '',
+			'owner_title'      => '',
+			'owner_text'       => '',
+			'dl_help'          => 1,
 			'apk_url'          => '',
 			'assetlinks'       => '',
 			'rev'              => 1,
@@ -662,6 +665,8 @@ class Y4APK_PWA {
 
 		$title = trim((string) self::get('banner_title'));
 		$text  = trim((string) self::get('banner_text'));
+		$owner_title = trim((string) self::get('owner_title'));
+		$owner_text  = trim((string) self::get('owner_text'));
 
 		return [
 			'icon'         => self::small_icon(),
@@ -673,9 +678,10 @@ class Y4APK_PWA {
 			'closeLabel'   => __('Close', 'y4apk'),
 			'apkUrl'       => esc_url_raw((string) self::get('apk_url')),
 			'package'      => self::apk_package(),
-			'openInApp'    => (bool) self::get('banner_open'),
-			'openTitle'    => sprintf(__('Open in the %s app', 'y4apk'), self::short_name()),
-			'openText'     => __('The app is already on this phone.', 'y4apk'),
+			'owners'       => (bool) self::get('banner_open'),
+			'ownerTitle'   => $owner_title !== '' ? $owner_title : sprintf(__('You have the %s app', 'y4apk'), self::short_name()),
+			'openText'     => $owner_text !== '' ? $owner_text : __('Open this page in the app, or keep browsing here.', 'y4apk'),
+			'homeText'     => $owner_text !== '' ? $owner_text : __('Open it from your home screen, or keep browsing here.', 'y4apk'),
 			'openLabel'    => __('Open', 'y4apk'),
 			'again'        => max(0, (int) self::get('banner_again')),
 			'delay'        => 4000,
@@ -695,6 +701,7 @@ class Y4APK_PWA {
 		$boot = [
 			'sw'     => self::endpoint('sw'),
 			'scope'  => self::scope(),
+			'pkg'    => self::apk_package(),
 			'banner' => self::banner_config(),
 		];
 		?>
@@ -710,6 +717,23 @@ class Y4APK_PWA {
 (function () {
 	var c = <?php echo wp_json_encode($boot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 	window.Y4APK_PWA = c.banner;
+	// Inside the app? The APK opens its first page with an android-app://<package>
+	// referrer, remembered for the rest of the visit.
+	var inApp = navigator.standalone === true || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+	try {
+		if (c.pkg && document.referrer.indexOf('android-app://' + c.pkg) === 0) sessionStorage.setItem('y4apk_in_app', '1');
+		inApp = inApp || sessionStorage.getItem('y4apk_in_app') === '1';
+	} catch (e) {}
+	window.__y4apkInApp = inApp;
+	if (inApp && /Android/i.test(navigator.userAgent)) {
+		// Downloads in the app get no browser download bar: explain where they went.
+		document.documentElement.classList.add('y4apk-app-android');
+		document.addEventListener('click', function (e) {
+			var link = e.target.closest && e.target.closest('[data-y4apk-download]');
+			var help = document.getElementById('y4apk-dl-help');
+			if (link && help) setTimeout(function () { help.hidden = false; }, 800);
+		}, true);
+	}
 	if (c.banner) {
 		window.addEventListener('beforeinstallprompt', function (e) {
 			e.preventDefault();
@@ -722,6 +746,41 @@ class Y4APK_PWA {
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', register); else register();
 })();
 </script>
+		<?php
+	}
+
+	/**
+	 * Under the Download button: inside the installed app there is no browser
+	 * download bar and no Downloads list, so progress only shows in the phone's
+	 * notifications. A line saying so, and a short guide after the tap, both
+	 * shown only in the app on Android (the boot script marks <html>).
+	 */
+	public static function download_help() {
+		if (!self::get('enabled') || !self::get('dl_help')) {
+			return;
+		}
+		$theme = sanitize_hex_color(self::get('theme_color')) ?: '#29b1d8';
+		?>
+<p class="y4apk-dl-note"><?php esc_html_e('In the app, downloads show in your notifications: swipe down from the top of the screen to follow them.', 'y4apk'); ?></p>
+<div id="y4apk-dl-help" class="y4apk-dl-help" role="dialog" aria-modal="true" aria-labelledby="y4apk-dl-help-title" hidden onclick="if (event.target === this) this.hidden = true">
+	<div class="y4apk-dl-help__box">
+		<strong id="y4apk-dl-help-title" class="y4apk-dl-help__title"><?php esc_html_e('Your download is starting', 'y4apk'); ?></strong>
+		<p><?php esc_html_e('Swipe down from the top of the screen to see its progress. When it finishes, tap it there to install.', 'y4apk'); ?></p>
+		<p class="y4apk-dl-help__small"><?php esc_html_e('Nothing there? Allow notifications for Chrome in your phone’s settings, or on the download page tap ⋮ then “Open in Chrome” to download in the browser instead.', 'y4apk'); ?></p>
+		<button type="button" class="y4apk-dl-help__ok" onclick="this.closest('.y4apk-dl-help').hidden = true"><?php esc_html_e('OK', 'y4apk'); ?></button>
+	</div>
+</div>
+<style>
+.y4apk-dl-note{display:none;max-width:22rem;margin:.75rem auto 0;font-size:.8125rem;line-height:1.4;color:#51605f;text-align:center}
+.y4apk-app-android .y4apk-dl-note{display:block}
+.y4apk-dl-help{position:fixed;inset:0;z-index:1000000;display:flex;align-items:flex-end;justify-content:center;padding:.75rem;background:rgba(23,32,33,.45)}
+.y4apk-dl-help[hidden]{display:none}
+.y4apk-dl-help__box{width:100%;max-width:30rem;padding:1.25rem;border-radius:1rem;background:#fff;color:#172021;box-shadow:0 .5rem 2rem rgba(23,32,33,.25);line-height:1.45;text-align:left}
+.y4apk-dl-help__title{display:block;margin-bottom:.4rem;font-size:1.0625rem}
+.y4apk-dl-help__box p{margin:0 0 .6rem;font-size:.9375rem}
+.y4apk-dl-help__box .y4apk-dl-help__small{font-size:.8125rem;color:#51605f}
+.y4apk-dl-help__ok{display:block;width:100%;margin-top:.4rem;padding:.65rem;border:0;border-radius:2rem;font:inherit;font-weight:700;color:#fff;background:<?php echo esc_attr($theme); ?>;cursor:pointer}
+</style>
 		<?php
 	}
 
@@ -874,6 +933,9 @@ class Y4APK_PWA {
 			'banner'           => empty($in['banner']) ? 0 : 1,
 			'banner_again'     => (isset($in['banner_again']) && trim((string) $in['banner_again']) !== '') ? min(43200, absint($in['banner_again'])) : 5,
 			'banner_open'      => empty($in['banner_open']) ? 0 : 1,
+			'owner_title'      => sanitize_text_field(isset($in['owner_title']) ? $in['owner_title'] : ''),
+			'owner_text'       => sanitize_text_field(isset($in['owner_text']) ? $in['owner_text'] : ''),
+			'dl_help'          => empty($in['dl_help']) ? 0 : 1,
 			'banner_title'     => sanitize_text_field(isset($in['banner_title']) ? $in['banner_title'] : ''),
 			'banner_text'      => sanitize_text_field(isset($in['banner_text']) ? $in['banner_text'] : ''),
 			'apk_url'          => esc_url_raw(isset($in['apk_url']) ? trim($in['apk_url']) : ''),
@@ -1075,14 +1137,30 @@ class Y4APK_PWA {
 							esc_html__('Show it again after %s minutes', 'y4apk'),
 							'<input id="pwa-again" type="number" min="0" max="43200" step="1" class="small-text" name="banner_again" value="' . esc_attr((string) (int) $s['banner_again']) . '">'); ?>
 							<p class="description"><?php esc_html_e('On whichever page the visitor is on by then. 0 = on the next page they open. Tapping Install or Download keeps it away for at least 10 minutes, to give the install time to finish.', 'y4apk'); ?></p></td></tr>
-					<tr><th scope="row"><?php esc_html_e('Visitors who have the APK', 'y4apk'); ?></th>
-						<td><label><input type="checkbox" name="banner_open" value="1" <?php checked($s['banner_open']); ?>>
-							<?php esc_html_e('Offer “Open in app” instead, which opens the same page in the app', 'y4apk'); ?></label>
-							<p class="description"><?php esc_html_e('Android with Chrome, once the assetlinks.json below is saved. Visitors who installed the web app from the browser get no banner at all: browsers give pages no way to open it. iPhones cannot tell a page whether the app is on the home screen, so Safari keeps showing the Add to Home Screen hint on the schedule above.', 'y4apk'); ?></p></td></tr>
 					<tr><th scope="row"><label for="pwa-btitle"><?php esc_html_e('Title', 'y4apk'); ?></label></th>
 						<td><input id="pwa-btitle" class="regular-text" name="banner_title" value="<?php echo $field('banner_title'); ?>" placeholder="<?php echo esc_attr(sprintf(__('Get the %s app', 'y4apk'), self::short_name())); ?>"></td></tr>
 					<tr><th scope="row"><label for="pwa-btext"><?php esc_html_e('Text', 'y4apk'); ?></label></th>
 						<td><input id="pwa-btext" class="large-text" name="banner_text" value="<?php echo $field('banner_text'); ?>" placeholder="<?php esc_attr_e('Faster, full screen, one tap from your home screen.', 'y4apk'); ?>"></td></tr>
+				</tbody></table>
+
+				<h3><?php esc_html_e('Visitors who already have the app', 'y4apk'); ?></h3>
+				<table class="form-table" role="presentation"><tbody>
+					<tr><th scope="row"><?php esc_html_e('Suggest the app', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="banner_open" value="1" <?php checked($s['banner_open']); ?>>
+							<?php esc_html_e('Show them a banner too, on the same schedule; they choose whether to switch to the app or stay on the site', 'y4apk'); ?></label>
+							<p class="description"><?php esc_html_e('Nothing ever opens by itself. With the APK (once assetlinks.json is saved below) the banner has an Open button that opens the same page in the app. With the web app installed from the browser it reminds them the app is on their home screen, as browsers give pages no way to open it. Android with Chrome only: iPhones cannot tell a page whether the app is on the home screen.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><label for="pwa-otitle"><?php esc_html_e('Title', 'y4apk'); ?></label></th>
+						<td><input id="pwa-otitle" class="regular-text" name="owner_title" value="<?php echo $field('owner_title'); ?>" placeholder="<?php echo esc_attr(sprintf(__('You have the %s app', 'y4apk'), self::short_name())); ?>"></td></tr>
+					<tr><th scope="row"><label for="pwa-otext"><?php esc_html_e('Text', 'y4apk'); ?></label></th>
+						<td><input id="pwa-otext" class="large-text" name="owner_text" value="<?php echo $field('owner_text'); ?>" placeholder="<?php esc_attr_e('Open this page in the app, or keep browsing here.', 'y4apk'); ?>"></td></tr>
+				</tbody></table>
+
+				<h3><?php esc_html_e('Downloads inside the app', 'y4apk'); ?></h3>
+				<table class="form-table" role="presentation"><tbody>
+					<tr><th scope="row"><?php esc_html_e('Download guide', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="dl_help" value="1" <?php checked($s['dl_help']); ?>>
+							<?php esc_html_e('Explain where downloads go when the site is used as the app', 'y4apk'); ?></label>
+							<p class="description"><?php esc_html_e('An installed app has no browser download bar and no Downloads list; progress only shows in the phone’s notifications. On Android, inside the app, download pages get a line under the Download button saying so, and a short guide after it is tapped. Visitors in the browser see no change.', 'y4apk'); ?></p></td></tr>
 				</tbody></table>
 
 				<h2><?php esc_html_e('2. Android APK', 'y4apk'); ?></h2>

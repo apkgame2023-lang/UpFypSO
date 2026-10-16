@@ -87,7 +87,7 @@ The Customizer panel is registered on `customize_register` and
 See "The database abuse this theme caused" below; loading it on the front end is
 what took the site down.
 
-## The Y4APK app (2.10; install banner rules 2.11)
+## The Y4APK app (2.10; install banner rules 2.11–2.12)
 
 `inc/pwa.php` makes the site installable as an app — an icon on the home screen
 that opens full screen, keeps recently viewed pages for offline use, and updates
@@ -122,15 +122,24 @@ browsers — get **Download** pointing at the APK, if one is set.
   or Download it stays away for at least 10 minutes while the install finishes.
 - **Already installed:** the manifest lists the web app (by its manifest address)
   and, once `assetlinks.json` is in, the APK under `related_applications`, and the
-  banner asks Chrome through `getInstalledRelatedApps()`. APK on the phone →
-  **Open in app** instead (an `intent://` link that opens the same page in the
-  APK, falling back to this page; can be switched off). Web app installed →
-  nothing, since browsers give pages no way to open it.
+  banner asks Chrome through `getInstalledRelatedApps()`. Those visitors get a
+  banner of their own on the same schedule (its own title and text; can be
+  switched off), and the choice stays theirs — nothing opens by itself. APK on
+  the phone → an **Open** button (an `intent://` link that opens the same page in
+  the APK, falling back to this page). Web app installed → a reminder that it is
+  on the home screen, since browsers give pages no way to open it. Android only.
 - **Uninstalled:** Chrome stops reporting the app and offers the install again,
   so the banner returns by itself.
 - Never inside the app (standalone display, or the APK's `android-app://`
-  referrer) or on download pages. iPhones cannot tell a page whether the app is
+  referrer, which the boot script remembers for the visit) or on download pages. iPhones cannot tell a page whether the app is
   on the home screen, so Safari keeps the hint on the same schedule.
+
+**Downloads inside the app.** An installed app has no browser download bar and
+no Downloads list: Chrome only reports progress in the phone's notifications. On
+Android, inside the app, download pages show a line under the Download button
+saying so, and a short guide after it is tapped (where to look, allowing Chrome
+notifications, or ⋮ ▸ Open in Chrome). The browser is unchanged. Switch:
+*Downloads inside the app ▸ Download guide*.
 
 **Startup script and speed plugins.** A small script in `<head>`
 (`#y4apk-pwa-boot`) registers the service worker as soon as the page has parsed —

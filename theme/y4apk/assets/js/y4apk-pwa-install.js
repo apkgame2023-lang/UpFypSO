@@ -9,11 +9,12 @@
  *   - Android browsers that cannot install apps, which includes the in-app
  *     browsers of TikTok, Facebook and LINE → link to the APK, if one is set.
  *
- * Visitors who already have the app are not asked to install it again:
- *   - inside the app itself → nothing;
- *   - the Android APK is on the phone → "Open in app", which hands the page to it;
- *   - the web app is installed → nothing, since browsers give pages no way to
- *     open it.
+ * Visitors who already have the app are not asked to install it again. Inside
+ * the app: nothing. In the browser on Android, if the site allows it, a banner
+ * on the same schedule that leaves the choice to them — nothing opens by itself:
+ *   - the APK is on the phone → an Open button that hands this page to it;
+ *   - the web app is installed → a reminder that it is on the home screen, since
+ *     browsers give pages no way to open it.
  * Chrome reports both through getInstalledRelatedApps(), from the manifest's
  * related_applications, and stops reporting an app once it is uninstalled, so
  * the install banner comes back by itself.
@@ -44,18 +45,10 @@
 		try { window.localStorage.setItem(key, String(value)); } catch (e) {}
 	}
 
-	// The APK opens its first page with an android-app://<package> referrer;
-	// remember that for the rest of the visit.
-	try {
-		if (cfg.package && document.referrer.indexOf('android-app://' + cfg.package) === 0) {
-			window.sessionStorage.setItem('y4apk_in_app', '1');
-		}
-	} catch (e) {}
-
+	// Worked out by the boot script in <head>, which also recognises the APK.
 	function inApp() {
-		if (window.navigator.standalone === true) return true;
-		if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
-		try { return window.sessionStorage.getItem('y4apk_in_app') === '1'; } catch (e) { return false; }
+		return !!window.__y4apkInApp ||
+			!!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 	}
 	if (inApp()) return;
 
@@ -131,11 +124,13 @@
 	function show(mode) {
 		if (banner) return;
 
-		var text = { ios: cfg.iosText, open: cfg.openText }[mode] || cfg.text;
+		var owner = mode === 'open' || mode === 'home';
+		var title = owner ? cfg.ownerTitle : cfg.title;
+		var text = { ios: cfg.iosText, open: cfg.openText, home: cfg.homeText }[mode] || cfg.text;
 		banner = el('div', 'y4apk-install');
 		bannerMode = mode;
 		banner.setAttribute('role', 'dialog');
-		banner.setAttribute('aria-label', mode === 'open' ? cfg.openTitle : cfg.title);
+		banner.setAttribute('aria-label', title);
 		banner.dataset.mode = mode;
 
 		var icon = el('img', 'y4apk-install__icon');
@@ -145,7 +140,7 @@
 		icon.height = 48;
 
 		var body = el('div', 'y4apk-install__body');
-		body.appendChild(el('strong', 'y4apk-install__title', mode === 'open' ? cfg.openTitle : cfg.title));
+		body.appendChild(el('strong', 'y4apk-install__title', title));
 		body.appendChild(el('span', 'y4apk-install__text', text));
 
 		var x = el('button', 'y4apk-install__close', '×');
@@ -191,8 +186,11 @@
 		var hasApk = apps.some(function (app) {
 			return app.platform === 'play' && (!cfg.package || app.id === cfg.package);
 		});
-		if (hasApk) return cfg.openInApp && cfg.package && isAndroid ? 'open' : '';
-		if (apps.some(function (app) { return app.platform === 'webapp'; })) return '';
+		var hasWebApp = apps.some(function (app) { return app.platform === 'webapp'; });
+		if (hasApk || hasWebApp) {
+			if (!cfg.owners || !isAndroid) return '';
+			return hasApk && cfg.package ? 'open' : 'home';
+		}
 		if (window.__y4apkInstallPrompt) return 'prompt';
 		if (isIOSSafari) return 'ios';
 		if (isAndroid && cfg.apkUrl) return 'apk';
