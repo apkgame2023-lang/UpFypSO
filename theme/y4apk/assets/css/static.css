@@ -1,0 +1,56 @@
+@charset "UTF-8";
+
+/* --- STATIC --- */
+.static-page { padding: 1rem 0 2.5rem 0; }
+.heading { font-size: 2rem; line-height: 1.2; margin-top: -.5rem; margin-bottom: 1.5rem; }
+
+@media (max-width: 61.9375rem) {
+	.static-page { min-height: calc(100vh - 15rem); transition: min-height .5s ease; }
+	.heading { text-align: center; max-width: 24rem; margin-left: auto; margin-right: auto; }
+	.static-back { display: block !important; padding: .5rem; margin-bottom: .75rem; }
+	.static-back svg { width: 3rem; height: 1.25rem; display: block; margin: 0 auto; }
+
+	.feedback-page { text-align: center; }
+}
+@media (min-width: 62rem) {
+	body { background-image: none; }
+	.static-page { background-color: #FBFDFD; box-shadow: 0 1.125rem 1.5rem 0 #00000008; padding: 3.25rem 0; }
+	.header-panel { background-color: #FBFDFD; margin-bottom: 0; border-bottom: 1px solid #00000008; }
+	.heading { font-size: 2.5rem; margin-bottom: 2rem; }
+
+	.str { display: flex; }
+	.str-side { display: block !important; min-width: 12rem; max-width: 12rem; padding-right: 2.5rem; }
+	.str-main { flex: 1 1 auto; max-width: 51.5rem; }
+
+	.side-menu { position: sticky; top: 3.25rem; margin-top: -.5rem; margin-left: -.5rem; }
+	.side-menu > a { display: block; line-height: 1.5rem; padding: .5rem; }
+}
+@media (min-width: 75rem) {
+	.heading { font-size: 3.25rem; }
+}
+
+/* -- Text -- */
+.text p, .text .code, .text .hide, .text .blockquote, .text .quote, .text .table-box, .text .feedback-mail { margin-bottom: 1.5rem; }
+@media (min-width: 75rem) {
+	.text { font-size: 1.125rem; }
+	.text p, .text .code, .text .hide, .text .blockquote, .text .quote, .text .table-box, .text .feedback-mail { margin-bottom: 2rem; }
+}
+
+.text p:last-child, .text .code:last-child, .text .hide:last-child, .text .blockquote:last-child, .text .quote:last-child, .text .feedback-mail:last-child { margin-bottom: 0; }
+.text ul { padding-left: 1.5rem; margin-bottom: 2rem; }
+.text ul > li { margin-bottom: .5rem; }
+.text ul > li::before { content: ""; float: left; margin-left: -1.5rem; margin-top: .5em; width: .5rem; height: .5rem; background-color: #FFCB50; border-radius: 50%; }
+
+.text img, .feedback-mail img { max-width: 100%; }
+.feedback-mail img { display: block; }
+
+/* -- FAQ -- */
+ul.faq-group { list-style: none; padding-left: 0 !important; margin-bottom: 0; }
+ul.faq-group > li::before { display: none; }
+ul.faq-group > li { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid #E4F0F2; }
+ul.faq-group .faq-title { font-size: 1.25rem; }
+
+@media (min-width: 62rem) {
+	ul.faq-group > li { margin-top: 2rem; padding-top: 2rem; border-top-width: 2px; }
+	ul.faq-group .faq-title { font-size: 1.5rem; }
+}

@@ -1,0 +1,56 @@
+name: Release Y4APK theme
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read theme version
+        id: theme
+        run: |
+          version=$(grep -m1 '^Version:' theme/y4apk/style.css | sed 's/Version:[[:space:]]*//' | tr -d '\r')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Theme version: $version"
+
+      - name: Check the tag matches style.css
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "${{ steps.theme.outputs.version }}" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Version: ${{ steps.theme.outputs.version }} in style.css" >&2
+            exit 1
+          fi
+
+      - name: Build the theme zip
+        run: |
+          mkdir -p build
+          cp -r theme/y4apk build/y4apk
+          cd build
+          zip -qr "../y4apk-${{ steps.theme.outputs.version }}.zip" y4apk \
+            -x '*.git*' '*/node_modules/*' '*.DS_Store'
+          cd ..
+          unzip -l "y4apk-${{ steps.theme.outputs.version }}.zip" | tail -3
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Y4APK ${{ steps.theme.outputs.version }}
+          generate_release_notes: true
+          files: y4apk-${{ steps.theme.outputs.version }}.zip
+
+      - name: Upload the zip as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: y4apk-${{ steps.theme.outputs.version }}
+          path: y4apk-${{ steps.theme.outputs.version }}.zip
