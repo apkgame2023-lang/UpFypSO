@@ -11,7 +11,7 @@
  *   /.well-known/assetlinks.json  Digital Asset Links for the Android APK, so it
  *                               opens full screen instead of with a URL bar
  *   <head> tags + a small boot script, and the install banner
- *   (assets/js/pwa-install.js).
+ *   (assets/js/y4apk-pwa-install.js).
  *
  * Admin
  *   Y4APK ▸ App — settings, and the steps to turn the site into an APK.
@@ -75,6 +75,8 @@ class Y4APK_PWA {
 			'icon_source'      => 'site_icon',
 			'icon_background'  => '#ffffff',
 			'icon_custom'      => 0,
+			'orientation'      => 'any',
+			'screenshots'      => [],
 			'generated'        => [],
 			'banner'           => 1,
 			'banner_title'     => '',
@@ -351,6 +353,67 @@ class Y4APK_PWA {
 		return get_theme_mod('logo_img', get_template_directory_uri() . '/assets/img/y4apk.svg');
 	}
 
+	/** Android package name from the pasted assetlinks.json, or ''. */
+	public static function apk_package() {
+		$links = json_decode((string) self::get('assetlinks'), true);
+		return isset($links[0]['target']['package_name']) ? (string) $links[0]['target']['package_name'] : '';
+	}
+
+	/**
+	 * Screenshots for the install dialog. Chrome shows its larger, app-store
+	 * style install sheet when there are some: "narrow" (portrait) ones on
+	 * phones, "wide" ones on desktop.
+	 */
+	public static function screenshots() {
+		$out = [];
+		foreach ((array) self::get('screenshots') as $id) {
+			$img = wp_get_attachment_image_src((int) $id, 'full');
+			if (!$img || empty($img[1]) || empty($img[2])) {
+				continue;
+			}
+			$mime = get_post_mime_type((int) $id);
+			$alt = trim((string) get_post_meta((int) $id, '_wp_attachment_image_alt', true));
+			$out[] = [
+				'src'         => $img[0],
+				'sizes'       => $img[1] . 'x' . $img[2],
+				'type'        => $mime ?: 'image/png',
+				'form_factor' => $img[1] > $img[2] ? 'wide' : 'narrow',
+				'label'       => $alt !== '' ? $alt : get_the_title((int) $id),
+			];
+		}
+		return $out;
+	}
+
+	/**
+	 * Problems Chrome would have with the chosen screenshots: it ignores the
+	 * whole set when one is outside 320–3840 px, longer than 2.3× its width,
+	 * or shaped differently from the others of its kind.
+	 *
+	 * @return string[]
+	 */
+	public static function screenshot_problems() {
+		$problems = [];
+		$ratios = [];
+		foreach (self::screenshots() as $shot) {
+			list($w, $h) = array_map('intval', explode('x', $shot['sizes']));
+			if (min($w, $h) < 320 || max($w, $h) > 3840) {
+				$problems[] = sprintf(__('%1$s is %2$s px; each side must be between 320 and 3840.', 'y4apk'), $shot['label'], $shot['sizes']);
+			}
+			if (max($w, $h) / max(1, min($w, $h)) > 2.3) {
+				$problems[] = sprintf(__('%s is too long and thin (at most 2.3 times as long as it is wide).', 'y4apk'), $shot['label']);
+			}
+			$ratios[$shot['form_factor']][] = round($w / $h, 2);
+		}
+		foreach ($ratios as $kind => $list) {
+			if (count(array_unique($list)) > 1) {
+				$problems[] = $kind === 'narrow'
+					? __('The portrait screenshots have different shapes. Take them all on the same phone.', 'y4apk')
+					: __('The landscape screenshots have different shapes. Use the same size for all of them.', 'y4apk');
+			}
+		}
+		return $problems;
+	}
+
 	/* ---------------------------------------------------------------- *
 	 * Endpoints
 	 * ---------------------------------------------------------------- */
@@ -401,6 +464,7 @@ class Y4APK_PWA {
 			'start_url'        => $scope,
 			'scope'            => $scope,
 			'display'          => 'standalone',
+			'orientation'      => self::get('orientation') === 'portrait' ? 'portrait' : 'any',
 			'background_color' => self::get('background_color'),
 			'theme_color'      => self::get('theme_color'),
 			'categories'       => ['games', 'entertainment', 'utilities'],
@@ -427,6 +491,18 @@ class Y4APK_PWA {
 		}
 		if ($shortcuts) {
 			$manifest['shortcuts'] = $shortcuts;
+		}
+
+		$screenshots = self::screenshots();
+		if ($screenshots) {
+			$manifest['screenshots'] = $screenshots;
+		}
+
+		// The APK built from this site, once its assetlinks.json is in: lets the
+		// banner stay quiet for visitors who already installed it.
+		$package = self::apk_package();
+		if ($package) {
+			$manifest['related_applications'] = [['platform' => 'play', 'id' => $package]];
 		}
 
 		return apply_filters('y4apk_pwa_manifest', $manifest);
@@ -567,12 +643,46 @@ class Y4APK_PWA {
 	 * Front end
 	 * ---------------------------------------------------------------- */
 
+	/** Settings for the install banner, or null where it should not appear. */
+	private static function banner_config() {
+		if (!self::get('banner')) {
+			return null;
+		}
+		$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+		if (strpos($uri, '/download/') !== false) {
+			return null; // the countdown pages stay as they are
+		}
+
+		$title = trim((string) self::get('banner_title'));
+		$text  = trim((string) self::get('banner_text'));
+
+		return [
+			'icon'         => self::small_icon(),
+			'title'        => $title !== '' ? $title : sprintf(__('Get the %s app', 'y4apk'), self::short_name()),
+			'text'         => $text !== '' ? $text : __('Faster, full screen, one tap from your home screen.', 'y4apk'),
+			'iosText'      => __('Tap Share, then "Add to Home Screen".', 'y4apk'),
+			'installLabel' => __('Install', 'y4apk'),
+			'apkLabel'     => __('Download', 'y4apk'),
+			'closeLabel'   => __('Close', 'y4apk'),
+			'apkUrl'       => esc_url_raw((string) self::get('apk_url')),
+			'delay'        => 4000,
+		];
+	}
+
+	/**
+	 * The boot script must run as soon as the page parses: it registers the
+	 * service worker and catches the browser's one-off install offer. Speed
+	 * plugins that "delay JavaScript until user interaction" would hold it back
+	 * until a tap — and the robots that check installability (PWABuilder,
+	 * Lighthouse) never tap. Hence every common don't-delay marker, and the
+	 * keyword y4apk-pwa in its id and its body, for plugins that exclude by
+	 * keyword (10Web Booster does).
+	 */
 	public static function head_tags() {
-		$banner = (bool) self::get('banner');
 		$boot = [
 			'sw'     => self::endpoint('sw'),
 			'scope'  => self::scope(),
-			'banner' => $banner,
+			'banner' => self::banner_config(),
 		];
 		?>
 <link rel="manifest" href="<?php echo esc_url(self::endpoint('manifest')); ?>">
@@ -582,9 +692,11 @@ class Y4APK_PWA {
 <meta name="apple-mobile-web-app-title" content="<?php echo esc_attr(self::short_name()); ?>">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="<?php echo esc_url(self::apple_touch_icon()); ?>">
-<script id="y4apk-pwa-boot" data-no-optimize="1" data-no-defer="1" data-cfasync="false" data-pagespeed-no-defer>
+<script id="y4apk-pwa-boot" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+/* y4apk-pwa boot — exclude from JavaScript delay */
 (function () {
-	var c = <?php echo wp_json_encode($boot, JSON_UNESCAPED_SLASHES); ?>;
+	var c = <?php echo wp_json_encode($boot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+	window.Y4APK_PWA = c.banner;
 	if (c.banner) {
 		window.addEventListener('beforeinstallprompt', function (e) {
 			e.preventDefault();
@@ -594,7 +706,7 @@ class Y4APK_PWA {
 	}
 	if (!('serviceWorker' in navigator)) return;
 	function register() { navigator.serviceWorker.register(c.sw, { scope: c.scope }).catch(function () {}); }
-	if (document.readyState === 'complete') register(); else window.addEventListener('load', register);
+	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', register); else register();
 })();
 </script>
 		<?php
@@ -608,30 +720,12 @@ class Y4APK_PWA {
 	}
 
 	public static function enqueue() {
-		if (!self::get('banner')) {
+		if (!self::banner_config()) {
 			return;
 		}
-		$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
-		if (strpos($uri, '/download/') !== false) {
-			return; // the countdown pages stay as they are
-		}
 
-		wp_enqueue_script('y4apk-pwa-install', self::asset('js/pwa-install.js'), [], Y4APK_THEME_VERSION, true);
-
-		$title = trim((string) self::get('banner_title'));
-		$text  = trim((string) self::get('banner_text'));
-
-		wp_localize_script('y4apk-pwa-install', 'Y4APK_PWA', [
-			'icon'         => self::small_icon(),
-			'title'        => $title !== '' ? $title : sprintf(__('Get the %s app', 'y4apk'), self::short_name()),
-			'text'         => $text !== '' ? $text : __('Faster, full screen, one tap from your home screen.', 'y4apk'),
-			'iosText'      => __('Tap Share, then "Add to Home Screen".', 'y4apk'),
-			'installLabel' => __('Install', 'y4apk'),
-			'apkLabel'     => __('Download', 'y4apk'),
-			'closeLabel'   => __('Close', 'y4apk'),
-			'apkUrl'       => esc_url_raw((string) self::get('apk_url')),
-			'delay'        => 4000,
-		]);
+		// "y4apk-pwa" in the file name, so keyword exclusions match it too.
+		wp_enqueue_script('y4apk-pwa-install', self::asset('js/y4apk-pwa-install.js'), [], Y4APK_THEME_VERSION, true);
 
 		// Its own handle: this hook can run before the theme registers "styles",
 		// and inline CSS added to a handle that is not registered yet is dropped.
@@ -672,35 +766,37 @@ class Y4APK_PWA {
 			return;
 		}
 		wp_enqueue_media();
-		wp_add_inline_script('media-editor', self::picker_js());
-	}
+		wp_enqueue_script('y4apk-pwa-admin', self::asset('js/y4apk-pwa-admin.js'), ['jquery', 'media-editor'], Y4APK_THEME_VERSION, true);
+		wp_localize_script('y4apk-pwa-admin', 'Y4APK_PWA_ADMIN', [
+			'iconTitle'        => __('Choose the app icon', 'y4apk'),
+			'useImage'         => __('Use this image', 'y4apk'),
+			'shotsTitle'       => __('Choose up to 8 screenshots', 'y4apk'),
+			'useImages'        => __('Use these screenshots', 'y4apk'),
 
-	/** Media Library picker for the custom icon; picking or uploading also selects "My own icon". */
-	private static function picker_js() {
-		$title = wp_json_encode(__('Choose the app icon', 'y4apk'));
-		$button = wp_json_encode(__('Use this image', 'y4apk'));
-		return <<<JS
-jQuery(function ($) {
-	var frame;
-	$('#pwa-pick-icon').on('click', function (e) {
-		e.preventDefault();
-		if (!frame) {
-			frame = wp.media({ title: $title, button: { text: $button }, library: { type: 'image' }, multiple: false });
-			frame.on('select', function () {
-				var img = frame.state().get('selection').first().toJSON();
-				var thumb = (img.sizes && img.sizes.thumbnail) ? img.sizes.thumbnail.url : img.url;
-				$('#pwa-icon-custom').val(img.id);
-				$('#pwa-custom-preview').attr('src', thumb).show();
-				$('#pwa-src-custom').prop('checked', true);
-			});
-		}
-		frame.open();
-	});
-	$('#pwa-icon-file').on('change', function () {
-		if (this.files.length) { $('#pwa-src-custom').prop('checked', true); }
-	});
-});
-JS;
+			'manifest'         => __('Manifest', 'y4apk'),
+			'manifestOk'       => __('Readable, %d icons.', 'y4apk'),
+			'manifestBad'      => __('Could not be read. Is the app switched on and saved?', 'y4apk'),
+			'worker'           => __('Service worker file', 'y4apk'),
+			'workerOk'         => __('Served correctly as JavaScript.', 'y4apk'),
+			'workerHtml'       => __('Returns a web page instead of the service worker: a cache or CDN is ignoring the ?y4apk_pwa= part of the address. Exclude addresses containing y4apk_pwa from page caching.', 'y4apk'),
+			'workerBad'        => __('Not served correctly (%s).', 'y4apk'),
+			'page'             => __('Startup script on the page visitors get', 'y4apk'),
+			'pageOk'           => __('Present and runs straight away.', 'y4apk'),
+			'pageNoManifest'   => __('The page visitors get has no app tags yet. Clear the 10Web / page cache.', 'y4apk'),
+			'pageNoBoot'       => __('Missing from the page visitors get: probably merged into a bundle by "JavaScript aggregation". Add y4apk-pwa to its excluded files, then clear the cache.', 'y4apk'),
+			'pageDelayed'      => __('Held back by a speed plugin (its type was changed to "%s"). Add y4apk-pwa to the JavaScript delay exclusions, then clear the cache.', 'y4apk'),
+			'pageUnknown'      => __('Could not load the home page to look.', 'y4apk'),
+			'browser'          => __('Service worker starts in this browser', 'y4apk'),
+			'browserWaiting'   => __('Starting…', 'y4apk'),
+			'browserOk'        => __('Installed and running.', 'y4apk'),
+			'browserSlow'      => __('Registered, but did not finish starting within 15 seconds. Run the check again.', 'y4apk'),
+			'browserBad'       => __('The browser refused it: %s', 'y4apk'),
+			'browserNoSupport' => __('This browser has no service worker support; try Chrome.', 'y4apk'),
+			'summaryOk'        => __('All good', 'y4apk'),
+			'summaryOkHint'    => __('Re-test on PWABuilder; it should now find the service worker.', 'y4apk'),
+			'summaryBad'       => __('Something needs fixing', 'y4apk'),
+			'summaryBadHint'   => __('Follow the ✗ above, clear the cache, and run the check again.', 'y4apk'),
+		]);
 	}
 
 	public static function handle_save() {
@@ -760,6 +856,8 @@ JS;
 			'icon_custom'      => $custom,
 			'icon_background'  => sanitize_hex_color(isset($in['icon_background']) ? $in['icon_background'] : '') ?: $old['icon_background'],
 			'generated'        => $old['generated'],
+			'orientation'      => (isset($in['orientation']) && $in['orientation'] === 'portrait') ? 'portrait' : 'any',
+			'screenshots'      => array_values(array_filter(array_map('absint', explode(',', isset($in['screenshots']) ? (string) $in['screenshots'] : '')), 'wp_attachment_is_image')),
 			'banner'           => empty($in['banner']) ? 0 : 1,
 			'banner_title'     => sanitize_text_field(isset($in['banner_title']) ? $in['banner_title'] : ''),
 			'banner_text'      => sanitize_text_field(isset($in['banner_text']) ? $in['banner_text'] : ''),
@@ -835,6 +933,17 @@ JS;
 							: esc_html__('Not set up yet (step 2).', 'y4apk'); ?></td></tr>
 				</tbody>
 			</table>
+
+			<div id="pwa-check" style="max-width:860px;margin:1.5rem 0;padding:1rem 1.25rem;background:#fff;border:1px solid #c3c4c7;border-left:4px solid #2271b1"
+				data-manifest="<?php echo esc_url(self::endpoint('manifest')); ?>"
+				data-sw="<?php echo esc_url(self::endpoint('sw')); ?>"
+				data-home="<?php echo esc_url(home_url('/')); ?>"
+				data-scope="<?php echo esc_attr(self::scope()); ?>">
+				<h2 style="margin-top:0"><?php esc_html_e('Check the app', 'y4apk'); ?></h2>
+				<p><?php esc_html_e('Looks at the site the way a visitor’s browser does — through the cache and any speed plugin — and tests whether the app’s service worker really starts. PWABuilder needs it to find the service worker.', 'y4apk'); ?></p>
+				<p><button type="button" class="button button-primary" id="pwa-check-run"><?php esc_html_e('Run the check', 'y4apk'); ?></button></p>
+				<ul id="pwa-check-results" style="margin:0"></ul>
+			</div>
 
 			<form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
 				<input type="hidden" name="action" value="y4apk_save_pwa">
@@ -914,6 +1023,29 @@ JS;
 					<tr><th scope="row"><label for="pwa-icon-bg"><?php esc_html_e('Icon background', 'y4apk'); ?></label></th>
 						<td><input id="pwa-icon-bg" type="color" name="icon_background" value="<?php echo $field('icon_background'); ?>">
 							<p class="description"><?php esc_html_e('Android crops app icons into a circle or rounded square, and iPhone shows transparent areas as black, so the icon is shrunk to fit and placed on this colour.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><label for="pwa-orientation"><?php esc_html_e('Screen orientation', 'y4apk'); ?></label></th>
+						<td><select id="pwa-orientation" name="orientation">
+								<option value="any" <?php selected($s['orientation'], 'any'); ?>><?php esc_html_e('Turns with the phone', 'y4apk'); ?></option>
+								<option value="portrait" <?php selected($s['orientation'], 'portrait'); ?>><?php esc_html_e('Always portrait', 'y4apk'); ?></option>
+							</select></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Screenshots', 'y4apk'); ?></th>
+						<td>
+							<?php $shots = self::screenshots(); ?>
+							<input type="hidden" id="pwa-screenshots" name="screenshots" value="<?php echo esc_attr(implode(',', array_map('intval', (array) $s['screenshots']))); ?>">
+							<div id="pwa-shots" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.5rem">
+								<?php foreach ((array) $s['screenshots'] as $sid) :
+									$thumb = wp_get_attachment_image_url((int) $sid, 'medium');
+									if ($thumb) : ?>
+									<img src="<?php echo esc_url($thumb); ?>" alt="" style="height:120px;width:auto;border:1px solid #dcdcde;border-radius:6px">
+								<?php endif; endforeach; ?>
+							</div>
+							<button type="button" class="button" id="pwa-pick-shots"><?php esc_html_e('Choose screenshots', 'y4apk'); ?></button>
+							<button type="button" class="button-link" id="pwa-clear-shots" <?php echo $shots ? '' : 'hidden'; ?>><?php esc_html_e('Remove all', 'y4apk'); ?></button>
+							<p class="description"><?php esc_html_e('Android shows these in a larger, app-store style install sheet. Take 2–5 screenshots of the site on the same phone (portrait), upload them to the Media Library and pick them here. Their alt text becomes the caption.', 'y4apk'); ?></p>
+							<?php foreach (self::screenshot_problems() as $problem) : ?>
+								<div class="notice notice-warning inline"><p><?php echo esc_html($problem); ?></p></div>
+							<?php endforeach; ?>
+						</td></tr>
 				</tbody></table>
 
 				<h3><?php esc_html_e('Install banner', 'y4apk'); ?></h3>
@@ -952,7 +1084,7 @@ JS;
 			</form>
 
 			<h2><?php esc_html_e('If you use 10Web Booster', 'y4apk'); ?></h2>
-			<p><?php esc_html_e('Add y4apk-pwa to Website Booster ▸ Settings ▸ JavaScript delay ▸ Excluded JavaScript files, so the install button is ready as soon as the browser offers it. Clear the cache after changing anything here.', 'y4apk'); ?></p>
+			<p><?php esc_html_e('Under Website Booster ▸ Settings, add y4apk-pwa to both exclusion lists: JavaScript delay ▸ Excluded JavaScript files, and JavaScript aggregation ▸ Excluded JavaScript files. Otherwise the app’s startup script waits for the first tap, or is merged into a bundle that loads late, and robots like PWABuilder never see the service worker. Then Clear Cache and run the check above.', 'y4apk'); ?></p>
 		</div>
 		<?php
 	}

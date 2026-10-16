@@ -87,7 +87,7 @@ The Customizer panel is registered on `customize_register` and
 See "The database abuse this theme caused" below; loading it on the front end is
 what took the site down.
 
-## The Y4APK app (2.10.0)
+## The Y4APK app (2.10)
 
 `inc/pwa.php` makes the site installable as an app — an icon on the home screen
 that opens full screen, keeps recently viewed pages for offline use, and updates
@@ -111,14 +111,40 @@ theme version plus a settings revision, so updates roll over cleanly.
 worker that deletes its caches and unregisters itself, so browsers that already
 installed the app are cleaned up on their next visit rather than left holding it.
 
-**Install banner** (`assets/js/pwa-install.js`), a few seconds after the page loads:
-Chrome, Edge and Samsung Internet get a one-tap **Install**; iPhone Safari gets the
-*Share ▸ Add to Home Screen* hint; Android browsers that cannot install apps — the
-TikTok, Facebook and LINE in-app browsers — get **Download** pointing at the APK, if
-one is set. Never shown inside the installed app or on download pages; closing it
-snoozes it for 14 days. A boot script in `<head>` catches the browser's install
-offer before optimisers get to the page — add `y4apk-pwa` to 10Web Booster's
-excluded JavaScript list so it is not delayed.
+**Install banner** (`assets/js/y4apk-pwa-install.js`), a few seconds after the page
+loads: Chrome, Edge and Samsung Internet get a one-tap **Install**; iPhone Safari
+gets the *Share ▸ Add to Home Screen* hint; Android browsers that cannot install
+apps — the TikTok, Facebook and LINE in-app browsers — get **Download** pointing at
+the APK, if one is set. Never shown inside the installed app, on download pages,
+or to visitors who already installed the APK (Chrome reports it through
+`related_applications`); closing it snoozes it for 14 days.
+
+**Startup script and speed plugins.** A small script in `<head>`
+(`#y4apk-pwa-boot`) registers the service worker as soon as the page has parsed —
+not after every ad has loaded — and catches the browser's one-off install offer.
+It must not be delayed, or robots that never tap the page (PWABuilder,
+Lighthouse) never see a service worker. It carries the usual don't-delay markers
+(`nowprocket`, `data-no-optimize`, `data-noptimize`, `data-no-defer`,
+`data-no-delay`, `data-cfasync="false"`) and the keyword `y4apk-pwa` in its id, its
+body and the install script's file name. **10Web Booster** needs `y4apk-pwa` in
+**both** exclusion lists — *JavaScript delay* and *JavaScript aggregation* — then a
+cache clear.
+
+**Check the app.** A button at the top of Y4APK ▸ App fetches the site the way a
+logged-out visitor does — through the page cache and the speed plugin — and
+reports: is the manifest readable; is the worker served as JavaScript (or is a
+cache handing back a web page because it ignores `?y4apk_pwa=`); is the startup
+script on the page visitors get, and untouched (it names the plugin's rewritten
+`type` when it has been delayed, or says it is missing when it has been
+aggregated); and does the worker actually start in this browser.
+
+**Manifest extras.** Screen orientation (turns with the phone, or always
+portrait); up to 8 screenshots picked from the Media Library, which Android shows
+in its larger app-store style install sheet — the admin warns when Chrome would
+ignore them (a side outside 320–3840 px, longer than 2.3:1, or mixed shapes);
+`related_applications` with the APK's package once its `assetlinks.json` is in.
+PWABuilder's IARC age-rating suggestion needs a certificate from the IARC rating
+process, which is not available for an app outside the stores, so it stays unset.
 
 **Icons.** Pick the Site Icon (the default), **your own image** — upload it or choose
 it from the Media Library — or the bundled Y4 icon. From the Site Icon or your own

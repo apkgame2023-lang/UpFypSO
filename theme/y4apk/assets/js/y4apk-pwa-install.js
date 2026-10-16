@@ -10,13 +10,19 @@
  *     browsers of TikTok, Facebook and LINE → link to the APK, if one is set.
  * Already running as an installed app, or dismissed recently → nothing.
  *
- * Config arrives as window.Y4APK_PWA (see inc/pwa.php). No jQuery: it must run
- * on pages where the theme does not load its own scripts.
+ * Visitors who already installed the Android APK are left alone too: once the
+ * APK's assetlinks.json is set, the manifest lists it under related_applications
+ * and Chrome can tell us it is installed.
+ *
+ * Config arrives as window.Y4APK_PWA, set by the boot script in <head> (see
+ * inc/pwa.php). No jQuery: it must run on pages where the theme does not load
+ * its own scripts.
  */
 (function () {
 	'use strict';
 
-	var cfg = window.Y4APK_PWA || {};
+	var cfg = window.Y4APK_PWA;
+	if (!cfg || !cfg.title) return;
 	var STORE_KEY = 'y4apk_install_dismissed';
 	var SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -126,8 +132,21 @@
 		if (banner) banner.remove();
 	});
 
+	function hasInstalledApk() {
+		if (!navigator.getInstalledRelatedApps) return Promise.resolve(false);
+		return navigator.getInstalledRelatedApps()
+			.then(function (apps) { return apps.length > 0; })
+			.catch(function () { return false; });
+	}
+
 	setTimeout(function () {
-		ready = true;
-		decide();
+		hasInstalledApk().then(function (installed) {
+			if (installed) {
+				shown = true; // nothing to offer
+				return;
+			}
+			ready = true;
+			decide();
+		});
 	}, cfg.delay || 4000);
 })();
