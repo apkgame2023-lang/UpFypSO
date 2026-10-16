@@ -87,6 +87,69 @@ The Customizer panel is registered on `customize_register` and
 See "The database abuse this theme caused" below; loading it on the front end is
 what took the site down.
 
+## The Y4APK app (2.10.0)
+
+`inc/pwa.php` makes the site installable as an app — an icon on the home screen
+that opens full screen, keeps recently viewed pages for offline use, and updates
+itself whenever the site does. Settings live under **Y4APK ▸ App**.
+
+| URL | What it is |
+| --- | --- |
+| `/?y4apk_pwa=manifest` | web app manifest (name, colours, icons, shortcuts to the two header categories) |
+| `/?y4apk_pwa=sw` | service worker, served from the root so it covers the whole site |
+| `/?y4apk_pwa=offline` | offline page, listing the pages still available |
+| `/.well-known/assetlinks.json` | Digital Asset Links for the Android APK, once pasted in |
+
+**Service worker** (`assets/js/pwa-sw.js`). Pages are network first, falling back
+to a recent copy and then the offline page; same-origin CSS, JS, fonts and images
+are served from cache and refreshed in the background. It never touches anything
+that is not a GET, any other origin (ads, analytics, CDNs), wp-admin, logins, the
+REST API, AJAX, `/download/` pages or the files themselves. Caches are versioned by
+theme version plus a settings revision, so updates roll over cleanly.
+
+**Off switch.** Unticking *Installable app* still answers `/?y4apk_pwa=sw`, with a
+worker that deletes its caches and unregisters itself, so browsers that already
+installed the app are cleaned up on their next visit rather than left holding it.
+
+**Install banner** (`assets/js/pwa-install.js`), a few seconds after the page loads:
+Chrome, Edge and Samsung Internet get a one-tap **Install**; iPhone Safari gets the
+*Share ▸ Add to Home Screen* hint; Android browsers that cannot install apps — the
+TikTok, Facebook and LINE in-app browsers — get **Download** pointing at the APK, if
+one is set. Never shown inside the installed app or on download pages; closing it
+snoozes it for 14 days. A boot script in `<head>` catches the browser's install
+offer before optimisers get to the page — add `y4apk-pwa` to 10Web Booster's
+excluded JavaScript list so it is not delayed.
+
+**Icons.** Pick the Site Icon (the default), **your own image** — upload it or choose
+it from the Media Library — or the bundled Y4 icon. From the Site Icon or your own
+image the theme makes every size the app needs with PHP GD, once, on an admin
+request: transparent 192/512 icons, *maskable* 192/512 icons for Android (the
+visible artwork scaled into the 80% safe circle on the chosen background colour,
+so launchers that crop to a circle never cut the fox's ears off), and a solid
+180 px icon for iPhone, which shows transparency as black. Files go to
+`wp-content/uploads/y4apk-app/`. If the image cannot be read, the bundled icon is
+used rather than a broken one.
+
+**Cost.** One autoloaded option and a few `<head>` tags per page: the homepage runs
+the same 27 queries with the app on or off. The endpoints answer early on `init`
+and exit — 2 queries for the worker and offline page, 4 for the manifest.
+
+### Turning it into an Android APK
+
+Google Play does not accept apps that distribute modified APKs, so the app is
+offered as an APK file from the site itself.
+
+1. Switch the app on, save, clear the 10Web cache.
+2. Open [pwabuilder.com](https://www.pwabuilder.com/), enter the site address, then
+   *Package for stores ▸ Android ▸ Generate Package*. Package ID e.g.
+   `com.y4apk.app`, signing key *New*.
+3. **Keep the zip safe** — especially `signing.keystore` and `signing-key-info.txt`.
+   Every future update of the app must be signed with that same key.
+4. Paste the zip's `assetlinks.json` into Y4APK ▸ App. Without it the app opens with
+   a browser address bar.
+5. Upload the `.apk` to the Media Library (the theme allows `.apk`) and paste its
+   URL into *APK download URL*.
+
 ## Self-hosted updates
 
 `inc/updater.php` puts theme updates on the normal WordPress **Appearance ▸
@@ -226,6 +289,8 @@ the rebrand.
   when a post had neither an APK nor an OBB download.
 - `template/header.php` and `template/footer.php` warned when a menu location
   had no menu assigned yet.
+- `components/download/download-link.php` warned on the download page of a post
+  with no download links, which stores an empty string rather than an array.
 - `inc/inits.php` set the screenshots metabox row counter only inside the branch
   for posts that already had screenshots, so on every other post the hidden
   template row rendered with an empty id and the row that "Add Screenshot"

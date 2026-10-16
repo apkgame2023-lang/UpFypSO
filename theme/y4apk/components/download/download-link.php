@@ -5,6 +5,7 @@ $download_id = absint($custom_download_id);
 $app_name = get_post_meta( $post->ID, 'wp_title_GP', true );
 $app_name = $app_name ?: get_the_title();
 $download_links = get_post_meta(get_the_ID(), 'repeatable_download_link', true);
+$download_links = is_array($download_links) ? $download_links : []; // a post without download links stores ''
 $download_timer = get_theme_mod('download_timer', 7);
 
 foreach($download_links as $index => $download) : if ($index === $download_id) : ?>

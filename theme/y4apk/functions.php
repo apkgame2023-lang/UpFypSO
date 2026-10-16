@@ -23,6 +23,7 @@ require $theme_dir . '/inc/extractor/googleplay.php';
 require $theme_dir . '/inc/updater.php';
 require $theme_dir . '/inc/migrate.php';
 require $theme_dir . '/inc/logo.php';
+require $theme_dir . '/inc/pwa.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';
 require $theme_dir . '/inc/rest-auth-debug.php';
