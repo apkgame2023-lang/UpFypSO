@@ -18,7 +18,12 @@
  *
  * 2. GitHub releases (define Y4APK_UPDATE_REPO as "owner/repo", or filter
  *    y4apk_update_repo). The newest release is used; a .zip release asset is
- *    preferred over the auto generated source archive.
+ *    preferred over the auto generated source archive. Without either setting,
+ *    the releases of the theme's own repository (DEFAULT_REPO) are used.
+ *
+ * The admin always shows which version is installed (footer, and a notice
+ * right after an install or update), and recommends updating when a newer
+ * release exists.
  *
  * For a private repository define Y4APK_GITHUB_TOKEN in wp-config.php.
  *
@@ -44,6 +49,12 @@ class Y4APK_Updater {
 
 	/** How long a lookup is cached before we ask the update source again. */
 	const CACHE_TTL = 6 * HOUR_IN_SECONDS;
+
+	/** Public repository whose GitHub releases are used when nothing else is set. */
+	const DEFAULT_REPO = 'apkgame2023-lang/UpFypSO';
+
+	/** Last version an admin page ran with, to notice installs and updates. */
+	const SEEN_KEY = 'y4apk_seen_version';
 
 	/** Theme directory name, e.g. "modw" or "y4apk". */
 	private $slug;
@@ -74,6 +85,11 @@ class Y4APK_Updater {
 		add_action('admin_menu', [$this, 'register_page'], 999);
 		add_action('admin_post_y4apk_check_update', [$this, 'handle_force_check']);
 		add_action('upgrader_process_complete', [$this, 'flush_cache'], 10, 0);
+
+		add_action('admin_init', [$this, 'track_version']);
+		add_action('admin_notices', [$this, 'version_notices']);
+		add_action('admin_post_y4apk_dismiss_update', [$this, 'handle_dismiss']);
+		add_filter('update_footer', [$this, 'footer_version'], 20);
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -82,7 +98,7 @@ class Y4APK_Updater {
 
 	/** "owner/repo" for the GitHub release source, or an empty string. */
 	private function get_repo() {
-		$repo = defined('Y4APK_UPDATE_REPO') ? Y4APK_UPDATE_REPO : '';
+		$repo = defined('Y4APK_UPDATE_REPO') ? Y4APK_UPDATE_REPO : self::DEFAULT_REPO;
 		return trim((string) apply_filters('y4apk_update_repo', $repo), " \t/");
 	}
 
@@ -128,7 +144,7 @@ class Y4APK_Updater {
 
 	private function request($url, $accept = 'application/json') {
 		$args = [
-			'timeout'     => 20,
+			'timeout'     => 10,
 			'redirection' => 5,
 			'sslverify'   => true,
 			'headers'     => [
@@ -343,6 +359,118 @@ class Y4APK_Updater {
 	}
 
 	/* ---------------------------------------------------------------- *
+	 * Which version is installed, and is there a newer one?
+	 * ---------------------------------------------------------------- */
+
+	/** The first admin page after an install or update records it for a notice. */
+	public function track_version() {
+		$seen = (string) get_option(self::SEEN_KEY, '');
+		if ($seen === $this->version) {
+			return;
+		}
+		update_option(self::SEEN_KEY, $this->version, true);
+		set_transient('y4apk_version_changed', ['from' => $seen, 'to' => $this->version], DAY_IN_SECONDS);
+		delete_transient(self::CACHE_KEY); // compare against the source afresh
+	}
+
+	/** "Version 6.x | Y4APK 2.x" at the bottom right of every admin page. */
+	public function footer_version($text) {
+		$mine = sprintf(
+			/* translators: %s: theme version */
+			esc_html__('Y4APK %s', 'y4apk'),
+			esc_html($this->version)
+		);
+		return trim((string) $text) !== '' ? $text . ' &nbsp;|&nbsp; ' . $mine : $mine;
+	}
+
+	public function version_notices() {
+		if (!current_user_can('update_themes')) {
+			return;
+		}
+
+		$changed = get_transient('y4apk_version_changed');
+		if (is_array($changed)) {
+			delete_transient('y4apk_version_changed');
+			$text = (!empty($changed['from']) && $changed['from'] !== $changed['to'])
+				? sprintf(__('Y4APK updated from version %1$s to %2$s.', 'y4apk'), $changed['from'], $changed['to'])
+				: sprintf(__('Y4APK version %s is installed.', 'y4apk'), $changed['to']);
+			printf('<div class="notice notice-success is-dismissible"><p><strong>%s</strong></p></div>', esc_html($text));
+		}
+
+		$screen = function_exists('get_current_screen') ? get_current_screen() : null;
+		if ($screen && in_array($screen->id, ['update-core', 'update'], true)) {
+			return; // those screens list the update themselves
+		}
+
+		$info = $this->get_remote_info();
+		if (empty($info['version']) || !version_compare($this->version, $info['version'], '<')) {
+			return;
+		}
+		$this->sync_wp_updates($info);
+		if (get_user_meta(get_current_user_id(), 'y4apk_dismissed_update', true) === $info['version']) {
+			return;
+		}
+
+		$update = $this->update_url();
+		$dismiss = wp_nonce_url(add_query_arg([
+			'action'  => 'y4apk_dismiss_update',
+			'version' => rawurlencode($info['version']),
+		], admin_url('admin-post.php')), 'y4apk-dismiss-update');
+		?>
+		<div class="notice notice-warning y4apk-update-notice">
+			<p><strong><?php printf(
+				/* translators: 1: new version, 2: installed version */
+				esc_html__('Y4APK %1$s is available. This site is on version %2$s — update to get the latest fixes.', 'y4apk'),
+				esc_html($info['version']), esc_html($this->version)); ?></strong></p>
+			<p>
+				<a class="button button-primary" href="<?php echo esc_url($update); ?>"><?php esc_html_e('Update now', 'y4apk'); ?></a>
+				<?php if (!empty($info['url'])) : ?>
+					<a class="button" href="<?php echo esc_url($info['url']); ?>" target="_blank" rel="noopener"><?php esc_html_e('What’s new', 'y4apk'); ?></a>
+				<?php endif; ?>
+				<a href="<?php echo esc_url($dismiss); ?>" style="margin-left:.5rem"><?php esc_html_e('Remind me at the next version', 'y4apk'); ?></a>
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * WordPress keeps its own list of available updates and refreshes it only
+	 * every 12 hours (and "Check again" refreshes WordPress itself, not themes).
+	 * When this theme's source knows of a newer release that list lacks, save the
+	 * list again: inject_update() runs on save and adds it, so Dashboard ▸
+	 * Updates, the Themes screen and the one-click update agree with the notice.
+	 */
+	private function sync_wp_updates($info) {
+		$updates = get_site_transient('update_themes');
+		if (!is_object($updates)) {
+			return; // WordPress has not checked yet; inject_update() runs when it does
+		}
+		$listed = isset($updates->response[$this->slug]['new_version']) ? $updates->response[$this->slug]['new_version'] : '';
+		if ($listed !== $info['version']) {
+			set_site_transient('update_themes', $updates);
+		}
+	}
+
+	/** The same one-click link the Themes screen uses for "Update now". */
+	private function update_url() {
+		return wp_nonce_url(
+			admin_url('update.php?action=upgrade-theme&theme=' . rawurlencode($this->slug)),
+			'upgrade-theme_' . $this->slug
+		);
+	}
+
+	public function handle_dismiss() {
+		if (!current_user_can('update_themes')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
+		}
+		check_admin_referer('y4apk-dismiss-update');
+		$version = isset($_GET['version']) ? sanitize_text_field(wp_unslash($_GET['version'])) : '';
+		update_user_meta(get_current_user_id(), 'y4apk_dismissed_update', $version);
+		wp_safe_redirect(wp_get_referer() ? wp_get_referer() : admin_url());
+		exit;
+	}
+
+	/* ---------------------------------------------------------------- *
 	 * Appearance ▸ Y4APK Updates
 	 * ---------------------------------------------------------------- */
 
@@ -404,7 +532,8 @@ class Y4APK_Updater {
 							<?php if (!empty($info['version'])) : ?>
 								<?php echo esc_html($info['version']); ?>
 								<?php if (version_compare($this->version, $info['version'], '<')) : ?>
-									&nbsp;<a href="<?php echo esc_url(admin_url('themes.php')); ?>" class="button button-primary"><?php esc_html_e('Install update', 'y4apk'); ?></a>
+									<?php $this->sync_wp_updates($info); ?>
+									&nbsp;<a href="<?php echo esc_url($this->update_url()); ?>" class="button button-primary"><?php esc_html_e('Update now', 'y4apk'); ?></a>
 								<?php else : ?>
 									&nbsp;<span class="dashicons dashicons-yes-alt" style="color:#46b450"></span> <?php esc_html_e('You are up to date.', 'y4apk'); ?>
 								<?php endif; ?>

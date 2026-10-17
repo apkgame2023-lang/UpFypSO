@@ -228,8 +228,25 @@ offered as an APK file from the site itself.
 ## Self-hosted updates
 
 `inc/updater.php` puts theme updates on the normal WordPress **Appearance ▸
-Themes** screen, from a source we control. Configure one of the two in
-`wp-config.php`:
+Themes** screen, from a source we control.
+
+**Out of the box (2.14)** it reads the GitHub releases of this repository,
+`apkgame2023-lang/UpFypSO` (public, so no token). Nothing to configure. In the
+admin:
+
+- **Which version is installed:** at the bottom right of every admin page
+  (`Version 6.x | Y4APK 2.14.0`), and in a notice on the first admin page after
+  an install or update ("Y4APK updated from version 2.13.1 to 2.14.0").
+- **A newer release exists:** a notice on every admin page — "Y4APK 2.15.0 is
+  available. This site is on version 2.14.0" — with **Update now** (WordPress's
+  own one-click theme update), *What's new* (the release page) and *Remind me at
+  the next version* (per user, per version).
+- WordPress refreshes its own list of updates only every 12 hours; when the
+  theme sees a newer release that list lacks, it saves the list again so
+  Dashboard ▸ Updates, the Themes screen and the notice always agree.
+- The check is cached for 6 hours (failures too), with a 10-second timeout.
+
+To use another source, configure one of the two in `wp-config.php`:
 
 **GitHub releases**
 
@@ -271,12 +288,24 @@ has a *Check for updates now* button that clears the cache.
 ## Releasing a new version
 
 1. Bump `Version:` in `style.css`.
-2. Commit and tag: `git tag v2.8.25 && git push origin v2.8.25`.
+2. Commit and tag: `git tag v2.15.0 && git push origin v2.15.0`.
 3. `.github/workflows/release-theme.yml` builds `y4apk-<version>.zip` and
-   attaches it to a GitHub release for that tag.
+   attaches it to a GitHub release for that tag (it refuses a tag that does not
+   match `Version:`).
 
-Sites pick the update up within 6 hours, or immediately via *Check for updates
-now*.
+Sites pick the update up within 6 hours, or immediately via Appearance ▸ Y4APK
+Updates ▸ *Check for updates now*.
+
+### If an update leaves the theme "broken"
+
+"Template is missing … index.php" on the Themes screen means the theme folder
+was only partly written — the upload or update was cut off (a timeout, a 520
+from Cloudflare, a full disk). WordPress may still hold the previous copy in
+`wp-content/upgrade-temp-backup/themes/y4apk`. To repair, in the host's file
+manager: rename `wp-content/themes/y4apk` to `y4apk-broken`, upload the release
+zip to `wp-content/themes/`, extract it (it creates `y4apk/`), check the site,
+then delete `y4apk-broken` and the zip. Keep the folder name `y4apk`: the
+Customizer settings are stored under it.
 
 ## The database abuse this theme caused
 
