@@ -86,6 +86,8 @@ class Y4APK_PWA {
 			'owner_title'      => '',
 			'owner_text'       => '',
 			'apk_url'          => '',
+			'apk_version'      => '',
+			'apk_update'       => 1,
 			'assetlinks'       => '',
 			'rev'              => 1,
 		];
@@ -652,9 +654,23 @@ class Y4APK_PWA {
 	 * Front end
 	 * ---------------------------------------------------------------- */
 
-	/** Settings for the install banner, or null where it should not appear. */
+	/** The APK address with its version, so caches (Cloudflare caches .apk) never hand out the old file. */
+	public static function apk_href() {
+		$url = esc_url_raw((string) self::get('apk_url'));
+		$version = (string) self::get('apk_version');
+		return ($url && $version) ? add_query_arg('v', rawurlencode($version), $url) : $url;
+	}
+
+	/**
+	 * Settings for the banner script, or null where it should not run: the
+	 * install banners (setting "banner") and the "update the APK" prompt
+	 * (setting "apk_update", once the APK's link and version are in).
+	 */
 	private static function banner_config() {
-		if (!self::get('banner')) {
+		$install = (bool) self::get('banner');
+		$version = (string) self::get('apk_version');
+		$update  = self::get('apk_update') && $version !== '' && self::get('apk_url');
+		if (!$install && !$update) {
 			return null;
 		}
 		$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
@@ -673,9 +689,17 @@ class Y4APK_PWA {
 			'text'         => $text !== '' ? $text : __('Faster, full screen, one tap from your home screen.', 'y4apk'),
 			'iosText'      => __('Tap Share, then "Add to Home Screen".', 'y4apk'),
 			'installLabel' => __('Install', 'y4apk'),
-			'apkLabel'     => __('Download', 'y4apk'),
+			'apkLabel'     => $version !== '' ? sprintf(__('Download v%s', 'y4apk'), $version) : __('Download', 'y4apk'),
 			'closeLabel'   => __('Close', 'y4apk'),
-			'apkUrl'       => esc_url_raw((string) self::get('apk_url')),
+			'apkUrl'       => self::apk_href(),
+			'install'      => $install,
+			'apkVersion'   => $version,
+			'apkUpdate'    => (bool) $update,
+			/* translators: 1: app name, 2: new version */
+			'updateTitle'  => sprintf(__('%1$s app %2$s is out', 'y4apk'), self::short_name(), $version),
+			/* translators: %s: installed version, filled in on the phone */
+			'updateText'   => __('You have version %s. Update to get the latest fixes; the update installs over the app.', 'y4apk'),
+			'updateLabel'  => __('Update', 'y4apk'),
 			'package'      => self::apk_package(),
 			'owners'       => (bool) self::get('banner_open'),
 			'ownerTitle'   => $owner_title !== '' ? $owner_title : sprintf(__('You have the %s app', 'y4apk'), self::short_name()),
@@ -721,6 +745,15 @@ class Y4APK_PWA {
 	var inApp = navigator.standalone === true || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 	try {
 		if (c.pkg && document.referrer.indexOf('android-app://' + c.pkg) === 0) sessionStorage.setItem('y4apk_in_app', '1');
+		// The APK's Start URL is /?y4apk_app=<its version> (set in PWABuilder):
+		// remember it for the visit, and tidy the address.
+		var v = /[?&]y4apk_app=([0-9][0-9.]{0,30})(?:&|$)/.exec(location.search);
+		if (v) {
+			sessionStorage.setItem('y4apk_in_app', '1');
+			sessionStorage.setItem('y4apk_app_version', v[1]);
+			var rest = location.search.replace(/([?&])y4apk_app=[^&]*&?/, '$1').replace(/[?&]$/, '');
+			history.replaceState(history.state, '', location.pathname + rest + location.hash);
+		}
 		inApp = inApp || sessionStorage.getItem('y4apk_in_app') === '1';
 	} catch (e) {}
 	window.__y4apkInApp = inApp;
@@ -776,7 +809,7 @@ class Y4APK_PWA {
 			. 'font-size:.875rem;color:#fff!important;background:' . $theme . ';cursor:pointer;text-decoration:none}'
 			. '.y4apk-install__close{flex:none;border:0;background:none;font-size:1.5rem;line-height:1;'
 			. 'color:#8a9a9b;cursor:pointer;padding:.25rem}'
-			. '@media (display-mode:standalone){.y4apk-install{display:none}}';
+			. '@media (display-mode:standalone){.y4apk-install:not([data-mode=update]){display:none}}';
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -847,6 +880,13 @@ class Y4APK_PWA {
 			}
 		}
 
+		// The APK's version, as set in PWABuilder ("Version", e.g. 1.0.0.0).
+		$apk_version = isset($in['apk_version']) ? trim((string) $in['apk_version']) : '';
+		if ($apk_version !== '' && !preg_match('/^\d{1,6}(\.\d{1,6}){0,3}$/', $apk_version)) {
+			$error = $error ?: 'apk-version';
+			$apk_version = (string) $old['apk_version'];
+		}
+
 		// Custom icon: a file uploaded right here wins over one picked from the Media Library.
 		$source = isset($in['icon_source']) && in_array($in['icon_source'], ['site_icon', 'custom', 'bundled'], true)
 			? $in['icon_source'] : 'site_icon';
@@ -893,6 +933,8 @@ class Y4APK_PWA {
 			'banner_title'     => sanitize_text_field(isset($in['banner_title']) ? $in['banner_title'] : ''),
 			'banner_text'      => sanitize_text_field(isset($in['banner_text']) ? $in['banner_text'] : ''),
 			'apk_url'          => esc_url_raw(isset($in['apk_url']) ? trim($in['apk_url']) : ''),
+			'apk_version'      => $apk_version,
+			'apk_update'       => empty($in['apk_update']) ? 0 : 1,
 			'assetlinks'       => $assetlinks,
 			'rev'              => (int) $old['rev'] + 1,
 		];
@@ -938,6 +980,7 @@ class Y4APK_PWA {
 				'icon-unreadable' => __('The server could not read that image to make the app icons. Try a PNG.', 'y4apk'),
 				'icon-no-gd'      => __('The server has no image library (PHP GD), so app icons cannot be made from an image. The bundled icon is used instead.', 'y4apk'),
 				'icon-not-writable' => __('The uploads folder is not writable, so the app icons could not be saved.', 'y4apk'),
+				'apk-version'     => __('The APK version should look like 1.0.0.0 — the Version you set in PWABuilder. The previous value was kept.', 'y4apk'),
 			];
 			$err = isset($_GET['error']) ? sanitize_key($_GET['error']) : '';
 			if ($err && isset($errors[$err])) : ?>
@@ -962,6 +1005,10 @@ class Y4APK_PWA {
 						<td><?php echo $package
 							? '✓ <code>' . esc_html($package) . '</code> — <a href="' . esc_url(home_url('/.well-known/assetlinks.json')) . '" target="_blank">assetlinks.json</a>'
 							: esc_html__('Not set up yet (step 2).', 'y4apk'); ?></td></tr>
+					<tr><td><strong><?php esc_html_e('APK version offered', 'y4apk'); ?></strong></td>
+						<td><?php echo ($s['apk_version'] && $s['apk_url'])
+							? esc_html($s['apk_version']) . ($s['apk_update'] ? ' — ' . esc_html__('people with an older APK are asked to update', 'y4apk') : '')
+							: esc_html__('Not set yet (step 2).', 'y4apk'); ?></td></tr>
 				</tbody>
 			</table>
 
@@ -1117,17 +1164,27 @@ class Y4APK_PWA {
 						/* translators: %s: link to PWABuilder */
 						esc_html__('Save these settings with the app switched on, clear the cache, then open %s and enter your site address.', 'y4apk'),
 						'<a href="https://www.pwabuilder.com/" target="_blank" rel="noopener">pwabuilder.com</a>'); ?></li>
-					<li><?php esc_html_e('Choose Package for stores ▸ Android, then the Other Android tab (made for APKs handed out directly; Google Play does not take this kind of site). Package ID: com.y4apk.app — it can never change once people have installed the app. Then Download Package.', 'y4apk'); ?></li>
+					<li><?php esc_html_e('Choose Package for stores ▸ Android, then the Other Android tab (made for APKs handed out directly; Google Play does not take this kind of site). Package ID: com.y4apk.app — it can never change once people have installed the app.', 'y4apk'); ?></li>
+					<li><?php esc_html_e('Under All Settings: Version 1.0.0.0, Version code 1, Start URL /?y4apk_app=1.0.0.0 (the same number as Version, so the app can tell this site which version it is), Signing key: New. Then Download Package.', 'y4apk'); ?></li>
 					<li><strong><?php esc_html_e('Keep the downloaded zip safe, especially signing.keystore and signing-key-info.txt — every future update of the app must be signed with the same key. Lose it and the installed app can never be updated; leak it and others can publish updates in your name.', 'y4apk'); ?></strong></li>
 					<li><?php esc_html_e('Open assetlinks.json from the zip and paste all of it below. Without it the app opens with a browser address bar.', 'y4apk'); ?></li>
-					<li><?php esc_html_e('Upload the .apk from the zip to the Media Library and paste its URL below. Visitors on Android browsers that cannot install apps (TikTok, Facebook and LINE in-app browsers) then get a Download button instead.', 'y4apk'); ?></li>
+					<li><?php esc_html_e('Upload the .apk from the zip to the Media Library, paste its URL below and enter its Version. Visitors on Android browsers that cannot install apps (TikTok, Facebook and LINE in-app browsers) then get a Download button showing that version.', 'y4apk'); ?></li>
 				</ol>
+				<p style="max-width:860px"><strong><?php esc_html_e('Releasing a new version of the APK:', 'y4apk'); ?></strong>
+					<?php esc_html_e('build it in PWABuilder again with the same Package ID, a higher Version and Version code (1.0.1.0 and 2, …), Start URL /?y4apk_app= followed by the new Version, and Signing key: Use mine with the signing.keystore and passwords from the first build — with any other key, phones refuse to install it over the old app. Upload the new .apk, put its URL and Version below, Save and clear the cache. People still on an older version are then asked to update, in the app and in Chrome.', 'y4apk'); ?></p>
 				<table class="form-table" role="presentation"><tbody>
 					<tr><th scope="row"><label for="pwa-links">assetlinks.json</label></th>
 						<td><textarea id="pwa-links" name="assetlinks" rows="8" class="large-text code" placeholder='[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"com.y4apk.app","sha256_cert_fingerprints":["…"]}}]'><?php echo esc_textarea($s['assetlinks']); ?></textarea>
 							<p class="description"><?php printf(esc_html__('Served at %s', 'y4apk'), '<code>' . esc_html(home_url('/.well-known/assetlinks.json')) . '</code>'); ?></p></td></tr>
 					<tr><th scope="row"><label for="pwa-apk"><?php esc_html_e('APK download URL', 'y4apk'); ?></label></th>
 						<td><input id="pwa-apk" type="url" class="large-text code" name="apk_url" value="<?php echo $field('apk_url'); ?>" placeholder="<?php echo esc_attr(home_url('/wp-content/uploads/y4apk-app.apk')); ?>"></td></tr>
+					<tr><th scope="row"><label for="pwa-apkv"><?php esc_html_e('APK version', 'y4apk'); ?></label></th>
+						<td><input id="pwa-apkv" class="regular-text code" name="apk_version" value="<?php echo $field('apk_version'); ?>" placeholder="1.0.0.0" inputmode="decimal">
+							<p class="description"><?php esc_html_e('The Version set in PWABuilder for the APK at the link above. Shown on the Download button, and added to the download link so caches never hand out the old file.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Older APKs', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="apk_update" value="1" <?php checked($s['apk_update']); ?>>
+							<?php esc_html_e('Ask people with an older version of the APK to update', 'y4apk'); ?></label>
+							<p class="description"><?php esc_html_e('Inside the app (it knows its version from its Start URL), and in Chrome on Android (which reports the installed version once assetlinks.json is saved). An Update button downloads the new APK; it installs over the old one. Shown on the same schedule as the install banner.', 'y4apk'); ?></p></td></tr>
 				</tbody></table>
 
 				<?php submit_button(__('Save', 'y4apk')); ?>

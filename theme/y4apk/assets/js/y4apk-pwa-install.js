@@ -19,6 +19,11 @@
  * related_applications, and stops reporting an app once it is uninstalled, so
  * the install banner comes back by itself.
  *
+ * People with an older APK than the one the site offers (cfg.apkVersion) are
+ * asked to update — the one banner shown inside the app too. The app knows its
+ * own version from its Start URL (/?y4apk_app=<version>, remembered by the boot
+ * script); in Chrome, getInstalledRelatedApps() reports the installed version.
+ *
  * Closing the banner hides it for cfg.again minutes, on every page. After that it
  * returns on the next page, or on this one if the visitor is still reading it.
  *
@@ -50,7 +55,8 @@
 		return !!window.__y4apkInApp ||
 			!!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 	}
-	if (inApp()) return;
+	var IN_APP = inApp();
+	if (IN_APP && !cfg.apkUpdate) return;
 
 	var ua = window.navigator.userAgent || '';
 	var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -62,6 +68,7 @@
 	var started = false;    // the first delay is over
 	var closedHere = false; // closed on this page (matters when cfg.again is 0)
 	var timer = 0;
+	var updateFrom = ''; // installed APK version, for the update banner
 
 	function el(tag, cls, text) {
 		var node = document.createElement(tag);
@@ -121,12 +128,25 @@
 			';S.browser_fallback_url=' + encodeURIComponent(l.href) + ';end';
 	}
 
+	/** Is dotted version a older than b? ("1.0.0.0" < "1.0.1") */
+	function older(a, b) {
+		var x = String(a).split('.'), y = String(b).split('.');
+		for (var i = 0; i < Math.max(x.length, y.length); i++) {
+			var p = parseInt(x[i] || '0', 10) || 0, q = parseInt(y[i] || '0', 10) || 0;
+			if (p !== q) return p < q;
+		}
+		return false;
+	}
+
 	function show(mode) {
 		if (banner) return;
 
 		var owner = mode === 'open' || mode === 'home';
-		var title = owner ? cfg.ownerTitle : cfg.title;
-		var text = { ios: cfg.iosText, open: cfg.openText, home: cfg.homeText }[mode] || cfg.text;
+		var title = mode === 'update' ? cfg.updateTitle : owner ? cfg.ownerTitle : cfg.title;
+		var text = {
+			ios: cfg.iosText, open: cfg.openText, home: cfg.homeText,
+			update: String(cfg.updateText || '').replace('%s', updateFrom)
+		}[mode] || cfg.text;
 		banner = el('div', 'y4apk-install');
 		bannerMode = mode;
 		banner.setAttribute('role', 'dialog');
@@ -164,8 +184,9 @@
 				}, close);
 			});
 			banner.appendChild(install);
-		} else if (mode === 'apk' || mode === 'open') {
-			var link = el('a', 'y4apk-install__cta', mode === 'open' ? cfg.openLabel : cfg.apkLabel);
+		} else if (mode === 'apk' || mode === 'open' || mode === 'update') {
+			var label = { apk: cfg.apkLabel, open: cfg.openLabel, update: cfg.updateLabel }[mode];
+			var link = el('a', 'y4apk-install__cta', label);
 			link.href = mode === 'open' ? appLink() : cfg.apkUrl;
 			link.rel = 'nofollow';
 			link.addEventListener('click', mode === 'open' ? close : installing);
@@ -183,9 +204,23 @@
 	}
 
 	function pick(apps) {
-		var hasApk = apps.some(function (app) {
-			return app.platform === 'play' && (!cfg.package || app.id === cfg.package);
+		var apk = null;
+		apps.forEach(function (app) {
+			if (!apk && app.platform === 'play' && (!cfg.package || app.id === cfg.package)) apk = app;
 		});
+		var hasApk = !!apk;
+
+		// An older APK than the one on offer: in the app (its Start URL told us
+		// its version) or in Chrome (which reports the installed version).
+		var running = '';
+		try { running = IN_APP ? (window.sessionStorage.getItem('y4apk_app_version') || '') : ''; } catch (e) {}
+		var have = running || (apk && apk.version) || '';
+		if (cfg.apkUpdate && have && (IN_APP || hasApk) && older(have, cfg.apkVersion)) {
+			updateFrom = have;
+			return 'update';
+		}
+		if (IN_APP || !cfg.install) return '';
+
 		var hasWebApp = apps.some(function (app) { return app.platform === 'webapp'; });
 		if (hasApk || hasWebApp) {
 			if (!cfg.owners || !isAndroid) return '';
@@ -199,7 +234,7 @@
 
 	function check() {
 		clearTimeout(timer);
-		if (banner || inApp() || (closedHere && !AGAIN_MS)) return;
+		if (banner || (closedHere && !AGAIN_MS)) return;
 		var wait = waitLeft();
 		if (wait > 0) return later(wait);
 		installedApps().then(function (apps) {

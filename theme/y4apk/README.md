@@ -206,6 +206,23 @@ used rather than a broken one.
 the same 27 queries with the app on or off. The endpoints answer early on `init`
 and exit — 2 queries for the worker and offline page, 4 for the manifest.
 
+**APK versions (2.15).** Y4APK ▸ App ▸ *APK version* holds the Version of the
+APK at the download link (as set in PWABuilder, e.g. `1.0.0.0`).
+
+- The Download button says which version it gets: **Download v1.0.0.0**. The
+  link carries `?v=<version>`, so a cache (Cloudflare caches `.apk`) never hands
+  out the previous file after the APK is replaced.
+- **People with an older APK are asked to update** (switch: *Older APKs*), on
+  the install banner's schedule: "Y4APK app 1.0.1.0 is out — You have version
+  1.0.0.0" with **Update**, which downloads the new APK; it installs over the
+  old one. It is the one banner shown inside the app.
+- How the version is known: inside the app, from its Start URL — build the APK
+  with Start URL `/?y4apk_app=<Version>`; the boot script remembers it for the
+  visit and tidies the address. In Chrome on Android, and inside an APK built
+  without that Start URL, from `getInstalledRelatedApps()`, which reports the
+  installed version once `assetlinks.json` is saved. No version known → no
+  prompt, never a guess. Versions compare as numbers (`1.0.10` > `1.0.9`).
+
 ### Turning it into an Android APK
 
 Google Play does not accept apps that distribute modified APKs, so the app is
@@ -215,7 +232,8 @@ offered as an APK file from the site itself.
 2. Open [pwabuilder.com](https://www.pwabuilder.com/), enter the site address, then
    *Package for stores ▸ Android*, tab **Other Android** (for APKs handed out
    directly). Package ID `com.y4apk.app` — it can never change once people have
-   installed the app. *Download Package*.
+   installed the app. Under *All Settings*: Version `1.0.0.0`, Version code `1`,
+   Start URL `/?y4apk_app=1.0.0.0`, Signing key *New*. *Download Package*.
 3. **Keep the zip safe** — especially `signing.keystore` and `signing-key-info.txt`.
    Every future update of the app must be signed with that same key; lose it and
    the installed app can never be updated, leak it and others can sign updates in
