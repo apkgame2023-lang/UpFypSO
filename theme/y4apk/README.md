@@ -256,9 +256,11 @@ define( 'Y4APK_UPDATE_REPO', 'your-github-user/your-repo' );
 define( 'Y4APK_GITHUB_TOKEN', 'ghp_xxxxxxxxxxxx' );
 ```
 
-The newest release is used. A `.zip` asset attached to the release is preferred
-over GitHub's auto-generated source archive; either works, because the updater
-renames the unpacked folder to the installed theme folder before installing.
+The newest release is used, through the theme `.zip` attached to it
+(`y4apk-<version>.zip`); the updater renames the unpacked folder to the installed
+theme folder if they differ. A release without that zip is ignored: GitHub's
+auto-generated source archive of this repository holds the whole repository, with
+the theme in `theme/y4apk`, and would install as a broken theme.
 
 **A JSON file you host**
 

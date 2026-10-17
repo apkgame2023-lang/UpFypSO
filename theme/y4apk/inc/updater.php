@@ -17,8 +17,8 @@
  *      }
  *
  * 2. GitHub releases (define Y4APK_UPDATE_REPO as "owner/repo", or filter
- *    y4apk_update_repo). The newest release is used; a .zip release asset is
- *    preferred over the auto generated source archive. Without either setting,
+ *    y4apk_update_repo). The newest release is used, through the .zip theme
+ *    package attached to it (a release without one is ignored). Without either setting,
  *    the releases of the theme's own repository (DEFAULT_REPO) are used.
  *
  * The admin always shows which version is installed (footer, and a notice
@@ -209,19 +209,21 @@ class Y4APK_Updater {
 			return null;
 		}
 
-		// Prefer a packaged theme zip attached to the release; the GitHub source
-		// archive has a versioned root folder that we rename on install instead.
+		// Only the packaged theme zip attached to the release (y4apk-<version>.zip,
+		// built by .github/workflows/release-theme.yml). GitHub's source archive
+		// is not used: in this repository the theme sits in theme/y4apk, so that
+		// archive would install as a theme with no index.php — "Template is
+		// missing" — so a release without the zip is no update at all.
 		$package = '';
 		if (!empty($data['assets']) && is_array($data['assets'])) {
 			foreach ($data['assets'] as $asset) {
-				if (!empty($asset['browser_download_url']) && substr($asset['name'], -4) === '.zip') {
+				if (!empty($asset['browser_download_url']) && preg_match('/\.zip$/i', (string) $asset['name'])) {
 					$package = $asset['browser_download_url'];
-					break;
+					if (stripos((string) $asset['name'], 'y4apk') === 0) {
+						break; // the theme zip itself, over any other zip
+					}
 				}
 			}
-		}
-		if (!$package && !empty($data['zipball_url'])) {
-			$package = $data['zipball_url'];
 		}
 		if (!$package) {
 			return null;
