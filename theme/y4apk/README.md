@@ -117,6 +117,42 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
+## App analytics (2.16)
+
+**Y4APK ▸ Analytics** — for the last 7, 30 or 90 days:
+
+| Tile / table | Counted when |
+| --- | --- |
+| Web app installs | the browser reports the install (`appinstalled`); "accepted the install prompt" alongside |
+| APK downloads | Download or Update tapped on the banner |
+| App users per day | a device opens the app that day (APK or web app), averaged over the days counted |
+| New app users | a device opens the app for the first time (APK / web app split) |
+| File downloads | the Download button on a `/download/N/` page — with a *Most downloaded* table per post |
+| Direct Link ads opened | the Direct Link ad opens (either mode) |
+| Install banner | per banner kind: seen (once per visit), button tapped, closed, tap rate |
+| Inside the app | visits in the APK vs the web app, and APK versions in use with their share |
+
+Plus a daily column chart each for new app users, app users and file downloads.
+
+**How it is collected, cheaply.** The boot script queues events and sends them in
+one `sendBeacon` per page, only when there is something to count (taps that
+lead straight to another page are sent at once). They go to `stats.php` in the
+theme folder, which loads WordPress with `SHORTINIT` — no plugins, no theme —
+reads the timezone and runs one `INSERT … ON DUPLICATE KEY UPDATE` into
+`{prefix}y4apk_stats` (a row per day × event × detail). It accepts only the events
+in `inc/stats-events.php`, only from pages of the same site, at most 20 keys and
+10 per key per request. Nothing personal is stored: no IP, cookie or user ID.
+Rows older than 400 days are pruned daily. "Seen", "per day" and "new" are kept
+honest on the device (sessionStorage / localStorage flags), not by tracking people.
+
+**Google Analytics.** When the site has gtag (Site Kit), the same events also go
+there as `y4apk_<event>` with the detail in `y4apk_detail` — countries, devices,
+traffic sources. Both switches are on the Analytics page.
+
+**No install banner on computers** (2.16): the browser's install offer is used
+only on phones and tablets. Desktop Chrome still shows its own install icon in
+the address bar.
+
 ## The Y4APK app (2.10; install banner rules 2.11–2.12)
 
 `inc/pwa.php` makes the site installable as an app — an icon on the home screen

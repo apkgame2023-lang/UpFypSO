@@ -70,6 +70,10 @@
 	var timer = 0;
 	var updateFrom = ''; // installed APK version, for the update banner
 
+	function track(event, detail, once) {
+		if (window.y4apkTrack) window.y4apkTrack(event, detail, once);
+	}
+
 	function el(tag, cls, text) {
 		var node = document.createElement(tag);
 		if (cls) node.className = cls;
@@ -166,7 +170,10 @@
 		var x = el('button', 'y4apk-install__close', '×');
 		x.type = 'button';
 		x.setAttribute('aria-label', cfg.closeLabel || 'Close');
-		x.addEventListener('click', close);
+		x.addEventListener('click', function () {
+			track('banner_close', mode);
+			close();
+		});
 
 		banner.appendChild(icon);
 		banner.appendChild(body);
@@ -177,10 +184,16 @@
 			install.addEventListener('click', function () {
 				var prompt = window.__y4apkInstallPrompt;
 				window.__y4apkInstallPrompt = null; // each offer can be used once
+				track('banner_tap', 'prompt');
 				if (!prompt) return close();
 				prompt.prompt();
 				prompt.userChoice.then(function (choice) {
-					if (choice && choice.outcome === 'accepted') installing(); else close();
+					if (choice && choice.outcome === 'accepted') {
+						track('pwa_accepted');
+						installing();
+					} else {
+						close();
+					}
 				}, close);
 			});
 			banner.appendChild(install);
@@ -189,12 +202,16 @@
 			var link = el('a', 'y4apk-install__cta', label);
 			link.href = mode === 'open' ? appLink() : cfg.apkUrl;
 			link.rel = 'nofollow';
-			link.addEventListener('click', mode === 'open' ? close : installing);
+			link.addEventListener('click', function () {
+				track('banner_tap', mode);
+				if (mode === 'open') close(); else installing();
+			});
 			banner.appendChild(link);
 		}
 
 		banner.appendChild(x);
 		document.body.appendChild(banner);
+		track('banner_seen', mode, true);
 		requestAnimationFrame(function () { banner && banner.classList.add('y4apk-install--in'); });
 	}
 
@@ -226,7 +243,7 @@
 			if (!cfg.owners || !isAndroid) return '';
 			return hasApk && cfg.package ? 'open' : 'home';
 		}
-		if (window.__y4apkInstallPrompt) return 'prompt';
+		if (window.__y4apkInstallPrompt && (isAndroid || isIOS)) return 'prompt'; // not on computers
 		if (isIOSSafari) return 'ios';
 		if (isAndroid && cfg.apkUrl) return 'apk';
 		return '';
@@ -254,7 +271,10 @@
 		}
 		check();
 	});
-	window.addEventListener('appinstalled', installing);
+	window.addEventListener('appinstalled', function () {
+		track('pwa_installed');
+		installing();
+	});
 
 	// Let the visitor see the page first.
 	setTimeout(function () {

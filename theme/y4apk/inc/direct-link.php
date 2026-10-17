@@ -131,6 +131,7 @@ class Y4APK_Direct_Link {
 		if (!a || a.host !== location.host || !/\/download\/\d+\/?$/.test(a.pathname)) return;
 		if (<?php echo self::in_app_js(); ?> || !due()) return; // never inside the installed app
 		done();
+		if (window.y4apkTrack) window.y4apkTrack('direct_link', 'download');
 		window.open(url, '_blank', 'noopener');
 	});
 })();
@@ -241,6 +242,7 @@ class Y4APK_Direct_Link {
   let c=0;
   a.onclick=()=>{
     if(c)return;c=1;
+    if(window.y4apkTrack) window.y4apkTrack("direct_link","unlock");
     window.open(<?php echo wp_json_encode($url, JSON_UNESCAPED_SLASHES); ?>,"_blank");
     p.style.width="100%";
     let i=3;

@@ -726,6 +726,12 @@ class Y4APK_PWA {
 			'scope'  => self::scope(),
 			'pkg'    => self::apk_package(),
 			'banner' => self::banner_config(),
+			// App analytics (inc/stats.php): where to send counts, and whether
+			// to hand them to Google Analytics too.
+			'stats'  => (class_exists('Y4APK_Stats') && Y4APK_Stats::enabled()) ? Y4APK_Stats::endpoint() : '',
+			'ga'     => class_exists('Y4APK_Stats') && Y4APK_Stats::send_to_ga(),
+			// On a download page: which post, to count its Download button.
+			'post'   => (is_singular() && get_query_var('download', null) !== null) ? get_queried_object_id() : 0,
 		];
 		?>
 <link rel="manifest" href="<?php echo esc_url(self::endpoint('manifest')); ?>">
@@ -744,12 +750,16 @@ class Y4APK_PWA {
 	// referrer, remembered for the rest of the visit.
 	var inApp = navigator.standalone === true || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 	try {
-		if (c.pkg && document.referrer.indexOf('android-app://' + c.pkg) === 0) sessionStorage.setItem('y4apk_in_app', '1');
+		if (c.pkg && document.referrer.indexOf('android-app://' + c.pkg) === 0) {
+			sessionStorage.setItem('y4apk_in_app', '1');
+			sessionStorage.setItem('y4apk_apk', '1');
+		}
 		// The APK's Start URL is /?y4apk_app=<its version> (set in PWABuilder):
 		// remember it for the visit, and tidy the address.
 		var v = /[?&]y4apk_app=([0-9][0-9.]{0,30})(?:&|$)/.exec(location.search);
 		if (v) {
 			sessionStorage.setItem('y4apk_in_app', '1');
+			sessionStorage.setItem('y4apk_apk', '1');
 			sessionStorage.setItem('y4apk_app_version', v[1]);
 			var rest = location.search.replace(/([?&])y4apk_app=[^&]*&?/, '$1').replace(/[?&]$/, '');
 			history.replaceState(history.state, '', location.pathname + rest + location.hash);
@@ -757,6 +767,55 @@ class Y4APK_PWA {
 		inApp = inApp || sessionStorage.getItem('y4apk_in_app') === '1';
 	} catch (e) {}
 	window.__y4apkInApp = inApp;
+
+	// App analytics: count events, send them in one small beacon per page.
+	var queue = {}, flushTimer = 0;
+	function flush() {
+		clearTimeout(flushTimer);
+		var body = JSON.stringify({ e: queue });
+		if (!c.stats || body === '{"e":{}}') return;
+		queue = {};
+		try {
+			if (!(navigator.sendBeacon && navigator.sendBeacon(c.stats, body))) {
+				fetch(c.stats, { method: 'POST', body: body, keepalive: true, credentials: 'omit' }).catch(function () {});
+			}
+		} catch (e) {}
+	}
+	window.y4apkTrack = function (event, detail, oncePerVisit) {
+		var key = event + (detail ? ':' + detail : '');
+		if (oncePerVisit) {
+			try {
+				if (sessionStorage.getItem('y4apk_t_' + key)) return;
+				sessionStorage.setItem('y4apk_t_' + key, '1');
+			} catch (e) {}
+		}
+		queue[key] = (queue[key] || 0) + 1;
+		if (c.ga && typeof window.gtag === 'function') window.gtag('event', 'y4apk_' + event, { y4apk_detail: detail || '' });
+		// Taps that lead straight to another page or tab go out now, while the
+		// page is still here; everything else waits to share one request.
+		if (/^(banner_tap|direct_link|file_download|pwa_accepted)$/.test(event)) return flush();
+		clearTimeout(flushTimer);
+		flushTimer = setTimeout(flush, 3000);
+	};
+	addEventListener('pagehide', flush);
+	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(); });
+
+	if (inApp) {
+		try {
+			// Per visit, per device per day, and the first time on this device.
+			var kind = sessionStorage.getItem('y4apk_apk') === '1' ? 'apk' : 'webapp', today = new Date().toISOString().slice(0, 10);
+			var version = sessionStorage.getItem('y4apk_app_version');
+			y4apkTrack('app_open', kind, true);
+			if (kind === 'apk' && version) y4apkTrack('app_version', version, true);
+			if (localStorage.getItem('y4apk_day_' + kind) !== today) { localStorage.setItem('y4apk_day_' + kind, today); y4apkTrack('app_daily', kind); }
+			if (!localStorage.getItem('y4apk_seen_' + kind)) { localStorage.setItem('y4apk_seen_' + kind, today); y4apkTrack('app_new', kind); }
+		} catch (e) {}
+	}
+	if (c.post) {
+		document.addEventListener('click', function (e) {
+			if (e.target.closest && e.target.closest('#check')) y4apkTrack('file_download', String(c.post));
+		}, true);
+	}
 	if (c.banner) {
 		window.addEventListener('beforeinstallprompt', function (e) {
 			e.preventDefault();
