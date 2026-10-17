@@ -165,10 +165,26 @@ Aptoide for any app ID or Play link — to compare with the Play Store by eye.
 **3. Saving a new file** puts the version, size and link on the post's APK download
 and in App Information (App Version, App Size), changes the version in the title
 and in the **Rank Math** SEO title, description and social titles ("v2.742" →
-"v2.750"; bare numbers are left alone), and marks the post updated. Other
-downloads (OBB, iOS) are left as they are. Nothing on the site changes without it.
-The form starts with the post's current size and link (2.18.2), so only what
-differs for the new file needs typing.
+"v2.750"; bare numbers are left alone), and marks the post updated. Nothing on the
+site changes without it. The form starts with the post's current size and link
+(2.18.2), so only what differs for the new file needs typing.
+
+Posts with several downloads (2.19):
+
+- the version compared is the **newest** APK-type download (APK, APKS, XAPK, APKM,
+  MOD), not the first one, so a post that lists older versions too is compared
+  by its newest;
+- downloads with the **same version** (OBB/ZIP, IPA, another APK build) get their
+  own line in the form with the new version filled in and their current size and
+  link: ticked ones are updated too — OBB and Android files start ticked, an
+  iOS file (IPA/iOS) unticked;
+- older versions are listed as *left as they are*;
+- **Replace** swaps the old files for the new ones; **Add as new** puts each new
+  file just above its old one, which stays as an older version (so it must have
+  the new file's link). Posts that already keep an older APK version start with
+  *Add as new*;
+- the form is refused if the post's downloads were edited after the page was
+  opened.
 
 **Running on time.** WP-Cron runs when an uncached page is opened, which a page
 cache makes rare. A Hostinger cron job every 15 minutes —
