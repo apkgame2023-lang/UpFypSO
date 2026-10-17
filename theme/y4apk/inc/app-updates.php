@@ -818,8 +818,8 @@ class Y4APK_App_Updates {
 								<input type="hidden" name="paged" value="<?php echo esc_attr($paged); ?>">
 								<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
 								<input name="version" value="<?php echo esc_attr($suggest); ?>" style="width:130px" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
-								<input name="size" value="" placeholder="<?php echo esc_attr($link && !empty($link['download_size']) ? sprintf(__('was %s', 'y4apk'), $link['download_size']) : __('Size', 'y4apk')); ?>" style="width:110px" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
-								<input name="url" type="url" required placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" style="flex:1;min-width:180px" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+								<input name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" style="width:110px" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
+								<input name="url" type="url" required value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" style="flex:1;min-width:180px" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
 								<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 							</form>
 						</td>
@@ -830,7 +830,7 @@ class Y4APK_App_Updates {
 			<?php if ($pages > 1) : ?>
 				<p><?php echo paginate_links(['base' => add_query_arg('paged', '%#%'), 'format' => '', 'current' => $paged, 'total' => $pages]); ?></p>
 			<?php endif; ?>
-			<p class="description" style="max-width:900px"><?php esc_html_e('Save puts the new version, size and link on the post’s APK download and in App Information, changes the version in the title and in the Rank Math SEO title, description and social titles (for example v2.742 → v2.750), and marks the post as updated today. Other downloads on the post (OBB, iOS) are left as they are. Size left empty keeps the old size. The link starts empty on purpose: it must be the new file.', 'y4apk'); ?></p>
+			<p class="description" style="max-width:900px"><?php esc_html_e('Save puts the new version, size and link on the post’s APK download and in App Information, changes the version in the title and in the Rank Math SEO title, description and social titles (for example v2.742 → v2.750), and marks the post as updated today. Other downloads on the post (OBB, iOS) are left as they are. The size and link start with what the post has now, so change only what is different for the new file. Size left empty keeps the old size.', 'y4apk'); ?></p>
 
 			<h2 id="y4apk-link"><?php esc_html_e('Suggestions to confirm', 'y4apk'); ?></h2>
 			<p class="description" style="max-width:900px"><?php esc_html_e('Posts whose Google Play search found an app, but not with exactly the same name and publisher — or posts without an App Name. Check the suggestion, then use it, type the right ID, or mark it as not on Google Play. You can also put the ID in the post’s App Information ▸ Google Play ID.', 'y4apk'); ?></p>

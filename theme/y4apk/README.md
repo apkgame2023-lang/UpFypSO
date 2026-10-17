@@ -167,6 +167,8 @@ and in App Information (App Version, App Size), changes the version in the title
 and in the **Rank Math** SEO title, description and social titles ("v2.742" →
 "v2.750"; bare numbers are left alone), and marks the post updated. Other
 downloads (OBB, iOS) are left as they are. Nothing on the site changes without it.
+The form starts with the post's current size and link (2.18.2), so only what
+differs for the new file needs typing.
 
 **Running on time.** WP-Cron runs when an uncached page is opened, which a page
 cache makes rare. A Hostinger cron job every 15 minutes —
