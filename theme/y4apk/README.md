@@ -117,6 +117,36 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
+## App updates: which posts have a newer version out (2.17)
+
+**Y4APK ▸ App updates** lists the posts whose download is older than the app's
+latest version, most downloaded first (last 30 days, from Analytics), with a form
+per post for the new file. The posts list gets a *Latest version* column ("Newer
+than your file" in red / "Up to date" / "Not found" / "No Google Play ID"), a
+*Needs update (N)* link and a *Check version now* row action.
+
+- **Where versions come from:** Aptoide's public app API
+  (`ws2.aptoide.com/api/7/app/getMeta/package_name=<id>`), which follows Google
+  Play and is what the Google Play importer already reads versions from — Google
+  Play's own page often says "Varies with device". Posts are matched by the
+  importer's `wp_GP_ID` meta.
+- **Gently, in the background:** WP-Cron every 15 minutes checks the next 25
+  published posts with a Google Play ID, by post ID, round and round (about 100
+  an hour; 6,000 apps take two to three days a round). A cursor option keeps the
+  place; if the service does not answer, the step stops there and resumes next
+  time. One short HTTP request and two post meta writes per app.
+- **Stored per post:** `_y4apk_latest_version`, `_y4apk_latest_checked`, and
+  `_y4apk_needs_update` while the latest version is newer than the post's APK
+  download (`repeatable_download_link`, first APK-type entry). Versions compare by
+  their numbers ("v2.742.Android" → 2.742). The flag is refreshed whenever the post
+  is saved, block editor included.
+- **Nothing on the site changes by itself.** Saving the form puts the new
+  version, size and link on the post's APK download, changes the version in the
+  title when the old one is plainly in it ("v2.742" → "v2.750"; bare numbers are
+  left alone), and marks the post updated. Other downloads (OBB, iOS) are left
+  as they are. The link field starts empty: it has to be the new file.
+- Switch: *Check versions in the background* on that page.
+
 ## App analytics (2.16)
 
 **Y4APK ▸ Analytics** — for the last 7, 30 or 90 days:
