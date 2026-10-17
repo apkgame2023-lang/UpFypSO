@@ -58,7 +58,7 @@ function app_info_callback($post){
 			<tr>
                 <th scope="row"><label for="avg_rating">Total Rating</label></th>
                 <td>
-					<input type="range" step="1" min="1" max="5" name="avg_rating" value="<?= $rating_data->rating_average; ?>" class="range-input"/>
+					<input type="range" step="0.1" min="1" max="5" name="avg_rating" value="<?= $rating_data->rating_average; ?>" class="range-input"/>
 					<span class="tooltip"><?= $rating_data->rating_average; ?></span>
 				</td>
             </tr>

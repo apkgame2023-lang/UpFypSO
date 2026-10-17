@@ -15,10 +15,12 @@
  *     the app's page), falling back to Aptoide's public data when Play does not
  *     show one.
  *
- * Nothing on the site changes by itself. Posts whose download is older than the
- * latest version are listed, most downloaded first, each with a form for the
- * new file; saving it updates the download, the version in the title and in the
- * Rank Math title and description, and App Version / App Size.
+ * Posts whose download is older than the latest version are listed, most
+ * downloaded first, each with a form for the new file; saving it updates the
+ * download, the version in the title and in the Rank Math title and
+ * description, and App Version / App Size. Nothing else on a post changes by
+ * itself, except the App Information fields ticked in Settings (publisher, age
+ * rating, Android version, rating and votes), which follow Google Play.
  */
 
 if (!defined('ABSPATH')) {
@@ -38,6 +40,7 @@ class Y4APK_App_Updates {
 	const NEEDS        = '_y4apk_needs_update';
 	const LINK         = '_y4apk_gp_link';    // content | scanned | search | suggested | nomatch | confirmed | rejected
 	const SUGGEST      = '_y4apk_gp_suggest'; // {"id","title","developer"}
+	const INFO         = '_y4apk_gp_info';    // {"developer","rated","requires","rating","votes","read"} as last read from Google Play
 	const PER_PAGE     = 50;
 	const UA           = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -268,33 +271,89 @@ class Y4APK_App_Updates {
 		return is_string($v) && preg_match('/^\d[\w.\-]{0,40}$/', $v);
 	}
 
+	/** The Play Store whose page is read (ratings and age ratings differ by country). */
+	public static function country() {
+		$c = strtoupper((string) get_option('y4apk_vc_country', 'TH'));
+		return preg_match('/^[A-Z]{2}$/', $c) ? $c : 'TH';
+	}
+
+	/** The page's schema.org data (SoftwareApplication / VideoGame), when there is any. */
+	private static function play_ld($html) {
+		if (!preg_match_all('~<script[^>]+application/ld\+json[^>]*>(.*?)</script>~is', $html, $m)) {
+			return [];
+		}
+		foreach ($m[1] as $json) {
+			$d = json_decode(trim($json), true);
+			if (is_array($d) && (isset($d['aggregateRating']) || isset($d['contentRating']))) {
+				return $d;
+			}
+		}
+		return [];
+	}
+
+	/** An age rating as App Information keeps it: "Rated for 12+", "PEGI 12", "Teen" → "12+", "12+", "13+". */
+	public static function age($text) {
+		$t = trim((string) $text);
+		if (preg_match('/(\d{1,2})\s*\+/', $t, $m) || preg_match('/\b(?:PEGI|USK|ACB|ClassInd)\D{0,10}(\d{1,2})\b/i', $t, $m)) {
+			return $m[1] . '+';
+		}
+		$esrb = ['early childhood' => '3+', 'everyone' => '3+', 'teen' => '13+', 'mature' => '17+', 'adults only' => '18+'];
+		return isset($esrb[strtolower($t)]) ? $esrb[strtolower($t)] : '';
+	}
+
 	/**
-	 * An app's details as Google Play shows them (English, US store; then any
-	 * store for apps not offered in the US). status: ok | missing | busy.
+	 * An app's details as Google Play shows them: English, the chosen store's
+	 * country, then the US store, then any. status: ok | missing | busy.
 	 */
 	public static function play_app($package) {
-		foreach (['&hl=en&gl=US', '&hl=en'] as $i => $params) {
+		$tries = array_values(array_unique(['&hl=en&gl=' . self::country(), '&hl=en&gl=US', '&hl=en']));
+		foreach ($tries as $i => $params) {
 			$r = self::get('https://play.google.com/store/apps/details?id=' . rawurlencode($package) . $params);
 			if ($r === null || $r[0] === 429 || $r[0] >= 500) {
 				return ['status' => 'busy'];
 			}
-			if ($r[0] === 404 && $i === 0) {
+			if ($r[0] === 404 && $i < count($tries) - 1) {
 				continue;
 			}
 			if ($r[0] !== 200) {
 				return ['status' => 'missing'];
 			}
 			$data = self::play_block($r[1]);
+			$ld = self::play_ld($r[1]);
 			$version = self::dig($data, [1, 2, 140, 0, 0, 0]);
 			$updated = self::dig($data, [1, 2, 145, 0, 1, 0]);
+			$developer = (string) self::dig($data, [1, 2, 68, 0]);
+			$rated = (string) self::dig($data, [1, 2, 9, 0]);
+			$requires = (string) self::dig($data, [1, 2, 140, 1, 1, 0, 0, 1]); // "5.1" or "5.1 and up"
+			$rating = self::dig($data, [1, 2, 51, 0, 1]);
+			$votes = self::dig($data, [1, 2, 51, 2, 1]);
+			// The schema.org data, when the page's own data has moved.
+			if ($developer === '' && isset($ld['author']['name'])) {
+				$developer = (string) $ld['author']['name'];
+			}
+			if ($rated === '' && isset($ld['contentRating'])) {
+				$rated = (string) $ld['contentRating'];
+			}
+			if (!is_numeric($rating) && isset($ld['aggregateRating']['ratingValue'])) {
+				$rating = $ld['aggregateRating']['ratingValue'];
+			}
+			if (!is_numeric($votes) && isset($ld['aggregateRating']['ratingCount'])) {
+				$votes = str_replace([',', '.', ' '], '', (string) $ld['aggregateRating']['ratingCount']);
+			}
 			return [
 				'status'    => 'ok',
 				'title'     => (string) self::dig($data, [1, 2, 0, 0]),
-				'developer' => (string) self::dig($data, [1, 2, 68, 0]),
+				'developer' => trim($developer),
 				'version'   => self::valid_version($version) ? $version : '',
 				'shown'     => is_string($version) ? $version : '', // e.g. "Varies with device"
 				'updated'   => is_numeric($updated) ? (int) $updated : 0,
+				'rated'     => self::age($rated),
+				'rated_text'=> $rated,
+				'requires'  => preg_match('/^\s*(\d+(?:\.\d+){0,2})/', $requires, $m) ? $m[1] : '',
+				'rating'    => is_numeric($rating) && $rating >= 1 && $rating <= 5 ? round((float) $rating, 1) : 0,
+				'votes'     => is_numeric($votes) && $votes > 0 ? (int) $votes : 0,
 				'readable'  => $data !== null,
+				'store'     => preg_match('/gl=([A-Z]{2})/', $params, $g) ? $g[1] : '',
 			];
 		}
 		return ['status' => 'missing'];
@@ -314,8 +373,8 @@ class Y4APK_App_Updates {
 	}
 
 	/** ['version' => …, 'source' => play|aptoide|''], or null to try again later. */
-	public static function latest($package) {
-		$play = self::play_app($package);
+	public static function latest($package, $play = null) {
+		$play = $play !== null ? $play : self::play_app($package);
 		if ($play['status'] === 'busy') {
 			return null;
 		}
@@ -335,15 +394,77 @@ class Y4APK_App_Updates {
 		if ($package === '') {
 			return false;
 		}
-		$latest = self::latest($package);
+		$play = self::play_app($package);
+		$latest = self::latest($package, $play);
 		if ($latest === null) {
 			return null;
+		}
+		if ($play['status'] === 'ok') {
+			self::apply_info($post_id, $play);
 		}
 		update_post_meta($post_id, self::LATEST, $latest['version']);
 		update_post_meta($post_id, self::SOURCE, $latest['source']);
 		update_post_meta($post_id, self::CHECKED, time());
 		self::refresh_flag($post_id);
 		return true;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * App Information from Google Play
+	 * ---------------------------------------------------------------- */
+
+	/** App Information fields kept up to date from Google Play: key => [label, post meta]. */
+	public static function info_fields() {
+		return [
+			'publisher' => [__('App Publisher', 'y4apk'), 'wp_developers_GP'],
+			'rated'     => [__('App Rated Year’s (age rating, e.g. 12+)', 'y4apk'), 'wp_contentrated_GP'],
+			'requires'  => [__('App Required OS (Android version)', 'y4apk'), 'wp_requires_GP'],
+			'rating'    => [__('Total Rating and Total Votes', 'y4apk'), 'avg_rating'],
+		];
+	}
+
+	public static function info_on($key) {
+		$on = get_option('y4apk_vc_info', ['publisher' => 1, 'rated' => 1, 'requires' => 1, 'rating' => 1]);
+		return is_array($on) && !empty($on[$key]);
+	}
+
+	/**
+	 * Remember what Google Play shows for the post's app, and copy it into the
+	 * ticked App Information fields. Empty values never overwrite; the post's
+	 * modified date stays as it is.
+	 */
+	public static function apply_info($post_id, $play) {
+		$info = [
+			'developer' => $play['developer'],
+			'rated'     => $play['rated'],
+			'requires'  => $play['requires'],
+			'rating'    => $play['rating'],
+			'votes'     => $play['votes'],
+			'store'     => isset($play['store']) ? $play['store'] : '',
+			'read'      => time(),
+		];
+		update_post_meta($post_id, self::INFO, wp_json_encode($info));
+
+		$changed = false;
+		foreach (['publisher' => 'developer', 'rated' => 'rated', 'requires' => 'requires'] as $key => $from) {
+			$meta = self::info_fields()[$key][1];
+			if (self::info_on($key) && $info[$from] !== '' && (string) get_post_meta($post_id, $meta, true) !== $info[$from]) {
+				update_post_meta($post_id, $meta, $info[$from]);
+				$changed = true;
+			}
+		}
+		if (self::info_on('rating') && $info['rating'] > 0 && $info['votes'] > 0
+			&& ((float) get_post_meta($post_id, 'avg_rating', true) !== (float) $info['rating'] || (int) get_post_meta($post_id, 'total_votes', true) !== $info['votes'])) {
+			// As App Information saves them: the theme's stars use all three.
+			update_post_meta($post_id, 'avg_rating', $info['rating']);
+			update_post_meta($post_id, 'total_votes', $info['votes']);
+			update_post_meta($post_id, 'total_rating', round($info['rating'] * $info['votes']));
+			$changed = true;
+		}
+		if ($changed) {
+			update_option('y4apk_vc_info_updated', (int) get_option('y4apk_vc_info_updated', 0) + 1, false);
+		}
+		return $changed;
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -634,8 +755,15 @@ class Y4APK_App_Updates {
 		}
 		check_admin_referer('y4apk-vc-settings');
 		update_option('y4apk_vc_on', empty($_POST['on']) ? '0' : '1', true);
+		$country = strtoupper(sanitize_text_field(wp_unslash(isset($_POST['country']) ? $_POST['country'] : '')));
+		update_option('y4apk_vc_country', preg_match('/^[A-Z]{2}$/', $country) ? $country : 'TH', false);
+		$info = [];
+		foreach (array_keys(self::info_fields()) as $key) {
+			$info[$key] = empty($_POST['info'][$key]) ? 0 : 1;
+		}
+		update_option('y4apk_vc_info', $info, false);
 		self::schedule();
-		wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG));
+		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'view' => 'settings', 'y4apk_settings' => 1], admin_url('admin.php')));
 		exit;
 	}
 
@@ -658,7 +786,7 @@ class Y4APK_App_Updates {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
 		}
 		$in = wp_unslash($_POST);
-		$back = add_query_arg(['page' => self::SLUG, 'tab' => 'link'], admin_url('admin.php')) . '#y4apk-link';
+		$back = add_query_arg(['page' => self::SLUG, 'view' => 'suggest'], admin_url('admin.php'));
 		if (!empty($in['reject'])) {
 			delete_post_meta($post_id, self::SUGGEST);
 			update_post_meta($post_id, self::LINK, 'rejected');
@@ -684,7 +812,7 @@ class Y4APK_App_Updates {
 				update_post_meta($post_id, self::LINK, 'rejected');
 			}
 		}
-		wp_safe_redirect(add_query_arg(['page' => self::SLUG], admin_url('admin.php')) . '#y4apk-link');
+		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'view' => 'suggest'], admin_url('admin.php')));
 		exit;
 	}
 
@@ -794,29 +922,177 @@ class Y4APK_App_Updates {
 	private static function render_test($text) {
 		$package = self::package_from($text);
 		if ($package === '') {
-			echo '<p style="color:#b32d2e">' . esc_html__('That is not a Google Play link or app ID.', 'y4apk') . '</p>';
+			echo '<div class="au-card au-pad"><p class="au-bad">' . esc_html__('That is not a Google Play link or app ID.', 'y4apk') . '</p></div>';
 			return;
 		}
 		$play = self::play_app($package);
 		$apt = self::aptoide_version($package);
-		$latest = self::latest($package);
+		$latest = self::latest($package, $play);
+		$v = function ($key) use ($play) {
+			return isset($play[$key]) ? $play[$key] : '';
+		};
 		$rows = [
+			[__('App ID', 'y4apk'), $package],
 			[__('Google Play page', 'y4apk'), $play['status'] === 'ok'
-				? ($play['readable'] ? __('read', 'y4apk') : __('opened, but its data was not found (Google may have changed the page)', 'y4apk'))
+				? ($play['readable'] ? sprintf(__('read (%s store)', 'y4apk'), $v('store') ?: __('any', 'y4apk')) : __('opened, but its data was not found (Google may have changed the page)', 'y4apk'))
 				: ($play['status'] === 'busy' ? __('did not answer (busy or blocked)', 'y4apk') : __('not found', 'y4apk'))],
-			[__('Name on Google Play', 'y4apk'), isset($play['title']) ? $play['title'] : ''],
-			[__('Publisher', 'y4apk'), isset($play['developer']) ? $play['developer'] : ''],
-			[__('Version on Google Play', 'y4apk'), isset($play['shown']) ? $play['shown'] : ''],
-			[__('Updated on Google Play', 'y4apk'), !empty($play['updated']) ? date_i18n(get_option('date_format'), $play['updated']) : ''],
+			[__('Name on Google Play', 'y4apk'), $v('title')],
+			[__('Version on Google Play', 'y4apk'), $v('shown')],
+			[__('Updated on Google Play', 'y4apk'), $v('updated') ? date_i18n(get_option('date_format'), $v('updated')) : ''],
 			[__('Version on Aptoide', 'y4apk'), $apt === null ? __('did not answer', 'y4apk') : ($apt === '' ? __('not found, or not a plain version (another build)', 'y4apk') : $apt)],
 			[__('Version used', 'y4apk'), $latest === null ? __('none — try again later', 'y4apk') : ($latest['version'] !== '' ? $latest['version'] . ' (' . ($latest['source'] === 'play' ? 'Google Play' : 'Aptoide') . ')' : __('none found', 'y4apk'))],
+			[__('App Publisher', 'y4apk'), $v('developer')],
+			[__('App Rated Year’s', 'y4apk'), $v('rated') !== '' ? $v('rated') . ($v('rated_text') !== $v('rated') ? ' — “' . $v('rated_text') . '”' : '') : $v('rated_text')],
+			[__('App Required OS', 'y4apk'), $v('requires') !== '' ? sprintf(__('Android %s and up', 'y4apk'), $v('requires')) : ''],
+			[__('Total Rating', 'y4apk'), $v('rating') ? number_format_i18n($v('rating'), 1) . ' ★' : ''],
+			[__('Total Votes', 'y4apk'), $v('votes') ? number_format_i18n($v('votes')) : ''],
 		];
-		echo '<table class="widefat striped" style="max-width:700px"><tbody>';
-		echo '<tr><td style="width:220px"><strong>' . esc_html__('App ID', 'y4apk') . '</strong></td><td><code>' . esc_html($package) . '</code></td></tr>';
+		echo '<div class="au-card au-pad"><dl class="au-dl">';
 		foreach ($rows as $row) {
-			echo '<tr><td><strong>' . esc_html($row[0]) . '</strong></td><td>' . esc_html($row[1] !== '' ? $row[1] : '—') . '</td></tr>';
+			echo '<dt>' . esc_html($row[0]) . '</dt><dd>' . esc_html($row[1] !== '' && $row[1] !== 0 ? (string) $row[1] : '—') . '</dd>';
 		}
-		echo '</tbody></table>';
+		echo '</dl></div>';
+	}
+
+	/** Small "★ 4.4 (56,612) · 12+ · Android 5.1+ · Publisher" chips from the last Google Play read. */
+	private static function info_chips($post_id) {
+		$i = json_decode((string) get_post_meta($post_id, self::INFO, true), true);
+		if (!is_array($i)) {
+			return '';
+		}
+		$chips = [];
+		if (!empty($i['rating'])) {
+			$chips[] = '★ ' . number_format_i18n($i['rating'], 1) . (!empty($i['votes']) ? ' (' . number_format_i18n($i['votes']) . ')' : '');
+		}
+		if (!empty($i['rated'])) {
+			$chips[] = $i['rated'];
+		}
+		if (!empty($i['requires'])) {
+			$chips[] = 'Android ' . $i['requires'] . '+';
+		}
+		if (!empty($i['developer'])) {
+			$chips[] = $i['developer'];
+		}
+		$out = '';
+		foreach ($chips as $c) {
+			$out .= '<span class="au-chip">' . esc_html($c) . '</span>';
+		}
+		return $out ? '<div class="au-chips" title="' . esc_attr__('As Google Play shows it', 'y4apk') . '">' . $out . '</div>' : '';
+	}
+
+	private static function icon($post_id) {
+		$src = get_the_post_thumbnail_url($post_id, 'thumbnail');
+		if ($src) {
+			return '<img class="au-icon" src="' . esc_url($src) . '" alt="" loading="lazy">';
+		}
+		$t = trim((string) get_the_title($post_id));
+		return '<span class="au-icon au-icon-none" aria-hidden="true">' . esc_html($t !== '' ? mb_strtoupper(mb_substr($t, 0, 1)) : '?') . '</span>';
+	}
+
+	private static function styles() {
+		?>
+		<style>
+			.y4apk-au { --au-blue: #2271b1; --au-ink: #1d2327; --au-muted: #646970; --au-line: #dcdcde; --au-soft: #f6f7f7; --au-red: #d63638; --au-green: #00a32a; --au-amber: #dba617; margin-right: 20px; color: var(--au-ink); }
+			.y4apk-au *, .y4apk-au *::before, .y4apk-au *::after { box-sizing: border-box; }
+			.y4apk-au [hidden] { display: none !important; }
+			.au-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 16px 0 18px; }
+			.au-head h1 { font-size: 26px; font-weight: 600; margin: 0; padding: 0; line-height: 1.2; }
+			.au-head p { margin: 6px 0 0; color: var(--au-muted); font-size: 13px; max-width: 820px; }
+			.au-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+			.au-actions form { margin: 0; }
+			.au-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--au-line); font-size: 12.5px; }
+			.au-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--au-green); box-shadow: 0 0 0 3px rgba(0, 163, 42, .15); flex: none; }
+			.au-dot.is-amber { background: var(--au-amber); box-shadow: 0 0 0 3px rgba(219, 166, 23, .18); }
+			.au-dot.is-red { background: var(--au-red); box-shadow: 0 0 0 3px rgba(214, 54, 56, .15); }
+			.au-dot.is-grey { background: #a7aaad; box-shadow: none; }
+			.au-card { background: #fff; border: 1px solid var(--au-line); border-radius: 12px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+			.au-pad { padding: 18px 20px; }
+			.au-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 22px; }
+			.au-kpi { padding: 16px 18px; display: flex; flex-direction: column; gap: 7px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; }
+			a.au-kpi:hover, a.au-kpi:focus { border-color: var(--au-blue); box-shadow: 0 2px 8px rgba(34, 113, 177, .12); color: inherit; }
+			.au-kpi-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--au-muted); }
+			.au-kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+			.au-kpi-value small { font-size: 14px; font-weight: 400; color: var(--au-muted); }
+			.au-kpi.is-alert .au-kpi-value { color: var(--au-red); }
+			.au-kpi-sub { font-size: 12.5px; color: var(--au-muted); }
+			.au-bar { height: 6px; border-radius: 6px; background: #eef0f2; overflow: hidden; }
+			.au-bar > span { display: block; height: 100%; border-radius: 6px; background: var(--au-blue); }
+			.au-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--au-line); margin: 0 0 16px; overflow-x: auto; }
+			.au-tab { padding: 10px 14px; font-size: 14px; font-weight: 500; color: var(--au-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+			.au-tab:hover, .au-tab:focus { color: var(--au-ink); box-shadow: none; }
+			.au-tab.is-on { color: var(--au-blue); border-bottom-color: var(--au-blue); }
+			.au-count { display: inline-block; min-width: 20px; padding: 1px 7px; margin-left: 6px; border-radius: 999px; background: #e7e9ec; color: var(--au-ink); font-size: 11.5px; text-align: center; }
+			.au-tab.is-on .au-count { background: var(--au-blue); color: #fff; }
+			.au-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+			.au-toolbar .au-search { min-width: 280px; padding: 4px 12px; border-radius: 8px; }
+			.au-toolbar-info { color: var(--au-muted); font-size: 13px; }
+			.au-list { display: flex; flex-direction: column; gap: 10px; }
+			.au-row { display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(150px, .5fr) minmax(440px, 2.1fr); gap: 20px; padding: 16px 18px; align-items: start; }
+			.au-app { display: flex; gap: 12px; min-width: 0; }
+			.au-icon { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex: none; background: var(--au-soft); border: 1px solid var(--au-line); }
+			.au-icon-none { display: inline-flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; color: var(--au-muted); }
+			.au-title { font-size: 14px; font-weight: 600; color: var(--au-ink); text-decoration: none; line-height: 1.35; }
+			.au-title:hover { color: var(--au-blue); }
+			.au-links { font-size: 12px; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+			.au-links a { text-decoration: none; }
+			.au-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+			.au-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--au-soft); border: 1px solid #e4e6e8; color: #3c434a; white-space: nowrap; }
+			.au-vers { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+			.au-ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; padding: 2px 8px; border-radius: 6px; background: var(--au-soft); border: 1px solid #e4e6e8; }
+			.au-ver.is-new { background: #fcf0f1; border-color: #f4c6c7; color: var(--au-red); font-weight: 600; }
+			.au-meta { font-size: 12px; color: var(--au-muted); }
+			.au-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+			.au-line { display: grid; grid-template-columns: 66px 150px 115px minmax(160px, 1fr); gap: 8px; align-items: center; }
+			.au-line input[type=text], .au-line input[type=url] { width: 100%; min-height: 32px; margin: 0; border-radius: 6px; }
+			.au-line input:disabled { opacity: .45; }
+			.au-type { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #50575e; overflow: hidden; white-space: nowrap; }
+			.au-type input[type=checkbox] { margin: 0; }
+			.au-foot { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; padding-top: 2px; }
+			.au-foot label { font-size: 12.5px; white-space: nowrap; }
+			.au-foot .button-primary { margin-left: auto; min-width: 96px; }
+			.au-kept { font-size: 12px; color: var(--au-muted); }
+			.au-empty { padding: 48px 20px; text-align: center; color: var(--au-muted); font-size: 14px; }
+			.au-note { color: var(--au-muted); font-size: 12.5px; max-width: 1100px; margin: 14px 0 0; line-height: 1.6; }
+			.au-pages { margin-top: 14px; }
+			.au-pages .page-numbers { display: inline-block; min-width: 32px; padding: 5px 9px; margin-right: 4px; border: 1px solid var(--au-line); border-radius: 8px; background: #fff; text-align: center; text-decoration: none; }
+			.au-pages .page-numbers.current { background: var(--au-blue); border-color: var(--au-blue); color: #fff; }
+			.au-srow { display: grid; grid-template-columns: 22px minmax(220px, 1fr) minmax(220px, 1fr) minmax(360px, 1.3fr); gap: 16px; padding: 14px 18px; align-items: center; }
+			.au-srow form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0; }
+			.au-srow form input[name=id] { flex: 1; min-width: 200px; border-radius: 6px; }
+			.au-small { display: block; font-size: 12px; color: var(--au-muted); margin-top: 2px; }
+			.au-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--au-muted); margin-bottom: 2px; }
+			.au-dl { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 0; margin: 0; }
+			.au-dl dt, .au-dl dd { margin: 0; padding: 9px 0; border-bottom: 1px solid #f0f0f1; }
+			.au-dl dt { font-weight: 600; color: #50575e; }
+			.au-dl dt:last-of-type, .au-dl dd:last-of-type { border-bottom: 0; }
+			.au-bad { color: var(--au-red); margin: 0; }
+			.au-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+			.au-settings h2 { font-size: 15px; margin: 0 0 6px; }
+			.au-settings p { margin: 0 0 12px; color: var(--au-muted); }
+			.au-settings label { display: block; margin: 8px 0; }
+			.au-code { display: block; padding: 10px 12px; border-radius: 8px; background: #1d2327; color: #f0f0f1; font-size: 12.5px; word-break: break-all; }
+			@media (max-width: 1400px) {
+				.au-row { grid-template-columns: minmax(220px, 1fr) minmax(140px, .45fr); }
+				.au-row .au-form { grid-column: 1 / -1; }
+				.au-srow { grid-template-columns: 22px 1fr 1fr; }
+				.au-srow form { grid-column: 2 / -1; }
+			}
+			@media (max-width: 782px) {
+				.y4apk-au { margin-right: 10px; }
+				.au-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+				.au-kpi { padding: 12px 14px; }
+				.au-kpi:last-child { grid-column: 1 / -1; }
+				.au-kpi-value { font-size: 22px; }
+				.au-row, .au-srow { grid-template-columns: 1fr; }
+				.au-srow form { grid-column: auto; }
+				.au-line { grid-template-columns: 60px 1fr 1fr; }
+				.au-line input[type=url] { grid-column: 1 / -1; }
+				.au-toolbar .au-search { min-width: 0; width: 100%; }
+				.au-dl { grid-template-columns: 1fr; }
+				.au-dl dt { border-bottom: 0; padding-bottom: 0; }
+			}
+		</style>
+		<?php
 	}
 
 	public static function render_page() {
@@ -826,10 +1102,22 @@ class Y4APK_App_Updates {
 			WHERE pm.meta_key = 'wp_GP_ID' AND pm.meta_value <> '' AND p.post_type = 'post' AND p.post_status = 'publish'");
 		$checked = self::count_meta(self::CHECKED);
 		$suggested = self::count_meta(self::LINK, 'suggested');
-		$waiting = $total - $linked - $suggested - self::count_meta(self::LINK, 'nomatch') - self::count_meta(self::LINK, 'rejected');
+		$waiting = max(0, $total - $linked - $suggested - self::count_meta(self::LINK, 'nomatch') - self::count_meta(self::LINK, 'rejected'));
 		$needs_ids = array_map('intval', $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::NEEDS)));
+		$info_read = self::count_meta(self::INFO);
+		$info_updated = (int) get_option('y4apk_vc_info_updated', 0);
+		$info_any = (bool) array_filter(array_map([__CLASS__, 'info_on'], array_keys(self::info_fields())));
 		$round_done = (int) get_option('y4apk_vc_round_done', 0);
 		$last_step = (int) get_option('y4apk_vc_last_step', 0);
+
+		$views = ['needs', 'suggest', 'test', 'settings'];
+		$view = isset($_GET['view']) && in_array($_GET['view'], $views, true) ? $_GET['view'] : (!empty($_GET['test']) ? 'test' : 'needs');
+		if ($view === 'settings' && !current_user_can('manage_options')) {
+			$view = 'needs';
+		}
+		$url = function ($v, $args = []) {
+			return add_query_arg(array_merge(['page' => self::SLUG, 'view' => $v], $args), admin_url('admin.php'));
+		};
 
 		// Most downloaded first (last 30 days, Y4APK ▸ Analytics), then newest posts.
 		$downloads = [];
@@ -847,18 +1135,53 @@ class Y4APK_App_Updates {
 		});
 		$paged = max(1, isset($_GET['paged']) ? absint($_GET['paged']) : 1);
 		$pages = max(1, (int) ceil(count($needs_ids) / self::PER_PAGE));
-		$page_ids = array_slice($needs_ids, ($paged - 1) * self::PER_PAGE, self::PER_PAGE);
+		$page_ids = $view === 'needs' ? array_slice($needs_ids, ($paged - 1) * self::PER_PAGE, self::PER_PAGE) : [];
 
-		$suggest_ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
-			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = 'suggested' ORDER BY post_id DESC LIMIT 30", self::LINK)));
+		$suggest_ids = $view === 'suggest' ? array_map('intval', $wpdb->get_col($wpdb->prepare(
+			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = 'suggested' ORDER BY post_id DESC LIMIT 50", self::LINK))) : [];
 		if ($page_ids || $suggest_ids) {
 			_prime_post_caches(array_merge($page_ids, $suggest_ids), false, true);
 		}
+
+		// Background status, from the last step's age.
+		if (!self::enabled()) {
+			$status = ['is-grey', __('Switched off', 'y4apk')];
+		} elseif (!$last_step) {
+			$status = ['is-amber', __('Waiting for the first step', 'y4apk')];
+		} else {
+			$age = time() - $last_step;
+			$ago = human_time_diff($last_step);
+			$status = $age < 45 * MINUTE_IN_SECONDS ? ['', sprintf(__('Running · last step %s ago', 'y4apk'), $ago)]
+				: ($age < 3 * HOUR_IN_SECONDS ? ['is-amber', sprintf(__('Slow · last step %s ago', 'y4apk'), $ago)]
+				: ['is-red', sprintf(__('Stalled · last step %s ago — check the cron job', 'y4apk'), $ago)]);
+		}
+		$pct = function ($a, $b) {
+			return $b > 0 ? min(100, round(100 * $a / $b, 1)) : 0;
+		};
+		self::styles();
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e('App updates', 'y4apk'); ?></h1>
+		<div class="wrap y4apk-au">
+			<div class="au-head">
+				<div>
+					<h1><?php esc_html_e('App updates', 'y4apk'); ?></h1>
+					<p><?php esc_html_e('Every 15 minutes, posts are linked to their Google Play app and checked against its latest version. Posts whose file is older are listed, most downloaded first; nothing changes on them until you save a new file. App Information (publisher, age rating, Android version, rating) follows Google Play as set in Settings.', 'y4apk'); ?></p>
+				</div>
+				<div class="au-actions">
+					<span class="au-pill"><span class="au-dot <?php echo esc_attr($status[0]); ?>"></span><?php echo esc_html($status[1]); ?></span>
+					<?php if (current_user_can('manage_options')) : ?>
+						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+							<input type="hidden" name="action" value="y4apk_vc_run"><?php wp_nonce_field('y4apk-vc-run'); ?>
+							<button class="button"><?php esc_html_e('Run a step now', 'y4apk'); ?></button>
+						</form>
+					<?php endif; ?>
+				</div>
+			</div>
+			<hr class="wp-header-end">
+
 			<?php if (!empty($_GET['y4apk_saved'])) : $sid = absint($_GET['y4apk_saved']); ?>
 				<div class="notice notice-success is-dismissible"><p><?php printf(esc_html__('Saved: %s', 'y4apk'), '<a href="' . esc_url(get_permalink($sid)) . '" target="_blank">' . esc_html(get_the_title($sid)) . '</a>'); ?></p></div>
+			<?php elseif (!empty($_GET['y4apk_settings'])) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Settings saved.', 'y4apk'); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_error'])) : ?>
 				<div class="notice notice-error"><p><?php
 					$errors = [
@@ -875,48 +1198,57 @@ class Y4APK_App_Updates {
 					} ?></p></div>
 			<?php endif; ?>
 
-			<p style="max-width:900px"><?php esc_html_e('In the background, every 15 minutes: posts are linked to their Google Play app (a Google Play link in the post, or a Google Play search for its App Name that matches exactly), and linked posts get their latest version from Google Play itself — Aptoide when Play shows none. Posts whose download is older are listed below, most downloaded first. Nothing on the site changes until you save a new file.', 'y4apk'); ?></p>
+			<div class="au-kpis">
+				<div class="au-card au-kpi">
+					<span class="au-kpi-label"><?php esc_html_e('Linked to Google Play', 'y4apk'); ?></span>
+					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n($linked)); ?> <small>/ <?php echo esc_html(number_format_i18n($total)); ?></small></span>
+					<span class="au-bar"><span style="width:<?php echo esc_attr($pct($linked, $total)); ?>%"></span></span>
+					<span class="au-kpi-sub"><?php echo $waiting > 0 ? esc_html(sprintf(__('%s still to look up', 'y4apk'), number_format_i18n($waiting))) : esc_html__('Every post looked up', 'y4apk'); ?></span>
+				</div>
+				<div class="au-card au-kpi">
+					<span class="au-kpi-label"><?php esc_html_e('Versions checked', 'y4apk'); ?></span>
+					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n(min($checked, $linked))); ?> <small>/ <?php echo esc_html(number_format_i18n($linked)); ?></small></span>
+					<span class="au-bar"><span style="width:<?php echo esc_attr($pct(min($checked, $linked), $linked)); ?>%"></span></span>
+					<span class="au-kpi-sub"><?php echo $round_done ? esc_html(sprintf(__('Last full round finished %s ago', 'y4apk'), human_time_diff($round_done))) : esc_html__('First round in progress', 'y4apk'); ?></span>
+				</div>
+				<a class="au-card au-kpi<?php echo $needs_ids ? ' is-alert' : ''; ?>" href="<?php echo esc_url($url('needs')); ?>">
+					<span class="au-kpi-label"><?php esc_html_e('Need a new file', 'y4apk'); ?></span>
+					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n(count($needs_ids))); ?></span>
+					<span class="au-kpi-sub"><?php esc_html_e('Newer on Google Play than your file', 'y4apk'); ?></span>
+				</a>
+				<a class="au-card au-kpi" href="<?php echo esc_url($url('suggest')); ?>">
+					<span class="au-kpi-label"><?php esc_html_e('Suggestions to confirm', 'y4apk'); ?></span>
+					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n($suggested)); ?></span>
+					<span class="au-kpi-sub"><?php esc_html_e('Play apps with a similar name', 'y4apk'); ?></span>
+				</a>
+				<div class="au-card au-kpi">
+					<span class="au-kpi-label"><?php esc_html_e('App Information from Play', 'y4apk'); ?></span>
+					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n($info_read)); ?> <small><?php esc_html_e('posts read', 'y4apk'); ?></small></span>
+					<span class="au-kpi-sub"><?php echo $info_any
+						? esc_html(sprintf(__('%1$s updates applied · %2$s store', 'y4apk'), number_format_i18n($info_updated), self::country()))
+						: esc_html__('Not applied (switched off in Settings)', 'y4apk'); ?></span>
+				</div>
+			</div>
 
-			<table class="widefat striped" style="max-width:900px"><tbody>
-				<tr><td style="width:260px"><strong><?php esc_html_e('Posts linked to Google Play', 'y4apk'); ?></strong></td><td><?php printf(esc_html__('%1$s of %2$s', 'y4apk'), number_format_i18n($linked), number_format_i18n($total)); ?>
-					<?php if ($suggested) : ?> · <a href="#y4apk-link"><?php printf(esc_html__('%s suggestions to confirm', 'y4apk'), number_format_i18n($suggested)); ?></a><?php endif; ?>
-					<?php if ($waiting > 0) : ?> · <?php printf(esc_html__('%s still to look up', 'y4apk'), number_format_i18n($waiting)); ?><?php endif; ?></td></tr>
-				<tr><td><strong><?php esc_html_e('Versions checked', 'y4apk'); ?></strong></td><td><?php printf(esc_html__('%1$s of %2$s linked posts', 'y4apk'), number_format_i18n(min($checked, $linked)), number_format_i18n($linked)); ?>
-					<?php if ($round_done) : ?> · <?php printf(esc_html__('last full round finished %s ago', 'y4apk'), esc_html(human_time_diff($round_done))); ?><?php endif; ?></td></tr>
-				<tr><td><strong><?php esc_html_e('Need a new file', 'y4apk'); ?></strong></td><td><strong><?php echo esc_html(number_format_i18n(count($needs_ids))); ?></strong></td></tr>
-				<tr><td><strong><?php esc_html_e('Last background step', 'y4apk'); ?></strong></td><td><?php echo $last_step ? esc_html(sprintf(__('%s ago', 'y4apk'), human_time_diff($last_step))) : esc_html__('not yet', 'y4apk'); ?>
-					<?php if (!self::enabled()) : ?> · <strong style="color:#b32d2e"><?php esc_html_e('switched off', 'y4apk'); ?></strong><?php endif; ?>
-					<?php if (current_user_can('manage_options')) : ?>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;margin-left:8px">
-							<input type="hidden" name="action" value="y4apk_vc_run"><?php wp_nonce_field('y4apk-vc-run'); ?>
-							<button class="button button-small"><?php esc_html_e('Run a step now', 'y4apk'); ?></button>
-						</form>
-					<?php endif; ?></td></tr>
-			</tbody></table>
+			<nav class="au-tabs" aria-label="<?php esc_attr_e('App updates', 'y4apk'); ?>">
+				<a class="au-tab<?php echo $view === 'needs' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('needs')); ?>"><?php esc_html_e('Need a new file', 'y4apk'); ?><span class="au-count"><?php echo esc_html(number_format_i18n(count($needs_ids))); ?></span></a>
+				<a class="au-tab<?php echo $view === 'suggest' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('suggest')); ?>"><?php esc_html_e('Suggestions', 'y4apk'); ?><span class="au-count"><?php echo esc_html(number_format_i18n($suggested)); ?></span></a>
+				<a class="au-tab<?php echo $view === 'test' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('test')); ?>"><?php esc_html_e('Test one app', 'y4apk'); ?></a>
+				<?php if (current_user_can('manage_options')) : ?>
+					<a class="au-tab<?php echo $view === 'settings' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('settings')); ?>"><?php esc_html_e('Settings', 'y4apk'); ?></a>
+				<?php endif; ?>
+			</nav>
 
-			<h2><?php esc_html_e('Posts that need a new file', 'y4apk'); ?></h2>
-			<style>
-				.y4apk-vc-form { display: flex; flex-direction: column; gap: 6px; }
-				.y4apk-vc-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-				.y4apk-vc-line input[type=url] { flex: 1; min-width: 180px; }
-				.y4apk-vc-line label { white-space: nowrap; }
-				.y4apk-vc-type { width: 62px; font-size: 12px; font-weight: 600; color: #50575e; overflow: hidden; text-overflow: ellipsis; }
-				.y4apk-vc-line input:disabled { opacity: .45; }
-				.y4apk-vc-kept { color: #8c8f94; font-size: 12px; }
-			</style>
-			<table class="widefat striped" style="max-width:1300px">
-				<thead><tr>
-					<th><?php esc_html_e('Post', 'y4apk'); ?></th>
-					<th><?php esc_html_e('Your file', 'y4apk'); ?></th>
-					<th><?php esc_html_e('Latest', 'y4apk'); ?></th>
-					<th style="text-align:right"><?php esc_html_e('Downloads (30 days)', 'y4apk'); ?></th>
-					<th style="width:46%"><?php esc_html_e('New file', 'y4apk'); ?></th>
-				</tr></thead>
-				<tbody>
+			<?php if ($view === 'needs') : ?>
+				<div class="au-toolbar">
+					<input type="search" class="au-search" data-au-filter="au-needs" placeholder="<?php esc_attr_e('Filter this page by name…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Filter this page by name', 'y4apk'); ?>">
+					<span class="au-toolbar-info"><?php echo esc_html(sprintf(__('%1$s posts · most downloaded in the last 30 days first · page %2$s of %3$s', 'y4apk'), number_format_i18n(count($needs_ids)), number_format_i18n($paged), number_format_i18n($pages))); ?></span>
+				</div>
+				<div class="au-list" id="au-needs">
 				<?php if (!$page_ids) : ?>
-					<tr><td colspan="5"><?php echo $checked
+					<div class="au-card au-empty"><?php echo $checked
 						? esc_html__('Every checked post is up to date.', 'y4apk')
-						: esc_html__('Nothing checked yet — results appear as posts get linked and checked.', 'y4apk'); ?></td></tr>
+						: esc_html__('Nothing checked yet — results appear as posts get linked and checked.', 'y4apk'); ?></div>
 				<?php endif; ?>
 				<?php foreach ($page_ids as $id) :
 					list(, $link) = self::download($id);
@@ -927,127 +1259,178 @@ class Y4APK_App_Updates {
 					$source = get_post_meta($id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
 					$suggest = self::number($current) !== '' ? self::with_number($current, $new_n) : $latest;
 					// A post that already keeps an older version gets "Add" by default.
-					$keeps_old = (bool) array_filter($others['kept'], [__CLASS__, 'is_apk']); ?>
-					<tr>
-						<td><a href="<?php echo esc_url(get_edit_post_link($id)); ?>"><strong><?php echo esc_html(get_the_title($id)); ?></strong></a><br>
-							<small><a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode(get_post_meta($id, 'wp_GP_ID', true))); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Google Play', 'y4apk'); ?></a></small></td>
-						<td><code><?php echo esc_html($current); ?></code></td>
-						<td><code style="color:#b32d2e"><?php echo esc_html($latest); ?></code><br><small style="color:#8c8f94"><?php echo esc_html($source); ?></small></td>
-						<td style="text-align:right"><?php echo esc_html(number_format_i18n(isset($downloads[$id]) ? $downloads[$id] : 0)); ?></td>
-						<td>
-							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4apk-vc-form">
-								<input type="hidden" name="action" value="y4apk_vc_save">
-								<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
-								<input type="hidden" name="paged" value="<?php echo esc_attr($paged); ?>">
-								<input type="hidden" name="sig" value="<?php echo esc_attr(self::links_sig($id)); ?>">
-								<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
-								<div class="y4apk-vc-line">
-									<span class="y4apk-vc-type"><?php echo esc_html($link && !empty($link['download_name']) ? $link['download_name'] : 'APK'); ?></span>
-									<input name="version" value="<?php echo esc_attr($suggest); ?>" style="width:130px" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
-									<input name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" style="width:110px" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
-									<input name="url" type="url" required value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+					$keeps_old = (bool) array_filter($others['kept'], [__CLASS__, 'is_apk']);
+					$title = get_the_title($id); ?>
+					<div class="au-card au-row" data-title="<?php echo esc_attr(strtolower($title)); ?>">
+						<div class="au-app">
+							<?php echo self::icon($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in icon() ?>
+							<div style="min-width:0">
+								<a class="au-title" href="<?php echo esc_url(get_edit_post_link($id)); ?>"><?php echo esc_html($title); ?></a>
+								<div class="au-links">
+									<a href="<?php echo esc_url(get_permalink($id)); ?>" target="_blank"><?php esc_html_e('View post', 'y4apk'); ?> ↗</a>
+									<a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode(get_post_meta($id, 'wp_GP_ID', true))); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Google Play', 'y4apk'); ?> ↗</a>
 								</div>
-								<?php foreach ($others['same'] as $i => $o) :
-									// OBB and other Android files follow the APK; an iOS file only when ticked.
-									$on = !in_array(strtolower(trim(isset($o['download_name']) ? (string) $o['download_name'] : '')), ['ipa', 'ios'], true); ?>
-									<div class="y4apk-vc-line">
-										<label class="y4apk-vc-type"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
-											onchange="this.closest('.y4apk-vc-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"
-											title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"> <?php echo esc_html($o['download_name']); ?></label>
-										<input name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" style="width:130px" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-										<input name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" style="width:110px" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-										<input name="rows[<?php echo esc_attr($i); ?>][url]" type="url" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-									</div>
-								<?php endforeach; ?>
-								<div class="y4apk-vc-line">
-									<label><input type="radio" name="mode" value="replace" <?php checked(!$keeps_old); ?>> <?php esc_html_e('Replace the old file', 'y4apk'); ?></label>
-									<label><input type="radio" name="mode" value="add" <?php checked($keeps_old); ?>> <?php esc_html_e('Add as new, keep the old file below it', 'y4apk'); ?></label>
-									<button class="button button-primary" style="margin-left:auto"><?php esc_html_e('Save', 'y4apk'); ?></button>
+								<?php echo self::info_chips($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in info_chips() ?>
+							</div>
+						</div>
+						<div class="au-vers">
+							<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
+							<span class="au-ver"><?php echo esc_html($current); ?></span>
+							<span class="au-label"><?php echo esc_html(sprintf(__('Latest · %s', 'y4apk'), $source)); ?></span>
+							<span class="au-ver is-new"><?php echo esc_html($latest); ?></span>
+							<span class="au-meta"><?php echo esc_html(sprintf(_n('%s download in 30 days', '%s downloads in 30 days', isset($downloads[$id]) ? $downloads[$id] : 0, 'y4apk'), number_format_i18n(isset($downloads[$id]) ? $downloads[$id] : 0))); ?></span>
+						</div>
+						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-form">
+							<input type="hidden" name="action" value="y4apk_vc_save">
+							<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
+							<input type="hidden" name="paged" value="<?php echo esc_attr($paged); ?>">
+							<input type="hidden" name="sig" value="<?php echo esc_attr(self::links_sig($id)); ?>">
+							<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
+							<span class="au-label"><?php esc_html_e('New file', 'y4apk'); ?></span>
+							<div class="au-line">
+								<span class="au-type"><?php echo esc_html($link && !empty($link['download_name']) ? $link['download_name'] : 'APK'); ?></span>
+								<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
+								<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
+								<input type="url" name="url" required value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+							</div>
+							<?php foreach ($others['same'] as $i => $o) :
+								// OBB and other Android files follow the APK; an iOS file only when ticked.
+								$on = !in_array(strtolower(trim(isset($o['download_name']) ? (string) $o['download_name'] : '')), ['ipa', 'ios'], true); ?>
+								<div class="au-line">
+									<label class="au-type" title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
+										onchange="this.closest('.au-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"> <?php echo esc_html($o['download_name']); ?></label>
+									<input type="text" name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
+									<input type="text" name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
+									<input type="url" name="rows[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 								</div>
-								<?php if ($others['kept']) : ?>
-									<div class="y4apk-vc-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
-										<?php echo esc_html(implode(' · ', array_map(function ($o) {
-											return trim((isset($o['download_name']) ? $o['download_name'] : '') . ' ' . (isset($o['download_version']) ? $o['download_version'] : '')
-												. (!empty($o['download_size']) ? ' (' . $o['download_size'] . ')' : ''));
-										}, $others['kept']))); ?></div>
-								<?php endif; ?>
-							</form>
-						</td>
-					</tr>
+							<?php endforeach; ?>
+							<div class="au-foot">
+								<label><input type="radio" name="mode" value="replace" <?php checked(!$keeps_old); ?>> <?php esc_html_e('Replace the old file', 'y4apk'); ?></label>
+								<label><input type="radio" name="mode" value="add" <?php checked($keeps_old); ?>> <?php esc_html_e('Add as new, keep the old file below it', 'y4apk'); ?></label>
+								<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
+							</div>
+							<?php if ($others['kept']) : ?>
+								<div class="au-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
+									<?php echo esc_html(implode(' · ', array_map(function ($o) {
+										return trim((isset($o['download_name']) ? $o['download_name'] : '') . ' ' . (isset($o['download_version']) ? $o['download_version'] : '')
+											. (!empty($o['download_size']) ? ' (' . $o['download_size'] . ')' : ''));
+									}, $others['kept']))); ?></div>
+							<?php endif; ?>
+						</form>
+					</div>
 				<?php endforeach; ?>
-				</tbody>
-			</table>
-			<?php if ($pages > 1) : ?>
-				<p><?php echo paginate_links(['base' => add_query_arg('paged', '%#%'), 'format' => '', 'current' => $paged, 'total' => $pages]); ?></p>
-			<?php endif; ?>
-			<p class="description" style="max-width:900px"><?php esc_html_e('Save puts the new version, size and link on the post’s newest APK download and in App Information, changes the version in the title and in the Rank Math SEO title, description and social titles (for example v2.742 → v2.750), and marks the post as updated today. Downloads with the same version (OBB, IPA) are listed under it with the new version filled in: ticked ones are updated too (an iOS file starts unticked). Older versions are left as they are. Replace swaps the old files for the new ones; Add puts each new file just above its old one, which stays as an older version (it needs the new file’s link). Posts that already keep older versions start with Add. The size and link start with what the post has now, so change only what is different for the new file.', 'y4apk'); ?></p>
+				</div>
+				<?php if ($pages > 1) : ?>
+					<div class="au-pages"><?php echo paginate_links(['base' => add_query_arg('paged', '%#%'), 'format' => '', 'current' => $paged, 'total' => $pages]); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
+				<?php endif; ?>
+				<p class="au-note"><?php esc_html_e('Save puts the new version, size and link on the post’s newest APK download and in App Information, changes the version in the title and in the Rank Math SEO title, description and social titles (for example v2.742 → v2.750), and marks the post as updated today. Downloads with the same version (OBB, IPA) are listed under it with the new version filled in: ticked ones are updated too (an iOS file starts unticked). Older versions are left as they are. Replace swaps the old files for the new ones; Add puts each new file just above its old one, which stays as an older version (it needs the new file’s link). Posts that already keep older versions start with Add. The size and link start with what the post has now, so change only what is different for the new file.', 'y4apk'); ?></p>
 
-			<h2 id="y4apk-link"><?php esc_html_e('Suggestions to confirm', 'y4apk'); ?></h2>
-			<p class="description" style="max-width:900px"><?php esc_html_e('Posts whose Google Play search found an app, but not with exactly the same name and publisher — or posts without an App Name. Check the suggestion, then use it, type the right ID, or mark it as not on Google Play. You can also put the ID in the post’s App Information ▸ Google Play ID.', 'y4apk'); ?></p>
-			<form id="y4apk-bulk" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-				<input type="hidden" name="action" value="y4apk_vc_bulk"><?php wp_nonce_field('y4apk-vc-bulk'); ?>
-			</form>
-			<table class="widefat striped" style="max-width:1300px">
-				<thead><tr><td class="check-column" style="padding-left:8px"><input type="checkbox" aria-label="<?php esc_attr_e('Select all', 'y4apk'); ?>" onclick="document.querySelectorAll('.y4apk-pick').forEach(function (c) { c.checked = this.checked; }, this)"></td>
-					<th><?php esc_html_e('Post', 'y4apk'); ?></th><th><?php esc_html_e('Suggested Google Play app', 'y4apk'); ?></th><th style="width:44%"></th></tr></thead>
-				<tbody>
+			<?php elseif ($view === 'suggest') : ?>
+				<form id="y4apk-bulk" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+					<input type="hidden" name="action" value="y4apk_vc_bulk"><?php wp_nonce_field('y4apk-vc-bulk'); ?>
+				</form>
+				<div class="au-toolbar">
+					<span class="au-toolbar-info"><?php esc_html_e('Google Play found an app for these posts, but not with exactly the same name and publisher — or the post has no App Name. Use it, type the right ID, or mark the post as not on Google Play.', 'y4apk'); ?></span>
+					<?php if ($suggest_ids) : ?>
+						<span class="au-actions">
+							<label><input type="checkbox" aria-label="<?php esc_attr_e('Select all', 'y4apk'); ?>" onclick="document.querySelectorAll('.y4apk-pick').forEach(function (c) { c.checked = this.checked; }, this)"> <?php esc_html_e('Select all', 'y4apk'); ?></label>
+							<button class="button" form="y4apk-bulk"><?php esc_html_e('Not on Google Play — all ticked', 'y4apk'); ?></button>
+						</span>
+					<?php endif; ?>
+				</div>
+				<div class="au-list" id="y4apk-link">
 				<?php if (!$suggest_ids) : ?>
-					<tr><td colspan="4"><?php esc_html_e('No suggestions waiting.', 'y4apk'); ?></td></tr>
+					<div class="au-card au-empty"><?php esc_html_e('No suggestions waiting.', 'y4apk'); ?></div>
 				<?php endif; ?>
 				<?php foreach ($suggest_ids as $id) :
 					$s = json_decode((string) get_post_meta($id, self::SUGGEST, true), true);
 					if (!is_array($s) || empty($s['id'])) {
 						continue;
 					} ?>
-					<tr>
-						<th class="check-column" style="padding-left:8px"><input type="checkbox" class="y4apk-pick" name="posts[]" value="<?php echo esc_attr($id); ?>" form="y4apk-bulk" aria-label="<?php esc_attr_e('Select', 'y4apk'); ?>"></th>
-						<td><a href="<?php echo esc_url(get_edit_post_link($id)); ?>"><strong><?php echo esc_html(get_the_title($id)); ?></strong></a><br>
-							<small><?php echo esc_html(trim(get_post_meta($id, 'wp_title_GP', true) . ' · ' . get_post_meta($id, 'wp_developers_GP', true), ' ·')); ?></small></td>
-						<td><a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode($s['id'])); ?>" target="_blank" rel="noopener noreferrer"><strong><?php echo esc_html($s['title'] ?: $s['id']); ?></strong></a><br>
-							<small><?php echo esc_html(trim(($s['developer'] ?? '') . ' · ' . $s['id'], ' ·')); ?></small></td>
-						<td>
-							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-								<input type="hidden" name="action" value="y4apk_vc_link">
-								<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
-								<?php wp_nonce_field('y4apk-vc-link-' . $id); ?>
-								<input name="id" value="<?php echo esc_attr($s['id']); ?>" style="flex:1;min-width:200px" aria-label="<?php esc_attr_e('Google Play ID', 'y4apk'); ?>">
-								<button class="button button-primary"><?php esc_html_e('Use', 'y4apk'); ?></button>
-								<button class="button" name="reject" value="1"><?php esc_html_e('Not on Google Play', 'y4apk'); ?></button>
-							</form>
-						</td>
-					</tr>
+					<div class="au-card au-srow">
+						<input type="checkbox" class="y4apk-pick" name="posts[]" value="<?php echo esc_attr($id); ?>" form="y4apk-bulk" aria-label="<?php esc_attr_e('Select', 'y4apk'); ?>">
+						<div class="au-app">
+							<?php echo self::icon($id); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+							<div style="min-width:0"><span class="au-label"><?php esc_html_e('Post', 'y4apk'); ?></span>
+								<a class="au-title" href="<?php echo esc_url(get_edit_post_link($id)); ?>"><?php echo esc_html(get_the_title($id)); ?></a>
+								<span class="au-small"><?php echo esc_html(trim(get_post_meta($id, 'wp_title_GP', true) . ' · ' . get_post_meta($id, 'wp_developers_GP', true), ' ·')); ?></span></div>
+						</div>
+						<div><span class="au-label"><?php esc_html_e('Suggested Google Play app', 'y4apk'); ?></span>
+							<a class="au-title" href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode($s['id'])); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($s['title'] ?: $s['id']); ?> ↗</a>
+							<span class="au-small"><?php echo esc_html(trim(($s['developer'] ?? '') . ' · ' . $s['id'], ' ·')); ?></span></div>
+						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+							<input type="hidden" name="action" value="y4apk_vc_link">
+							<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
+							<?php wp_nonce_field('y4apk-vc-link-' . $id); ?>
+							<input name="id" value="<?php echo esc_attr($s['id']); ?>" aria-label="<?php esc_attr_e('Google Play ID', 'y4apk'); ?>">
+							<button class="button button-primary"><?php esc_html_e('Use', 'y4apk'); ?></button>
+							<button class="button" name="reject" value="1"><?php esc_html_e('Not on Google Play', 'y4apk'); ?></button>
+						</form>
+					</div>
 				<?php endforeach; ?>
-				</tbody>
-			</table>
-			<?php if ($suggest_ids) : ?>
-				<p><button class="button" form="y4apk-bulk"><?php esc_html_e('Not on Google Play — all ticked', 'y4apk'); ?></button></p>
-			<?php endif; ?>
+				</div>
+				<?php if ($suggested > count($suggest_ids) && $suggest_ids) : ?>
+					<p class="au-note"><?php echo esc_html(sprintf(__('Showing the newest %1$s of %2$s; the rest appear as these are done.', 'y4apk'), count($suggest_ids), number_format_i18n($suggested))); ?></p>
+				<?php endif; ?>
+				<p class="au-note"><?php esc_html_e('You can also put the ID in the post’s App Information ▸ Google Play ID.', 'y4apk'); ?></p>
 
-			<h2><?php esc_html_e('Test one app', 'y4apk'); ?></h2>
-			<p class="description"><?php esc_html_e('See what this server reads from Google Play and Aptoide for any app, to compare with the Play Store yourself.', 'y4apk'); ?></p>
-			<form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
-				<input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>">
-				<input name="test" class="regular-text" value="<?php echo esc_attr(isset($_GET['test']) ? sanitize_text_field(wp_unslash($_GET['test'])) : ''); ?>" placeholder="https://play.google.com/store/apps/details?id=com.eurosport">
-				<button class="button"><?php esc_html_e('Test', 'y4apk'); ?></button>
-			</form>
-			<?php if (!empty($_GET['test'])) {
-				self::render_test(sanitize_text_field(wp_unslash($_GET['test'])));
-			} ?>
+			<?php elseif ($view === 'test') : ?>
+				<div class="au-card au-pad" style="margin-bottom:14px">
+					<form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" class="au-toolbar" style="margin:0">
+						<input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>">
+						<input type="hidden" name="view" value="test">
+						<input name="test" class="au-search" style="flex:1" value="<?php echo esc_attr(isset($_GET['test']) ? sanitize_text_field(wp_unslash($_GET['test'])) : ''); ?>" placeholder="https://play.google.com/store/apps/details?id=com.eurosport" aria-label="<?php esc_attr_e('Google Play link or app ID', 'y4apk'); ?>">
+						<button class="button button-primary"><?php esc_html_e('Test', 'y4apk'); ?></button>
+					</form>
+					<p class="au-note" style="margin-top:10px"><?php esc_html_e('What this server reads from Google Play and Aptoide for any app — to compare with the Play Store yourself. Nothing is saved.', 'y4apk'); ?></p>
+				</div>
+				<?php if (!empty($_GET['test'])) {
+					self::render_test(sanitize_text_field(wp_unslash($_GET['test'])));
+				} ?>
 
-			<?php if (current_user_can('manage_options')) : ?>
-				<h2><?php esc_html_e('Settings', 'y4apk'); ?></h2>
+			<?php else : ?>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 					<input type="hidden" name="action" value="y4apk_vc_settings">
 					<?php wp_nonce_field('y4apk-vc-settings'); ?>
-					<p><label><input type="checkbox" name="on" value="1" <?php checked(self::enabled()); ?>> <?php esc_html_e('Link posts and check versions in the background', 'y4apk'); ?></label>
-						<button class="button"><?php esc_html_e('Save', 'y4apk'); ?></button></p>
+					<div class="au-settings">
+						<div class="au-card au-pad">
+							<h2><?php esc_html_e('Background checks', 'y4apk'); ?></h2>
+							<p><?php esc_html_e('Every 15 minutes: link up to 100 posts by the Google Play link in their content, look up 6 on Google Play, and check 20 versions.', 'y4apk'); ?></p>
+							<label><input type="checkbox" name="on" value="1" <?php checked(self::enabled()); ?>> <?php esc_html_e('Link posts and check versions in the background', 'y4apk'); ?></label>
+						</div>
+						<div class="au-card au-pad">
+							<h2><?php esc_html_e('Google Play store', 'y4apk'); ?></h2>
+							<p><?php esc_html_e('Ratings and age ratings differ by country: these are read from this country’s Play Store (two letters, e.g. TH Thailand, US United States). Apps not offered there are read from the US store.', 'y4apk'); ?></p>
+							<label><input type="text" name="country" value="<?php echo esc_attr(self::country()); ?>" maxlength="2" style="width:70px;text-transform:uppercase" aria-label="<?php esc_attr_e('Country', 'y4apk'); ?>"></label>
+						</div>
+						<div class="au-card au-pad">
+							<h2><?php esc_html_e('Keep App Information up to date', 'y4apk'); ?></h2>
+							<p><?php esc_html_e('Each time a post’s version is checked, these fields are set to what Google Play shows. Empty values never overwrite, and the post’s updated date does not change.', 'y4apk'); ?></p>
+							<?php foreach (self::info_fields() as $key => $field) : ?>
+								<label><input type="checkbox" name="info[<?php echo esc_attr($key); ?>]" value="1" <?php checked(self::info_on($key)); ?>> <?php echo esc_html($field[0]); ?></label>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<p><button class="button button-primary"><?php esc_html_e('Save settings', 'y4apk'); ?></button></p>
 				</form>
-				<p class="description" style="max-width:900px"><?php printf(
-					/* translators: %s: cron command */
-					esc_html__('WordPress runs background steps when someone opens an uncached page, so with a page cache they can come rarely. To run them every 15 minutes regardless, add a cron job in Hostinger (hPanel ▸ Advanced ▸ Cron Jobs, every 15 minutes): %s', 'y4apk'),
-					'<code>wget -q -O - ' . esc_html(site_url('wp-cron.php?doing_wp_cron')) . ' &gt;/dev/null 2&gt;&amp;1</code>'); ?></p>
+				<div class="au-card au-pad" style="margin-top:14px">
+					<h2 style="font-size:15px;margin:0 0 6px"><?php esc_html_e('Server cron job (Hostinger)', 'y4apk'); ?></h2>
+					<p class="au-note" style="margin:0 0 10px"><?php esc_html_e('WordPress runs background steps when someone opens an uncached page, so with a page cache they can come rarely. A cron job in hPanel ▸ Advanced ▸ Cron Jobs (type PHP, every 15 or 30 minutes) runs them on time. Its command:', 'y4apk'); ?></p>
+					<code class="au-code"><?php echo esc_html('/usr/bin/php ' . ABSPATH . 'wp-cron.php'); ?></code>
+				</div>
 			<?php endif; ?>
 		</div>
+		<script>
+			document.querySelectorAll('[data-au-filter]').forEach(function (input) {
+				var list = document.getElementById(input.getAttribute('data-au-filter'));
+				input.addEventListener('input', function () {
+					var q = input.value.trim().toLowerCase();
+					list.querySelectorAll('[data-title]').forEach(function (row) {
+						row.hidden = q !== '' && row.getAttribute('data-title').indexOf(q) === -1;
+					});
+				});
+			});
+		</script>
 		<?php
 	}
 }

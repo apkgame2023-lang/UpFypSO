@@ -117,7 +117,7 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
-## App updates: which posts have a newer version out (2.17–2.18)
+## App updates: which posts have a newer version out (2.17–2.20)
 
 **Y4APK ▸ App updates** lists the posts whose download is older than the app's
 latest version, most downloaded first (last 30 days, from Analytics), with a form
@@ -148,7 +148,8 @@ State per post in `_y4apk_gp_link` (content, scanned, search, suggested, nomatch
 confirmed, rejected) and `_y4apk_gp_suggest`.
 
 **2. Latest version — from Google Play itself** (2.18): the app's page
-(`hl=en&gl=US`, then any store), read from its `AF_initDataCallback` data
+(`hl=en` and the store country from Settings — TH by default since 2.20 — then
+the US store, then any), read from its `AF_initDataCallback` data
 (`ds:5` → `[1][2][140][0][0][0]`; name `[1][2][0][0]`, publisher `[1][2][68][0]`,
 updated `[1][2][145][0][1][0]`) — the number the Play Store shows. When Play shows
 "Varies with device", Aptoide's public API is the fallback, **plain dotted numbers
@@ -185,6 +186,29 @@ Posts with several downloads (2.19):
   *Add as new*;
 - the form is refused if the post's downloads were edited after the page was
   opened.
+
+**4. App Information from Google Play** (2.20). The same page read gives the
+publisher (`[1][2][68][0]`), age rating (`[1][2][9][0]`, "Rated for 12+" → `12+`;
+PEGI/USK numbers and ESRB words — Teen → 13+ — are turned into the same form),
+Android version (`[1][2][140][1][1][0][0][1]`, "5.1 and up" → `5.1`), rating
+(`[1][2][51][0][1]`, one decimal) and number of ratings (`[1][2][51][2][1]`);
+the page's schema.org data is the fallback. They are kept in `_y4apk_gp_info`
+(shown as chips on each row) and, for the fields ticked in Settings, written to
+App Information: `wp_developers_GP`, `wp_contentrated_GP`, `wp_requires_GP`, and
+`avg_rating` / `total_votes` / `total_rating` (as the App Information box saves
+them). Empty values never overwrite; the post's modified date does not change.
+Ratings and age ratings differ by country, hence the store setting. The App
+Information rating slider now moves by 0.1 so 4.4 survives a save. Note that the
+theme's schema markup (`inc/snippet.php`) publishes these numbers as the post's
+`aggregateRating`.
+
+**The page** (2.20) is full width: a status pill (running / slow / stalled /
+off) and *Run a step now*; five cards (linked, versions checked, need a new
+file, suggestions, App Information read); tabs *Need a new file* (filter box,
+app icon, Play chips, version change, the form), *Suggestions*, *Test one app*
+(now also shows the five fields) and *Settings* (background on/off, store
+country, App Information fields, and the exact PHP cron command for this
+server).
 
 **Running on time.** WP-Cron runs when an uncached page is opened, which a page
 cache makes rare. A Hostinger cron job every 15 minutes —
