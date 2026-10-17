@@ -24,6 +24,7 @@ function app_info_callback($post){
     $app_fields = [
         'wp_title_GP' => __('App Name', 'y4apk'),
         'wp_developers_GP' => __('App Publisher', 'y4apk'),
+        'wp_GP_ID' => __('Google Play ID', 'y4apk'),
         'wp_mods' => __('App MOD Feature', 'y4apk'),
         'wp_version_GP' => __('App Version', 'y4apk'),
         'wp_sizes_GP' => __('App Size', 'y4apk'),
@@ -105,6 +106,24 @@ function save_app_info($post_id){
     foreach ($app_meta_data as $meta_key) {
         if (isset($_POST[$meta_key])) {
             update_post_meta($post_id, $meta_key, sanitize_text_field($_POST[$meta_key]));
+        }
+    }
+
+    // Google Play ID (Y4APK ▸ App updates): a Play link or a bare ID. A new one
+    // is looked up again; an empty one lets the background search try.
+    if (isset($_POST['wp_GP_ID'])) {
+        $raw = sanitize_text_field(wp_unslash($_POST['wp_GP_ID']));
+        $package = class_exists('Y4APK_App_Updates') ? Y4APK_App_Updates::package_from($raw) : $raw;
+        if ($package !== (string) get_post_meta($post_id, 'wp_GP_ID', true)) {
+            foreach (['_y4apk_latest_version', '_y4apk_latest_source', '_y4apk_latest_checked', '_y4apk_needs_update', '_y4apk_gp_link', '_y4apk_gp_suggest'] as $stale) {
+                delete_post_meta($post_id, $stale);
+            }
+            if ($package === '') {
+                delete_post_meta($post_id, 'wp_GP_ID');
+            } else {
+                update_post_meta($post_id, 'wp_GP_ID', $package);
+                update_post_meta($post_id, '_y4apk_gp_link', 'confirmed');
+            }
         }
     }
 	

@@ -117,35 +117,57 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
-## App updates: which posts have a newer version out (2.17)
+## App updates: which posts have a newer version out (2.17–2.18)
 
 **Y4APK ▸ App updates** lists the posts whose download is older than the app's
 latest version, most downloaded first (last 30 days, from Analytics), with a form
-per post for the new file. The posts list gets a *Latest version* column ("Newer
-than your file" in red / "Up to date" / "Not found" / "No Google Play ID"), a
-*Needs update (N)* link and a *Check version now* row action.
+per post for the new file. The posts list gets a *Latest version* column (with its
+source), a *Needs update (N)* link and a *Check version now* row action. Every
+step runs in the background (WP-Cron, every 15 minutes); *Run a step now* runs one
+at once.
 
-- **Where versions come from:** Aptoide's public app API
-  (`ws2.aptoide.com/api/7/app/getMeta/package_name=<id>`), which follows Google
-  Play and is what the Google Play importer already reads versions from — Google
-  Play's own page often says "Varies with device". Posts are matched by the
-  importer's `wp_GP_ID` meta.
-- **Gently, in the background:** WP-Cron every 15 minutes checks the next 25
-  published posts with a Google Play ID, by post ID, round and round (about 100
-  an hour; 6,000 apps take two to three days a round). A cursor option keeps the
-  place; if the service does not answer, the step stops there and resumes next
-  time. One short HTTP request and two post meta writes per app.
-- **Stored per post:** `_y4apk_latest_version`, `_y4apk_latest_checked`, and
-  `_y4apk_needs_update` while the latest version is newer than the post's APK
-  download (`repeatable_download_link`, first APK-type entry). Versions compare by
-  their numbers ("v2.742.Android" → 2.742). The flag is refreshed whenever the post
-  is saved, block editor included.
-- **Nothing on the site changes by itself.** Saving the form puts the new
-  version, size and link on the post's APK download, changes the version in the
-  title when the old one is plainly in it ("v2.742" → "v2.750"; bare numbers are
-  left alone), and marks the post updated. Other downloads (OBB, iOS) are left
-  as they are. The link field starts empty: it has to be the new file.
-- Switch: *Check versions in the background* on that page.
+**1. Linking posts to their Google Play app** (`wp_GP_ID`). Most posts are written
+by hand, so, newest first:
+
+- a Google Play link in the post's content is taken as the ID (no requests; 100
+  posts a step);
+- otherwise Google Play is searched for the post's **App Name** (App Information);
+  the post is linked only if one of the first two results has exactly the same
+  name — ignoring case and punctuation — and the same publisher when the post has
+  one (6 posts a step, up to 3 requests each);
+- anything less certain, and posts without an App Name (searched by the title up
+  to "MOD"/"APK"/the version), become **suggestions** on the page: *Use*, type the
+  right ID, or *Not on Google Play*;
+- App Information has a **Google Play ID** field (a Play link or a bare ID); a new
+  ID clears the old result so it is checked again.
+
+State per post in `_y4apk_gp_link` (content, scanned, search, suggested, nomatch,
+confirmed, rejected) and `_y4apk_gp_suggest`.
+
+**2. Latest version — from Google Play itself** (2.18): the app's page
+(`hl=en&gl=US`, then any store), read from its `AF_initDataCallback` data
+(`ds:5` → `[1][2][140][0][0][0]`; name `[1][2][0][0]`, publisher `[1][2][68][0]`,
+updated `[1][2][145][0][1][0]`) — the number the Play Store shows. When Play shows
+"Varies with device", Aptoide's public API is the fallback, **plain dotted numbers
+only**: Aptoide also lists other builds (Brawl Stars "1009.0-wv" while Play has
+69.414), which 2.17.0 wrongly used; its results are cleared on upgrade. 20 posts a
+step, by post ID, round and round. If Google answers 429/5xx the step stops and the
+next one carries on. Stored: `_y4apk_latest_version`, `_y4apk_latest_source`
+(play / aptoide), `_y4apk_latest_checked`, `_y4apk_needs_update`.
+
+**Test one app** on the page shows what this server reads from Google Play and
+Aptoide for any app ID or Play link — to compare with the Play Store by eye.
+
+**3. Saving a new file** puts the version, size and link on the post's APK download
+and in App Information (App Version, App Size), changes the version in the title
+and in the **Rank Math** SEO title, description and social titles ("v2.742" →
+"v2.750"; bare numbers are left alone), and marks the post updated. Other
+downloads (OBB, iOS) are left as they are. Nothing on the site changes without it.
+
+**Running on time.** WP-Cron runs when an uncached page is opened, which a page
+cache makes rare. A Hostinger cron job every 15 minutes —
+`wget -q -O - https://y4apk.com/wp-cron.php?doing_wp_cron >/dev/null 2>&1` —
+keeps the steps regular (the page shows the line with the site's own address).
 
 ## App analytics (2.16)
 
