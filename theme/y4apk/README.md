@@ -136,8 +136,11 @@ by hand, so, newest first:
   name — ignoring case and punctuation — and the same publisher when the post has
   one (6 posts a step, up to 3 requests each);
 - anything less certain, and posts without an App Name (searched by the title up
-  to "MOD"/"APK"/the version), become **suggestions** on the page: *Use*, type the
-  right ID, or *Not on Google Play*;
+  to "MOD"/"APK"/the version), become **suggestions** on the page — only when the
+  Play name shares at least half of the post name's telling words (generic words
+  like script, hub, mod, apk, free, key do not count), so a Roblox script post is
+  not offered "Rscripts: Roblox Scripts" (2.18.1): *Use*, type the right ID, *Not
+  on Google Play*, or tick several and *Not on Google Play — all ticked*;
 - App Information has a **Google Play ID** field (a Play link or a bare ID); a new
   ID clears the old result so it is checked again.
 
@@ -149,7 +152,8 @@ confirmed, rejected) and `_y4apk_gp_suggest`.
 (`ds:5` → `[1][2][140][0][0][0]`; name `[1][2][0][0]`, publisher `[1][2][68][0]`,
 updated `[1][2][145][0][1][0]`) — the number the Play Store shows. When Play shows
 "Varies with device", Aptoide's public API is the fallback, **plain dotted numbers
-only**: Aptoide also lists other builds (Brawl Stars "1009.0-wv" while Play has
+only** (otherwise the column says Google Play shows "Varies with device", as for
+Netflix and TikTok): Aptoide also lists other builds (Brawl Stars "1009.0-wv" while Play has
 69.414), which 2.17.0 wrongly used; its results are cleared on upgrade. 20 posts a
 step, by post ID, round and round. If Google answers 429/5xx the step stops and the
 next one carries on. Stored: `_y4apk_latest_version`, `_y4apk_latest_source`

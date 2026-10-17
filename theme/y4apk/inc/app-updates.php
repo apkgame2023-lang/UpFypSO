@@ -54,6 +54,7 @@ class Y4APK_App_Updates {
 		add_action('admin_post_y4apk_vc_save', [__CLASS__, 'handle_save']);
 		add_action('admin_post_y4apk_vc_check', [__CLASS__, 'handle_check']);
 		add_action('admin_post_y4apk_vc_link', [__CLASS__, 'handle_link']);
+		add_action('admin_post_y4apk_vc_bulk', [__CLASS__, 'handle_bulk']);
 		add_action('admin_post_y4apk_vc_run', [__CLASS__, 'handle_run']);
 		add_action('admin_post_y4apk_vc_settings', [__CLASS__, 'handle_settings']);
 		add_filter('manage_post_posts_columns', [__CLASS__, 'column']);
@@ -83,6 +84,20 @@ class Y4APK_App_Updates {
 			}
 			update_option('y4apk_vc_cursor', 0, false);
 			update_option('y4apk_vc_schema', 2, true);
+		}
+		// 2.18.1 suggests only apps with a similar name: drop earlier ones that are not.
+		if ((int) get_option('y4apk_vc_schema', 1) < 3) {
+			global $wpdb;
+			foreach ($wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = 'suggested'", self::LINK)) as $id) {
+				$s = json_decode((string) get_post_meta($id, self::SUGGEST, true), true);
+				$name = trim((string) get_post_meta($id, 'wp_title_GP', true));
+				$name = $name !== '' ? $name : self::name_from_title(get_post_field('post_title', $id));
+				if (!is_array($s) || !self::similar($name, isset($s['title']) ? $s['title'] : '')) {
+					delete_post_meta($id, self::SUGGEST);
+					update_post_meta($id, self::LINK, 'nomatch');
+				}
+			}
+			update_option('y4apk_vc_schema', 3, true);
 		}
 		$next = wp_next_scheduled(self::HOOK);
 		if (self::enabled() && !$next) {
@@ -251,7 +266,8 @@ class Y4APK_App_Updates {
 		if ($apt === null) {
 			return null;
 		}
-		return ['version' => $apt, 'source' => $apt !== '' ? 'aptoide' : ''];
+		$varies = $play['status'] === 'ok' && $play['shown'] !== '';
+		return ['version' => $apt, 'source' => $apt !== '' ? 'aptoide' : ($varies ? 'varies' : '')];
 	}
 
 	public static function check_post($post_id) {
@@ -294,6 +310,21 @@ class Y4APK_App_Updates {
 		return trim((string) $developer) !== ''
 			? self::norm($app['developer']) === self::norm($developer)
 			: mb_strlen($n) >= 6;
+	}
+
+	/** The words of a name that tell apps apart ("Steal An Egg Script - [Chilli HUB]" → steal, egg, chilli). */
+	public static function words($s) {
+		static $common = ['the', 'a', 'an', 'of', 'in', 'on', 'for', 'and', 'vs', 'to', 'mod', 'apk', 'script', 'scripts',
+			'hub', 'key', 'no', 'free', 'get', 'download', 'premium', 'unlocked', 'unlimited', 'money', 'game', 'games',
+			'app', 'apps', 'android', 'ios', 'latest', 'version', 'new'];
+		$words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower(html_entity_decode((string) $s, ENT_QUOTES, 'UTF-8')), -1, PREG_SPLIT_NO_EMPTY);
+		return array_values(array_unique(array_diff($words, $common)));
+	}
+
+	/** Worth suggesting: the Play name shares at least half of the post name's telling words. */
+	public static function similar($name, $title) {
+		$a = self::words($name);
+		return $a && count(array_intersect($a, self::words($title))) / count($a) >= 0.5;
 	}
 
 	/** Posts without a Google Play ID, by link state (null = not looked at yet), newest first. */
@@ -359,7 +390,7 @@ class Y4APK_App_Updates {
 				self::link($post_id, $package, 'search');
 				return true;
 			}
-			if ($first === null && $app['status'] === 'ok') {
+			if ($first === null && $app['status'] === 'ok' && self::similar($name, $app['title'])) {
 				$first = ['id' => $package, 'title' => $app['title'], 'developer' => $app['developer']];
 			}
 		}
@@ -475,7 +506,9 @@ class Y4APK_App_Updates {
 		$latest = (string) get_post_meta($post_id, self::LATEST, true);
 		$source = get_post_meta($post_id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
 		if ($latest === '') {
-			echo '<span style="color:#8c8f94">' . esc_html__('No version shown', 'y4apk') . '</span>';
+			echo '<span style="color:#8c8f94">' . esc_html(get_post_meta($post_id, self::SOURCE, true) === 'varies'
+				? __('Google Play shows “Varies with device”', 'y4apk')
+				: __('No version shown', 'y4apk')) . '</span>';
 		} elseif (get_post_meta($post_id, self::NEEDS, true)) {
 			echo '<strong style="color:#b32d2e">' . esc_html($latest) . '</strong><br><span style="color:#b32d2e">' . esc_html__('Newer than your file', 'y4apk') . '</span>';
 		} else {
@@ -579,6 +612,19 @@ class Y4APK_App_Updates {
 			self::check_post($post_id);
 		}
 		wp_safe_redirect($back);
+		exit;
+	}
+
+	/** "Not on Google Play" for the ticked suggestions. */
+	public static function handle_bulk() {
+		check_admin_referer('y4apk-vc-bulk');
+		foreach (array_map('absint', isset($_POST['posts']) ? (array) $_POST['posts'] : []) as $post_id) {
+			if ($post_id && current_user_can('edit_post', $post_id)) {
+				delete_post_meta($post_id, self::SUGGEST);
+				update_post_meta($post_id, self::LINK, 'rejected');
+			}
+		}
+		wp_safe_redirect(add_query_arg(['page' => self::SLUG], admin_url('admin.php')) . '#y4apk-link');
 		exit;
 	}
 
@@ -788,11 +834,15 @@ class Y4APK_App_Updates {
 
 			<h2 id="y4apk-link"><?php esc_html_e('Suggestions to confirm', 'y4apk'); ?></h2>
 			<p class="description" style="max-width:900px"><?php esc_html_e('Posts whose Google Play search found an app, but not with exactly the same name and publisher — or posts without an App Name. Check the suggestion, then use it, type the right ID, or mark it as not on Google Play. You can also put the ID in the post’s App Information ▸ Google Play ID.', 'y4apk'); ?></p>
+			<form id="y4apk-bulk" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+				<input type="hidden" name="action" value="y4apk_vc_bulk"><?php wp_nonce_field('y4apk-vc-bulk'); ?>
+			</form>
 			<table class="widefat striped" style="max-width:1300px">
-				<thead><tr><th><?php esc_html_e('Post', 'y4apk'); ?></th><th><?php esc_html_e('Suggested Google Play app', 'y4apk'); ?></th><th style="width:44%"></th></tr></thead>
+				<thead><tr><td class="check-column" style="padding-left:8px"><input type="checkbox" aria-label="<?php esc_attr_e('Select all', 'y4apk'); ?>" onclick="document.querySelectorAll('.y4apk-pick').forEach(function (c) { c.checked = this.checked; }, this)"></td>
+					<th><?php esc_html_e('Post', 'y4apk'); ?></th><th><?php esc_html_e('Suggested Google Play app', 'y4apk'); ?></th><th style="width:44%"></th></tr></thead>
 				<tbody>
 				<?php if (!$suggest_ids) : ?>
-					<tr><td colspan="3"><?php esc_html_e('No suggestions waiting.', 'y4apk'); ?></td></tr>
+					<tr><td colspan="4"><?php esc_html_e('No suggestions waiting.', 'y4apk'); ?></td></tr>
 				<?php endif; ?>
 				<?php foreach ($suggest_ids as $id) :
 					$s = json_decode((string) get_post_meta($id, self::SUGGEST, true), true);
@@ -800,6 +850,7 @@ class Y4APK_App_Updates {
 						continue;
 					} ?>
 					<tr>
+						<th class="check-column" style="padding-left:8px"><input type="checkbox" class="y4apk-pick" name="posts[]" value="<?php echo esc_attr($id); ?>" form="y4apk-bulk" aria-label="<?php esc_attr_e('Select', 'y4apk'); ?>"></th>
 						<td><a href="<?php echo esc_url(get_edit_post_link($id)); ?>"><strong><?php echo esc_html(get_the_title($id)); ?></strong></a><br>
 							<small><?php echo esc_html(trim(get_post_meta($id, 'wp_title_GP', true) . ' · ' . get_post_meta($id, 'wp_developers_GP', true), ' ·')); ?></small></td>
 						<td><a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode($s['id'])); ?>" target="_blank" rel="noopener noreferrer"><strong><?php echo esc_html($s['title'] ?: $s['id']); ?></strong></a><br>
@@ -818,6 +869,9 @@ class Y4APK_App_Updates {
 				<?php endforeach; ?>
 				</tbody>
 			</table>
+			<?php if ($suggest_ids) : ?>
+				<p><button class="button" form="y4apk-bulk"><?php esc_html_e('Not on Google Play — all ticked', 'y4apk'); ?></button></p>
+			<?php endif; ?>
 
 			<h2><?php esc_html_e('Test one app', 'y4apk'); ?></h2>
 			<p class="description"><?php esc_html_e('See what this server reads from Google Play and Aptoide for any app, to compare with the Play Store yourself.', 'y4apk'); ?></p>
