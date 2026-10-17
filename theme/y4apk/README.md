@@ -104,6 +104,12 @@ their content is covered as the visitor arrives from search, and the box covered
 every game page. Opening the ad on the download tap keeps most of the clicks —
 nearly everyone who comes for a file taps Download — without covering anything.
 
+**Not inside the installed app** (2.13.1). The app has a single window, so an ad
+opened from it took that window over, and the ad's close button closed the whole
+app instead of leading on to the download. Inside the app — standalone display,
+or the APK recognised by its referrer — download taps go straight to the
+download page and the Unlock box is not shown. Browsers are unaffected.
+
 The link defaults to `/update-ads`, the address the box opened, so nothing stops
 earning after an update; paste the Monetag link straight in to skip that page.
 The script is in the footer of game pages only, carries the `y4apk-pwa` keyword and

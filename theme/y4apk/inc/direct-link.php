@@ -12,6 +12,10 @@
  *              before 2.13).
  *   off
  *
+ * Neither runs inside the installed app: it has a single window, and an ad
+ * opened from it takes that window over, so closing the ad closed the app
+ * instead of leading on to the download (2.13.0).
+ *
  * Front end cost: one autoloaded option and, on game pages only, a few hundred
  * bytes in the footer.
  */
@@ -66,6 +70,19 @@ class Y4APK_Direct_Link {
 	 * Front end
 	 * ---------------------------------------------------------------- */
 
+	/**
+	 * JS expression: is the page running inside the installed app? The app has
+	 * a single window, so an ad opened from it takes that window over, and the
+	 * close button on the ad then closes the whole app. Set by the app's boot
+	 * script (which also recognises the APK by its referrer), with the
+	 * display mode as a fallback for when the app is switched off.
+	 */
+	private static function in_app_js() {
+		return "(window.__y4apkInApp || navigator.standalone === true"
+			. " || (function () { try { return sessionStorage.getItem('y4apk_in_app') === '1'; } catch (e) { return false; } })()"
+			. " || !!(window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches))";
+	}
+
 	public static function front() {
 		if (!is_singular('post') || get_query_var('download', null) !== null) {
 			return; // game pages only, not their download pages
@@ -111,7 +128,8 @@ class Y4APK_Direct_Link {
 	}
 	document.addEventListener('click', function (e) {
 		var a = e.target.closest && e.target.closest('a[href]');
-		if (!a || a.host !== location.host || !/\/download\/\d+\/?$/.test(a.pathname) || !due()) return;
+		if (!a || a.host !== location.host || !/\/download\/\d+\/?$/.test(a.pathname)) return;
+		if (<?php echo self::in_app_js(); ?> || !due()) return; // never inside the installed app
 		done();
 		window.open(url, '_blank', 'noopener');
 	});
@@ -218,7 +236,7 @@ class Y4APK_Direct_Link {
       p=document.getElementById("p"),
       t=document.getElementById("progress-text");
 
-  if(sessionStorage.getItem("unlockDone")) return o.style.display="none";
+  if(sessionStorage.getItem("unlockDone") || <?php echo self::in_app_js(); ?>) return o.style.display="none";
 
   let c=0;
   a.onclick=()=>{
@@ -289,6 +307,7 @@ class Y4APK_Direct_Link {
 				<div class="notice notice-warning"><p><?php esc_html_e('No link entered, so nothing is shown.', 'y4apk'); ?></p></div>
 			<?php endif; ?>
 			<p style="max-width:860px"><?php esc_html_e('Opens your ad link — a Monetag Direct Link (Monetag ▸ Direct Link ▸ Copy link) or any other — in a new tab.', 'y4apk'); ?></p>
+			<p style="max-width:860px"><?php esc_html_e('Not inside the installed Y4APK app: the app has only one window, so the ad would take it over and closing the ad would close the app. Visitors using a browser are not affected.', 'y4apk'); ?></p>
 
 			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 				<input type="hidden" name="action" value="y4apk_save_direct_link">
