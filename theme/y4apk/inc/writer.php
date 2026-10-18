@@ -1,9 +1,10 @@
 <?php
 /**
- * Y4APK ▸ Write with ChatGPT: writes a post's article through OpenAI's API,
- * asked the way it is asked in ChatGPT ("ช่วยเขียนบทความของเกม Tasty Blue
- * ไม่ต้องมีหัวข้อ ไม่ยาว เป็นภาษาอังกฤษ"), with the app's Google Play details
- * to go on, and lays it out like the site's articles:
+ * Y4APK ▸ Write with AI: writes a post's article with Gemini (Google) or Groq —
+ * both have free tiers — or ChatGPT (OpenAI) or Claude (Anthropic), asked the
+ * way it is asked in ChatGPT ("ช่วยเขียนบทความของเกม Tasty Blue ไม่ต้องมีหัวข้อ
+ * ไม่ยาว เป็นภาษาอังกฤษ"), with the app's Google Play details to go on, and lays
+ * it out like the site's articles:
  *
  *   <strong><a>Name</a> MOD APK [MOD]</strong> – is …   (first paragraph)
  *   … the <a>game</a> …                                (the post's category)
@@ -14,8 +15,13 @@
  *
  * Posts are written from the page, one after another while it is open, or from
  * a queue WP-Cron works through in the background (a few posts every 5
- * minutes). Each write keeps what it replaced, so it can be undone as long as
- * nobody has changed that part of the post since.
+ * minutes; when a free tier's limit is reached, the queue waits for it). Each
+ * write keeps what it replaced, so it can be undone as long as nobody has
+ * changed that part of the post since.
+ *
+ * Gemini and Groq are reached through their OpenAI-compatible chat endpoints,
+ * Claude through the Messages API — all with wp_remote_request(), as WordPress
+ * code does (the theme runs on PHP 7.4 hosting with no Composer).
  */
 
 if (!defined('ABSPATH')) {
@@ -29,8 +35,9 @@ class Y4APK_Writer {
 	const QUEUE    = 'y4apk_writer_queue';  // [[post ID, parts, tries], …], first in first out
 	const LOG      = 'y4apk_writer_log';    // the last 100 results, newest first
 	const USAGE    = 'y4apk_writer_usage';  // ['posts', 'in', 'out'] tokens so far
+	const WAIT     = 'y4apk_writer_wait';   // ['until', 'why']: the AI's limit was reached
 	const HOOK     = 'y4apk_writer_tick';
-	const DONE     = '_y4apk_ai';           // ['time', 'model', 'words'] of the last article written
+	const DONE     = '_y4apk_ai';           // ['time', 'provider', 'model', 'words'] of the last article written
 	const BACKUP   = '_y4apk_ai_backup';    // per part: ['before', 'after', 'time'], for Undo
 	const ICON     = '_y4apk_icon_src';     // the Play icon the featured image was made from
 	const SHORT    = 40;                    // fewer words than this: no article yet
@@ -38,7 +45,6 @@ class Y4APK_Writer {
 	const ARTICLE  = 1;
 	const ICONS    = 2;
 	const SHOTS    = 4;
-	const API      = 'https://api.openai.com/v1';
 
 	public static function init() {
 		add_filter('cron_schedules', [__CLASS__, 'schedules']);
@@ -64,10 +70,34 @@ class Y4APK_Writer {
 	 * Settings
 	 * ---------------------------------------------------------------- */
 
+	/** The services that can write. url: the API; keys: where to make a key; const: the wp-config.php alternative. */
+	public static function providers() {
+		return [
+			'gemini' => ['name' => 'Gemini', 'by' => 'Google', 'free' => true, 'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+				'keys' => 'https://aistudio.google.com/apikey', 'limits' => 'https://aistudio.google.com/rate-limit', 'const' => 'Y4APK_GEMINI_KEY'],
+			'groq'   => ['name' => 'Groq', 'by' => 'Groq', 'free' => true, 'url' => 'https://api.groq.com/openai/v1',
+				'keys' => 'https://console.groq.com/keys', 'limits' => 'https://console.groq.com/settings/limits', 'const' => 'Y4APK_GROQ_KEY'],
+			'openai' => ['name' => 'ChatGPT', 'by' => 'OpenAI', 'free' => false, 'url' => 'https://api.openai.com/v1',
+				'keys' => 'https://platform.openai.com/api-keys', 'limits' => 'https://platform.openai.com/settings/organization/billing', 'const' => 'Y4APK_OPENAI_KEY'],
+			'claude' => ['name' => 'Claude', 'by' => 'Anthropic', 'free' => false, 'url' => 'https://api.anthropic.com/v1',
+				'keys' => 'https://platform.claude.com/', 'limits' => 'https://platform.claude.com/', 'const' => 'Y4APK_CLAUDE_KEY'],
+		];
+	}
+
+	/** Claude's current models, for the list before Test has read the account's (≈ cost of 1,000 short articles). */
+	public static function claude_models() {
+		return [
+			'claude-opus-5-5'   => __('Claude Opus 5.5 — the most capable (≈ $14 per 1,000 articles)', 'y4apk'),
+			'claude-sonnet-5-5' => __('Claude Sonnet 5.5 (≈ $7 per 1,000 articles)', 'y4apk'),
+			'claude-haiku-5-5'  => __('Claude Haiku 5.5 — the cheapest (≈ $0.40 per 1,000 articles)', 'y4apk'),
+		];
+	}
+
 	public static function defaults() {
 		return [
-			'key'          => '',
-			'model'        => 'auto',
+			'provider'     => '',
+			'keys'         => [],
+			'models'       => [],
 			'prompt'       => 'ช่วยเขียนบทความของ{type} {name} ไม่ต้องมีหัวข้อ ไม่ยาว เป็นภาษาอังกฤษ',
 			'prompt_other' => 'ช่วยเขียนบทความของ {name} ไม่ต้องมีหัวข้อ ไม่ยาว เป็นภาษาอังกฤษ',
 			'heading'      => '{name} MOD APK ({mod}) For Android - Download MOD APK from Y4Apk Free and Premium.',
@@ -80,13 +110,32 @@ class Y4APK_Writer {
 		];
 	}
 
+	/** The settings; 'key' and 'model' are the chosen service's. */
 	public static function settings() {
 		$o = get_option(self::OPTION, []);
 		$o = wp_parse_args(is_array($o) ? $o : [], self::defaults());
-		// The key may also live in wp-config.php, out of the database.
-		if (defined('Y4APK_OPENAI_KEY') && Y4APK_OPENAI_KEY) {
-			$o['key'] = Y4APK_OPENAI_KEY;
+		$o['keys'] = is_array($o['keys']) ? $o['keys'] : [];
+		$o['models'] = is_array($o['models']) ? $o['models'] : [];
+		// 2.23 had one service, OpenAI: its key and model.
+		if (!empty($o['key']) && empty($o['keys']['openai'])) {
+			$o['keys']['openai'] = $o['key'];
 		}
+		if (!empty($o['model']) && empty($o['models']['openai'])) {
+			$o['models']['openai'] = $o['model'];
+		}
+		foreach (self::providers() as $p => $info) {
+			// A key may also live in wp-config.php, out of the database.
+			if (defined($info['const']) && constant($info['const'])) {
+				$o['keys'][$p] = (string) constant($info['const']);
+			}
+			$o['keys'][$p] = isset($o['keys'][$p]) ? trim((string) $o['keys'][$p]) : '';
+			$o['models'][$p] = !empty($o['models'][$p]) ? (string) $o['models'][$p] : ($p === 'claude' ? 'claude-opus-5-5' : 'auto');
+		}
+		if (!isset(self::providers()[$o['provider']])) {
+			$o['provider'] = $o['keys']['openai'] !== '' ? 'openai' : 'gemini';
+		}
+		$o['key'] = $o['keys'][$o['provider']];
+		$o['model'] = $o['models'][$o['provider']];
 		$o['per_run'] = max(1, min(10, (int) $o['per_run']));
 		$o['parts'] = (int) $o['parts'] & 7;
 		return $o;
@@ -103,26 +152,35 @@ class Y4APK_Writer {
 		}
 		check_admin_referer('y4apk-writer-settings');
 		$in = wp_unslash($_POST);
+		$now = self::settings();
 		$o = [
-			'model'        => preg_replace('/[^A-Za-z0-9._:\-]/', '', isset($in['model']) ? (string) $in['model'] : 'auto') ?: 'auto',
+			'provider'     => isset($in['provider'], self::providers()[$in['provider']]) ? (string) $in['provider'] : $now['provider'],
+			'keys'         => [],
+			'models'       => [],
 			'prompt'       => trim(sanitize_textarea_field(isset($in['prompt']) ? $in['prompt'] : '')),
 			'prompt_other' => trim(sanitize_textarea_field(isset($in['prompt_other']) ? $in['prompt_other'] : '')),
 			'heading'      => trim(sanitize_text_field(isset($in['heading']) ? $in['heading'] : '')),
 			'facts'        => empty($in['facts']) ? 0 : 1,
 			'link_name'    => empty($in['link_name']) ? 0 : 1,
 			'link_type'    => empty($in['link_type']) ? 0 : 1,
+			'key'          => '', // 2.23's single key now lives in keys[openai]
+			'model'        => '',
 		];
+		$saved = get_option(self::OPTION, []);
+		foreach (self::providers() as $p => $info) {
+			$old = isset($saved['keys'][$p]) ? (string) $saved['keys'][$p] : ($p === 'openai' && !empty($saved['key']) ? (string) $saved['key'] : '');
+			$new = isset($in['keys'][$p]) ? trim((string) $in['keys'][$p]) : '';
+			$o['keys'][$p] = !empty($in['forget'][$p]) ? '' : ($new !== '' ? $new : $old); // left empty: keep the saved one
+			if ($new !== '' || !empty($in['forget'][$p])) {
+				delete_transient('y4apk_writer_models_' . $p);
+			}
+			$model = isset($in['models'][$p]) ? preg_replace('/[^A-Za-z0-9._:\/\-]/', '', (string) $in['models'][$p]) : '';
+			$o['models'][$p] = $model !== '' ? $model : $now['models'][$p];
+		}
 		foreach (['prompt', 'prompt_other'] as $k) {
 			if ($o[$k] === '') {
 				$o[$k] = self::defaults()[$k];
 			}
-		}
-		if (!empty($in['key'])) { // left empty: keep the saved one
-			$o['key'] = trim((string) $in['key']);
-			delete_transient('y4apk_writer_models');
-		}
-		if (!empty($in['forget_key'])) {
-			$o['key'] = '';
 		}
 		self::save_settings($o);
 		wp_safe_redirect(self::url('settings', ['saved' => 1]));
@@ -133,129 +191,279 @@ class Y4APK_Writer {
 		return add_query_arg(array_merge(['page' => self::SLUG, 'view' => $view], $args), admin_url('admin.php'));
 	}
 
+	public static function provider_name($p) {
+		$all = self::providers();
+		return isset($all[$p]) ? $all[$p]['name'] : $p;
+	}
+
 	/* ---------------------------------------------------------------- *
-	 * OpenAI
+	 * The AI services
 	 * ---------------------------------------------------------------- */
 
-	/** The API's JSON, or a WP_Error coded busy (try later) | key | credit | model | api. */
-	private static function api($method, $path, $body = null, $timeout = 90) {
-		$key = self::settings()['key'];
+	/**
+	 * The service's JSON answer, or a WP_Error coded busy (its limit or load:
+	 * data 'wait' says how long) | key | credit | model | api.
+	 */
+	private static function api($provider, $method, $path, $body = null, $timeout = 90, $headers = []) {
+		$info = self::providers()[$provider];
+		$key = self::settings()['keys'][$provider];
 		if ($key === '') {
-			return new WP_Error('key', __('Add your OpenAI API key in Settings first.', 'y4apk'));
+			return new WP_Error('key', sprintf(__('Add your %s API key in Settings first.', 'y4apk'), $info['name']));
 		}
-		$args = ['method' => $method, 'timeout' => $timeout, 'headers' => ['Authorization' => 'Bearer ' . $key, 'Content-Type' => 'application/json']];
+		$headers = $provider === 'claude'
+			? array_merge(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'], $headers)
+			: array_merge(['Authorization' => 'Bearer ' . $key], $headers);
+		$args = ['method' => $method, 'timeout' => $timeout, 'headers' => $headers + ['Content-Type' => 'application/json']];
 		if ($body !== null) {
 			$args['body'] = wp_json_encode($body);
 		}
-		$r = wp_remote_request(self::API . $path, $args);
+		$r = wp_remote_request($info['url'] . $path, $args);
 		if (is_wp_error($r)) {
-			return new WP_Error('busy', sprintf(__('Could not reach OpenAI: %s', 'y4apk'), $r->get_error_message()));
+			return new WP_Error('busy', sprintf(__('Could not reach %1$s: %2$s', 'y4apk'), $info['name'], $r->get_error_message()), ['wait' => 300]);
 		}
 		$code = (int) wp_remote_retrieve_response_code($r);
 		$json = json_decode((string) wp_remote_retrieve_body($r), true);
 		if ($code >= 200 && $code < 300 && is_array($json)) {
 			return $json;
 		}
+		// Errors come as {error: {message, type, code, param}}, Gemini's as [{error: {code, message, status}}],
+		// Claude's as {type: "error", error: {type, message}}.
+		if (isset($json[0]['error'])) {
+			$json = $json[0];
+		}
 		$err = isset($json['error']) && is_array($json['error']) ? $json['error'] : [];
 		$msg = isset($err['message']) ? (string) $err['message'] : 'HTTP ' . $code;
-		$what = isset($err['code']) && is_string($err['code']) ? $err['code'] : (isset($err['type']) ? (string) $err['type'] : '');
-		if ($code === 401 || $what === 'invalid_api_key') {
-			return new WP_Error('key', __('OpenAI did not accept the API key. Check it in Settings.', 'y4apk'));
+		$what = strtolower(implode(' ', array_filter([
+			isset($err['code']) && is_string($err['code']) ? $err['code'] : '',
+			isset($err['type']) ? (string) $err['type'] : '',
+			isset($err['status']) ? (string) $err['status'] : '',
+		])));
+		$model = isset($body['model']) ? $body['model'] : '';
+		if ($code === 401 || preg_match('/invalid_api_key|authentication_error/', $what) || preg_match('/api key not valid|invalid api key|incorrect api key/i', $msg)) {
+			return new WP_Error('key', sprintf(__('%s did not accept the API key. Check it in Settings.', 'y4apk'), $info['name']));
 		}
-		if ($what === 'insufficient_quota') {
-			return new WP_Error('credit', __('The OpenAI account has no credit left: add some at platform.openai.com ▸ Billing.', 'y4apk'));
+		if ($code === 402 || preg_match('/insufficient_quota|billing_error/', $what) || stripos($msg, 'credit balance') !== false) {
+			return new WP_Error('credit', sprintf(__('The %1$s account has no credit left: add some at %2$s.', 'y4apk'), $info['name'], preg_replace('~^https?://|/$~', '', $info['limits'])));
 		}
 		if ($code === 429 || $code >= 500) {
-			return new WP_Error('busy', sprintf(__('OpenAI is busy: %s', 'y4apk'), $msg));
+			$wait = (int) wp_remote_retrieve_header($r, 'retry-after');
+			if (!$wait && preg_match('/retry in ([\d.]+)\s*s/i', $msg, $m)) {
+				$wait = (int) ceil((float) $m[1]);
+			}
+			// A free tier's daily limit: no use asking again before it resets.
+			if ($code === 429 && preg_match('/per ?day|perday|\(rpd\)|\(tpd\)|daily/i', $msg . ' ' . wp_json_encode($err))) {
+				$wait = max($wait, HOUR_IN_SECONDS);
+				$msg = sprintf(__('%s’s daily limit is reached; the queue waits for it.', 'y4apk'), $info['name']) . ' ' . $msg;
+			}
+			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60))]);
 		}
-		if ($what === 'model_not_found' || $code === 404) {
-			return new WP_Error('model', sprintf(__('This OpenAI account cannot use the model “%s”. Choose another in Settings.', 'y4apk'), isset($body['model']) ? $body['model'] : ''));
+		if ($code === 404 || preg_match('/model_not_found|not_found/', $what)) {
+			return new WP_Error('model', sprintf(__('This %1$s account cannot use the model “%2$s”. Choose another in Settings.', 'y4apk'), $info['name'], $model));
 		}
-		return new WP_Error('api', sprintf(__('OpenAI: %s', 'y4apk'), $msg), ['param' => isset($err['param']) ? (string) $err['param'] : '']);
+		return new WP_Error('api', sprintf(__('%1$s: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['param' => isset($err['param']) ? (string) $err['param'] : '']);
 	}
 
-	/** The chat models this account has (ids, sorted), kept for a day. */
-	public static function models($fresh = false) {
-		$cached = get_transient('y4apk_writer_models');
+	/** The text models a service's account has (ids, sorted), kept for a day. */
+	public static function models($provider, $fresh = false) {
+		$cached = get_transient('y4apk_writer_models_' . $provider);
 		if (!$fresh && is_array($cached)) {
 			return $cached;
 		}
-		$r = self::api('GET', '/models', null, 20);
+		$r = self::api($provider, 'GET', $provider === 'claude' ? '/models?limit=100' : '/models', null, 20);
 		if (is_wp_error($r)) {
 			return $r;
 		}
+		$skip = [
+			'openai' => '/audio|realtime|transcribe|tts|image|search|codex|embed|instruct|moderation|preview|chat-latest|\d{4}-?\d{2}-?\d{2}/',
+			'gemini' => '/embed|tts|image|audio|live|computer|robotics|aqa|learnlm|gemma/',
+			'groq'   => '/whisper|tts|guard|playai|orpheus|distil/',
+			'claude' => '/^$/',
+		];
+		$want = ['openai' => '/^(gpt-\d|o\d)/', 'gemini' => '/^gemini-/', 'groq' => '/./', 'claude' => '/^claude-/'];
 		$ids = [];
 		foreach (isset($r['data']) ? (array) $r['data'] : [] as $m) {
-			$id = isset($m['id']) ? (string) $m['id'] : '';
-			// Text models, without dated snapshots and special-purpose ones.
-			if (preg_match('/^(gpt-\d|o\d)/', $id) && !preg_match('/audio|realtime|transcribe|tts|image|search|codex|embed|instruct|moderation|preview|chat-latest|\d{4}-?\d{2}-?\d{2}/', $id)) {
+			$id = preg_replace('~^models/~', '', isset($m['id']) ? (string) $m['id'] : '');
+			if (preg_match($want[$provider], $id) && !preg_match($skip[$provider], $id)) {
 				$ids[] = $id;
 			}
 		}
-		natsort($ids);
-		$ids = array_values($ids);
-		set_transient('y4apk_writer_models', $ids, DAY_IN_SECONDS);
+		$ids = array_values(array_unique($ids));
+		if ($provider !== 'claude') { // Claude lists its newest first
+			natsort($ids);
+			$ids = array_values($ids);
+		}
+		set_transient('y4apk_writer_models_' . $provider, $ids, DAY_IN_SECONDS);
 		return $ids;
 	}
 
-	/** Of the account's models, the newest GPT "mini": good at short articles, and cheap. */
-	public static function pick($ids) {
-		$best = '';
-		$best_v = -1.0;
-		foreach ($ids as $id) {
-			if (preg_match('/^gpt-(\d+(?:\.\d+)?)o?-mini$/', $id, $m) && (float) $m[1] > $best_v) {
-				$best = $id;
-				$best_v = (float) $m[1];
+	/**
+	 * "Automatic": OpenAI's newest GPT mini; Gemini's newest Flash-Lite (the
+	 * largest free daily allowance), else Flash; on Groq, gpt-oss 120B, else
+	 * Llama 3.3 70B. Claude has no automatic choice (Claude Opus 5.5 by default).
+	 */
+	public static function pick($provider, $ids) {
+		if ($provider === 'groq') {
+			foreach (['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'] as $id) {
+				if (in_array($id, $ids, true)) {
+					return $id;
+				}
 			}
+			return $ids ? $ids[0] : 'llama-3.3-70b-versatile';
 		}
+		if ($provider === 'gemini') {
+			if (in_array('gemini-flash-lite-latest', $ids, true)) {
+				return 'gemini-flash-lite-latest';
+			}
+			foreach (['flash-lite', 'flash'] as $kind) {
+				$best = self::newest($ids, '/^gemini-(\d+(?:\.\d+)?)-' . $kind . '(-preview)?$/');
+				if ($best !== '') {
+					return $best;
+				}
+			}
+			return 'gemini-flash-lite-latest';
+		}
+		$best = self::newest($ids, '/^gpt-(\d+(?:\.\d+)?)o?-mini$/');
 		return $best !== '' ? $best : 'gpt-4o-mini';
 	}
 
-	/** The model to write with: the one chosen in Settings, or the pick. */
-	public static function model() {
-		$m = self::settings()['model'];
+	/** The newest release (version number: group 1); a preview (group 2) only when there is no release. */
+	private static function newest($ids, $pattern) {
+		$best = '';
+		$score = -1.0;
+		foreach ($ids as $id) {
+			if (preg_match($pattern, $id, $m)) {
+				$s = (float) $m[1] + (empty($m[2]) ? 1000 : 0);
+				if ($s > $score) {
+					$best = $id;
+					$score = $s;
+				}
+			}
+		}
+		return $best;
+	}
+
+	/** The model a service writes with: the one chosen in Settings, or the automatic pick. */
+	public static function model($provider = null) {
+		$o = self::settings();
+		$provider = $provider ?: $o['provider'];
+		$m = $o['models'][$provider];
 		if ($m !== '' && $m !== 'auto') {
 			return $m;
 		}
-		$ids = self::models();
-		return self::pick(is_array($ids) ? $ids : []);
+		$ids = self::models($provider);
+		return self::pick($provider, is_array($ids) ? $ids : []);
+	}
+
+	private static function count_usage($in, $out) {
+		$u = get_option(self::USAGE, []);
+		$u = wp_parse_args(is_array($u) ? $u : [], ['posts' => 0, 'in' => 0, 'out' => 0]);
+		$u['in'] += (int) $in;
+		$u['out'] += (int) $out;
+		update_option(self::USAGE, $u, false);
 	}
 
 	/** The model's answer as text, or a WP_Error. */
-	public static function chat($system, $user, $model, $max = 4000) {
+	public static function chat($system, $user, $provider, $model, $max = 4000) {
+		return $provider === 'claude' ? self::chat_claude($system, $user, $model) : self::chat_compatible($system, $user, $provider, $model, $max);
+	}
+
+	/** OpenAI, and Gemini and Groq through their OpenAI-compatible endpoints. */
+	private static function chat_compatible($system, $user, $provider, $model, $max) {
 		$body = [
-			'model'                 => $model,
-			'messages'              => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
-			'max_completion_tokens' => $max,
+			'model'    => $model,
+			'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
 		];
+		$body[$provider === 'gemini' ? 'max_tokens' : 'max_completion_tokens'] = $max;
 		// Reasoning models think first; a little is plenty for a short article.
-		if (preg_match('/^(gpt-5|o\d)/', $model)) {
+		if (($provider === 'openai' && preg_match('/^(gpt-5|o\d)/', $model))
+			|| ($provider === 'gemini' && strpos($model, 'flash-lite') === false)
+			|| ($provider === 'groq' && strpos($model, 'gpt-oss') !== false)) {
 			$body['reasoning_effort'] = 'low';
 		}
-		$r = self::api('POST', '/chat/completions', $body);
+		$r = self::api($provider, 'POST', '/chat/completions', $body);
 		if (is_wp_error($r) && $r->get_error_code() === 'api' && isset($body['reasoning_effort'])
 			&& (stripos($r->get_error_message(), 'reasoning') !== false || (isset($r->get_error_data()['param']) && $r->get_error_data()['param'] === 'reasoning_effort'))) {
-			unset($body['reasoning_effort']);
-			$r = self::api('POST', '/chat/completions', $body);
+			unset($body['reasoning_effort']); // a model that does not take it
+			$r = self::api($provider, 'POST', '/chat/completions', $body);
 		}
 		if (is_wp_error($r)) {
 			return $r;
 		}
 		if (isset($r['usage']) && is_array($r['usage'])) {
-			$u = get_option(self::USAGE, []);
-			$u = wp_parse_args(is_array($u) ? $u : [], ['posts' => 0, 'in' => 0, 'out' => 0]);
-			$u['in'] += isset($r['usage']['prompt_tokens']) ? (int) $r['usage']['prompt_tokens'] : 0;
-			$u['out'] += isset($r['usage']['completion_tokens']) ? (int) $r['usage']['completion_tokens'] : 0;
-			update_option(self::USAGE, $u, false);
+			self::count_usage(isset($r['usage']['prompt_tokens']) ? $r['usage']['prompt_tokens'] : 0, isset($r['usage']['completion_tokens']) ? $r['usage']['completion_tokens'] : 0);
 		}
 		$choice = isset($r['choices'][0]) ? $r['choices'][0] : [];
 		$text = isset($choice['message']['content']) ? trim((string) $choice['message']['content']) : '';
 		if ($text === '') {
 			return new WP_Error('api', isset($choice['finish_reason']) && $choice['finish_reason'] === 'length'
 				? __('The answer was cut off before it was done.', 'y4apk')
-				: __('OpenAI sent back an empty answer.', 'y4apk'));
+				: sprintf(__('%s sent back an empty answer.', 'y4apk'), self::provider_name($provider)));
 		}
 		return $text;
+	}
+
+	/** Claude: the Messages API. */
+	private static function chat_claude($system, $user, $model) {
+		$body = [
+			'model'         => $model,
+			'max_tokens'    => 16000,
+			'system'        => $system,
+			'messages'      => [['role' => 'user', 'content' => $user]],
+			'output_config' => ['effort' => 'low'], // a short article: little thinking needed
+		];
+		$headers = [];
+		// If a safety classifier declines, the API writes it with Anthropic's recommended other model instead.
+		if (preg_match('/^claude-(opus-5(-5)?|fable-5-1|sonnet-5-5)$/', $model)) {
+			$body['fallbacks'] = 'default';
+			$headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+		}
+		for ($try = 0; $try < 3; $try++) {
+			$r = self::api('claude', 'POST', '/messages', $body, 120, $headers);
+			if (!is_wp_error($r) || $r->get_error_code() !== 'api') {
+				break;
+			}
+			// A model, or an account, that does not take one of these: ask again without it.
+			$m = strtolower($r->get_error_message());
+			if (isset($body['output_config']) && (strpos($m, 'effort') !== false || strpos($m, 'output_config') !== false)) {
+				unset($body['output_config']);
+			} elseif (isset($body['fallbacks']) && (strpos($m, 'fallback') !== false || strpos($m, 'anthropic-beta') !== false)) {
+				unset($body['fallbacks'], $headers['anthropic-beta']);
+			} else {
+				break;
+			}
+		}
+		if (is_wp_error($r)) {
+			return $r;
+		}
+		if (isset($r['usage']) && is_array($r['usage'])) {
+			self::count_usage(isset($r['usage']['input_tokens']) ? $r['usage']['input_tokens'] : 0, isset($r['usage']['output_tokens']) ? $r['usage']['output_tokens'] : 0);
+		}
+		$stop = isset($r['stop_reason']) ? (string) $r['stop_reason'] : '';
+		if ($stop === 'refusal') {
+			return new WP_Error('refused', __('Claude declined to write this one.', 'y4apk'));
+		}
+		$text = '';
+		foreach (isset($r['content']) ? (array) $r['content'] : [] as $block) {
+			if (isset($block['type'], $block['text']) && $block['type'] === 'text') {
+				$text .= $block['text'];
+			}
+		}
+		$text = trim($text);
+		if ($text === '') {
+			return new WP_Error('api', $stop === 'max_tokens' ? __('The answer was cut off before it was done.', 'y4apk') : __('Claude sent back an empty answer.', 'y4apk'));
+		}
+		return $text;
+	}
+
+	/** The queue waits until the AI's limit lets it go on. */
+	private static function wait($seconds, $why) {
+		$seconds = max(20, (int) $seconds);
+		set_transient(self::WAIT, ['until' => time() + $seconds, 'why' => (string) $why], $seconds);
+	}
+
+	public static function waiting() {
+		$w = get_transient(self::WAIT);
+		return is_array($w) && $w['until'] > time() ? $w : null;
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -417,8 +625,9 @@ class Y4APK_Writer {
 	 * Writing a post
 	 * ---------------------------------------------------------------- */
 
-	private static function result($ok, $message, $retry = false, $code = '') {
-		return ['ok' => $ok, 'message' => $message, 'retry' => $retry, 'code' => $code];
+	/** code: busy (the AI's limit; wait: seconds) | play (Google Play busy) | locked | key | credit | model | refused | api | ''. */
+	private static function result($ok, $message, $retry = false, $code = '', $wait = 0) {
+		return ['ok' => $ok, 'message' => $message, 'retry' => $retry, 'code' => $code, 'wait' => (int) $wait];
 	}
 
 	/** Remembers a part's value before and after a write, for Undo. */
@@ -471,21 +680,23 @@ class Y4APK_Writer {
 		}
 		$ctx = self::context($post_id);
 		if ($ctx['play']['status'] === 'busy') {
-			return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'busy');
+			return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'play');
 		}
 		$done = [];
 		if ($parts & self::ARTICLE) {
 			list($system, $user) = self::prompt($ctx);
-			$model = self::model();
-			$answer = self::chat($system, $user, $model);
+			$provider = self::settings()['provider'];
+			$model = self::model($provider);
+			$answer = self::chat($system, $user, $provider, $model);
 			if (is_wp_error($answer)) {
-				return self::result(false, $answer->get_error_message(), $answer->get_error_code() === 'busy', $answer->get_error_code());
+				$data = $answer->get_error_data();
+				return self::result(false, $answer->get_error_message(), $answer->get_error_code() === 'busy', $answer->get_error_code(), isset($data['wait']) ? $data['wait'] : 0);
 			}
 			$article = self::layout($answer, $ctx);
 			if (!$article) {
 				return self::result(false, __('The answer had no paragraphs.', 'y4apk'));
 			}
-			$saved = self::save_article($post, $article, $model);
+			$saved = self::save_article($post, $article, $provider, $model);
 			if (is_wp_error($saved)) {
 				return self::result(false, $saved->get_error_message());
 			}
@@ -507,13 +718,13 @@ class Y4APK_Writer {
 		return self::result(true, ucfirst(implode(' · ', $done)));
 	}
 
-	private static function save_article($post, $article, $model) {
+	private static function save_article($post, $article, $provider, $model) {
 		$r = wp_update_post(['ID' => $post->ID, 'post_content' => wp_slash($article['html'])], true);
 		if (is_wp_error($r)) {
 			return $r;
 		}
 		self::remember($post->ID, 'content', $post->post_content, get_post_field('post_content', $post->ID, 'raw'));
-		update_post_meta($post->ID, self::DONE, ['time' => time(), 'model' => $model, 'words' => $article['words']]);
+		update_post_meta($post->ID, self::DONE, ['time' => time(), 'provider' => $provider, 'model' => $model, 'words' => $article['words']]);
 		$u = get_option(self::USAGE, []);
 		$u = wp_parse_args(is_array($u) ? $u : [], ['posts' => 0, 'in' => 0, 'out' => 0]);
 		$u['posts']++;
@@ -683,7 +894,7 @@ class Y4APK_Writer {
 	/** A few posts from the front of the queue (Settings ▸ per run), within about two and a half minutes. */
 	public static function tick() {
 		$o = self::settings();
-		if ($o['paused'] !== '' || !self::queue() || get_transient('y4apk_writer_lock')) {
+		if ($o['paused'] !== '' || !self::queue() || get_transient('y4apk_writer_lock') || self::waiting()) {
 			return 0;
 		}
 		set_transient('y4apk_writer_lock', 1, 5 * MINUTE_IN_SECONDS);
@@ -703,8 +914,14 @@ class Y4APK_Writer {
 				self::log($id, $r);
 				break;
 			}
+			if (!$r['ok'] && $r['code'] === 'busy') {
+				// The AI's limit (per minute, or a free tier's per day), not the post's doing:
+				// it keeps its place, and the rounds wait until the AI takes requests again.
+				self::wait($r['wait'], $r['message']);
+				break;
+			}
 			if (!$r['ok'] && $r['retry'] && $tries < 4) {
-				// Busy (Google Play, OpenAI, or the post is being written): to the back of the queue, and on next round.
+				// Google Play busy, or the post is being written: to the back of the queue, and on next round.
 				self::dequeue($id);
 				update_option(self::QUEUE, array_merge(self::queue(), [[$id, $parts, $tries + 1]]), false);
 				break;
@@ -865,6 +1082,7 @@ class Y4APK_Writer {
 			$paused = self::settings()['paused'];
 			if ($paused === '') {
 				delete_transient('y4apk_writer_lock');
+				delete_transient(self::WAIT);
 				self::tick();
 			}
 		}
@@ -875,12 +1093,14 @@ class Y4APK_Writer {
 	/** Settings ▸ Test: the key, the models it can use, and one tiny answer (which also proves there is credit). */
 	public static function ajax_test() {
 		self::check(0, 'manage_options');
-		$models = self::models(true);
+		$provider = isset($_POST['provider']) ? sanitize_key($_POST['provider']) : '';
+		$provider = isset(self::providers()[$provider]) ? $provider : self::settings()['provider'];
+		$models = self::models($provider, true);
 		if (is_wp_error($models)) {
 			wp_send_json_error(['message' => $models->get_error_message()]);
 		}
-		$model = self::model();
-		$reply = self::chat('Reply with one word.', 'Say OK.', $model, 1000);
+		$model = self::model($provider);
+		$reply = self::chat('Reply with one word.', 'Say OK.', $provider, $model, 1000);
 		if (is_wp_error($reply)) {
 			wp_send_json_error(['message' => $reply->get_error_message(), 'models' => $models, 'model' => $model]);
 		}
@@ -915,8 +1135,9 @@ class Y4APK_Writer {
 		}
 		$ctx = self::context($id);
 		list($system, $user) = self::prompt($ctx);
-		$model = self::model();
-		$answer = self::chat($system, $user, $model);
+		$provider = self::settings()['provider'];
+		$model = self::model($provider);
+		$answer = self::chat($system, $user, $provider, $model);
 		if (is_wp_error($answer)) {
 			wp_send_json_error(['message' => $answer->get_error_message(), 'prompt' => $user]);
 		}
@@ -926,7 +1147,7 @@ class Y4APK_Writer {
 			'title'   => get_the_title($id),
 			'edit'    => get_edit_post_link($id, 'raw'),
 			'prompt'  => $user,
-			'model'   => $model,
+			'model'   => self::provider_name($provider) . ' · ' . $model,
 			'answer'  => $answer,
 			'html'    => $article ? $article['html'] : '',
 			'words'   => $article ? $article['words'] : 0,
@@ -944,7 +1165,8 @@ class Y4APK_Writer {
 		if (!$article) {
 			wp_send_json_error(['message' => __('Nothing to save.', 'y4apk')]);
 		}
-		$saved = self::save_article($post, $article, self::model());
+		$provider = self::settings()['provider'];
+		$saved = self::save_article($post, $article, $provider, self::model($provider));
 		if (is_wp_error($saved)) {
 			wp_send_json_error(['message' => $saved->get_error_message()]);
 		}
@@ -961,7 +1183,7 @@ class Y4APK_Writer {
 	public static function row_action($actions, $post) {
 		if ($post->post_type === 'post' && current_user_can('edit_post', $post->ID)) {
 			$actions['y4apk_write'] = '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_writer_one&post=' . $post->ID), 'y4apk-writer-one-' . $post->ID)) . '" onclick="this.textContent=\'' . esc_js(__('Writing… (up to a minute)', 'y4apk')) . '\'">'
-				. esc_html__('Write with ChatGPT', 'y4apk') . '</a>';
+				. esc_html__('Write with AI', 'y4apk') . '</a>';
 		}
 		return $actions;
 	}
@@ -989,7 +1211,7 @@ class Y4APK_Writer {
 	}
 
 	public static function bulk_action($actions) {
-		$actions['y4apk_writer_queue'] = __('Write with ChatGPT (queue)', 'y4apk');
+		$actions['y4apk_writer_queue'] = __('Write with AI (queue)', 'y4apk');
 		return $actions;
 	}
 
@@ -1011,13 +1233,13 @@ class Y4APK_Writer {
 		}
 		delete_transient($key);
 		if (isset($n['queued'])) {
-			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%s post added to the ChatGPT queue.', '%s posts added to the ChatGPT queue.', $n['queued'], 'y4apk'), number_format_i18n($n['queued'])))
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%s post added to the AI writing queue.', '%s posts added to the AI writing queue.', $n['queued'], 'y4apk'), number_format_i18n($n['queued'])))
 				. ' <a href="' . esc_url(self::url('queue')) . '">' . esc_html__('See the queue', 'y4apk') . '</a></p></div>';
 			return;
 		}
 		$title = '<a href="' . esc_url(get_permalink($n['id'])) . '" target="_blank">' . esc_html(get_the_title($n['id'])) . '</a>';
 		echo '<div class="notice notice-' . ($n['ok'] ? 'success' : 'error') . ' is-dismissible"><p>'
-			. ($n['ok'] ? sprintf(esc_html__('Written with ChatGPT: %1$s — %2$s', 'y4apk'), $title, esc_html($n['message']))
+			. ($n['ok'] ? sprintf(esc_html__('Written with AI: %1$s — %2$s', 'y4apk'), $title, esc_html($n['message']))
 				: sprintf(esc_html__('Not written: %1$s — %2$s', 'y4apk'), $title, esc_html($n['message'])))
 			. '</p></div>';
 	}
@@ -1027,7 +1249,7 @@ class Y4APK_Writer {
 	 * ---------------------------------------------------------------- */
 
 	public static function register_page() {
-		add_submenu_page('y4apk-gplay', __('Write with ChatGPT', 'y4apk'), __('Write with ChatGPT', 'y4apk'),
+		add_submenu_page('y4apk-gplay', __('Write with AI', 'y4apk'), __('Write with AI', 'y4apk'),
 			'edit_posts', self::SLUG, [__CLASS__, 'render_page']);
 	}
 
@@ -1049,7 +1271,7 @@ class Y4APK_Writer {
 				'all'      => __('Add all %s posts of this list to the queue?', 'y4apk'),
 				'clear'    => __('Empty the queue? Nothing that is already written changes.', 'y4apk'),
 				'working'  => __('Working…', 'y4apk'),
-				'undoAsk'  => __('Put back what this post had before ChatGPT wrote it?', 'y4apk'),
+				'undoAsk'  => __('Put back what this post had before the AI wrote it?', 'y4apk'),
 				'testOk'   => __('✓ Connected · model: %1$s · answered “%2$s”', 'y4apk'),
 				'saved'    => __('Saved to the post.', 'y4apk'),
 			],
@@ -1060,7 +1282,7 @@ class Y4APK_Writer {
 		return sprintf(__('%s ago', 'y4apk'), human_time_diff((int) $t));
 	}
 
-	/** A post's line in the list: what ChatGPT last did to it, or that it waits in the queue. */
+	/** A post's line in the list: what the AI last did to it, or that it waits in the queue. */
 	public static function status_html($post_id) {
 		$done = get_post_meta($post_id, self::DONE, true);
 		$queued = in_array((int) $post_id, array_map(function ($i) { return (int) $i[0]; }, self::queue()), true);
@@ -1114,6 +1336,21 @@ class Y4APK_Writer {
 			.aw-log { display: flex; flex-direction: column; }
 			.aw-log-row { display: grid; grid-template-columns: 130px minmax(200px, 1fr) minmax(200px, 1.4fr) auto; gap: 12px; padding: 10px 18px; border-top: 1px solid #f0f0f1; font-size: 13px; align-items: center; }
 			.aw-log-row:first-child { border-top: 0; }
+			.y4apk-writer a.au-pill { text-decoration: none; color: inherit; }
+			.aw-settings .aw-providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 10px 0 14px; }
+			.aw-settings .aw-provider { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 14px 16px; border: 1px solid var(--au-line); border-radius: 10px; cursor: pointer; background: #fff; }
+			.aw-settings .aw-provider.is-on { border-color: var(--au-blue); box-shadow: 0 0 0 1px var(--au-blue); background: #f6faff; }
+			.aw-provider-top { display: flex; align-items: center; gap: 8px; }
+			.aw-provider-top input { margin: 0; }
+			.aw-provider-name { font-weight: 600; font-size: 14px; }
+			.aw-provider-name small { font-weight: 400; color: var(--au-muted); }
+			.aw-badge { margin-left: auto; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #f0f0f1; color: #50575e; white-space: nowrap; }
+			.aw-badge.is-free { background: #e7f7ec; color: #007017; }
+			.aw-provider-note { font-size: 12.5px; color: var(--au-muted); line-height: 1.5; }
+			.aw-provider-state { font-size: 12px; color: #50575e; margin-top: auto; }
+			.aw-panel { border: 1px solid var(--au-line); border-radius: 10px; padding: 14px 18px; background: var(--au-soft); }
+			.aw-panel .aw-steps { margin-bottom: 10px; }
+			.aw-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 18px; }
 			.aw-paused { margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; background: #fcf9e8; border: 1px solid #f0d77a; font-size: 13px; }
 			@media (max-width: 1100px) {
 				.aw-row { grid-template-columns: 22px 1fr 1fr; }
@@ -1134,8 +1371,8 @@ class Y4APK_Writer {
 		}
 		$queue = self::queue();
 		$usage = wp_parse_args((array) get_option(self::USAGE, []), ['posts' => 0, 'in' => 0, 'out' => 0]);
-		$models = $o['key'] !== '' ? get_transient('y4apk_writer_models') : false;
-		$model = $o['key'] !== '' ? ($o['model'] !== 'auto' ? $o['model'] : (is_array($models) ? self::pick($models) : '')) : '';
+		$models = $o['key'] !== '' ? get_transient('y4apk_writer_models_' . $o['provider']) : false;
+		$model = $o['key'] !== '' ? ($o['model'] !== 'auto' ? $o['model'] : (is_array($models) ? self::pick($o['provider'], $models) : '')) : '';
 		$short = count(self::short_ids());
 		$written = self::count_done();
 		$all = self::count_all();
@@ -1145,16 +1382,18 @@ class Y4APK_Writer {
 			<?php self::styles(); ?>
 			<div class="au-head">
 				<div>
-					<h1><?php esc_html_e('Write with ChatGPT', 'y4apk'); ?></h1>
-					<p><?php esc_html_e('Writes a post’s article the way you ask for it in ChatGPT, lays it out like your articles (name and MOD in bold, the closing heading), and brings the app’s icon and screenshots up to date from Google Play.', 'y4apk'); ?></p>
+					<h1><?php esc_html_e('Write with AI', 'y4apk'); ?></h1>
+					<p><?php esc_html_e('Writes a post’s article with Gemini or Groq (free tiers), ChatGPT or Claude, asked the way you ask in ChatGPT; lays it out like your articles (name and MOD in bold, the closing heading), and brings the app’s icon and screenshots up to date from Google Play.', 'y4apk'); ?></p>
 				</div>
 				<div class="au-actions">
 					<?php if ($o['key'] === '') : ?>
-						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot is-red"></span><?php esc_html_e('Not connected: add your OpenAI API key', 'y4apk'); ?></a>
+						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot is-red"></span><?php esc_html_e('Not connected: choose an AI and add its API key', 'y4apk'); ?></a>
 					<?php elseif ($o['paused'] !== '' && $queue) : ?>
 						<a class="au-pill" href="<?php echo esc_url(self::url('queue')); ?>"><span class="au-dot is-amber"></span><?php esc_html_e('Queue paused', 'y4apk'); ?></a>
+					<?php elseif (self::waiting() && $queue) : ?>
+						<a class="au-pill" href="<?php echo esc_url(self::url('queue')); ?>"><span class="au-dot is-amber"></span><?php echo esc_html(sprintf(__('Waiting for %s’s limit', 'y4apk'), self::provider_name($o['provider']))); ?></a>
 					<?php else : ?>
-						<span class="au-pill"><span class="au-dot"></span><?php echo esc_html($model !== '' ? sprintf(__('Connected · %s', 'y4apk'), $model) : __('API key saved', 'y4apk')); ?></span>
+						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot"></span><?php echo esc_html(self::provider_name($o['provider']) . ' · ' . ($model !== '' ? $model : __('key saved', 'y4apk'))); ?></a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -1170,7 +1409,7 @@ class Y4APK_Writer {
 					<span class="au-kpi-sub"><?php printf(esc_html__('Under %s words of text', 'y4apk'), esc_html(number_format_i18n(self::SHORT))); ?></span>
 				</a>
 				<a class="au-card au-kpi" href="<?php echo esc_url(self::url('posts', ['show' => 'ai'])); ?>">
-					<span class="au-kpi-label"><?php esc_html_e('Written by ChatGPT', 'y4apk'); ?></span>
+					<span class="au-kpi-label"><?php esc_html_e('Written by AI', 'y4apk'); ?></span>
 					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n($written)); ?> <small>/ <?php echo esc_html(number_format_i18n($all)); ?></small></span>
 					<span class="au-bar"><span style="width:<?php echo esc_attr($all ? round(100 * $written / $all, 1) : 0); ?>%"></span></span>
 				</a>
@@ -1200,7 +1439,7 @@ class Y4APK_Writer {
 			if ($view === 'queue') {
 				self::render_queue($o, $queue, $per_hour);
 			} elseif ($view === 'settings') {
-				self::render_settings($o, $models, $model);
+				self::render_settings($o);
 			} else {
 				self::render_posts($o, ['short' => $short, 'notai' => $all - $written, 'ai' => $written, 'all' => $all, 'queued' => count($queue)]);
 			}
@@ -1221,8 +1460,8 @@ class Y4APK_Writer {
 		$q = new WP_Query(array_merge(self::query_args($show, $cat, $search), ['posts_per_page' => self::PER_PAGE, 'paged' => $paged]));
 		$names = [
 			'short'  => __('No article yet', 'y4apk'),
-			'notai'  => __('Not written by ChatGPT', 'y4apk'),
-			'ai'     => __('Written by ChatGPT', 'y4apk'),
+			'notai'  => __('Not written by AI', 'y4apk'),
+			'ai'     => __('Written by AI', 'y4apk'),
 			'queued' => __('In the queue', 'y4apk'),
 			'all'    => __('All', 'y4apk'),
 		];
@@ -1263,7 +1502,7 @@ class Y4APK_Writer {
 				<button type="button" class="button-link" id="aw-stop"><?php esc_html_e('Stop', 'y4apk'); ?></button>
 			</div>
 			<?php if ($o['key'] === '') : ?>
-				<span class="au-meta"><?php printf(esc_html__('Connect ChatGPT first in %s.', 'y4apk'), '<a href="' . esc_url(self::url('settings')) . '">' . esc_html__('Settings', 'y4apk') . '</a>'); ?></span>
+				<span class="au-meta"><?php printf(esc_html__('Connect an AI first in %s.', 'y4apk'), '<a href="' . esc_url(self::url('settings')) . '">' . esc_html__('Settings', 'y4apk') . '</a>'); ?></span>
 			<?php endif; ?>
 		</div>
 
@@ -1323,8 +1562,12 @@ class Y4APK_Writer {
 		$log = is_array($log) ? $log : [];
 		$next = wp_next_scheduled(self::HOOK);
 		?>
+		<?php $w = self::waiting(); ?>
 		<?php if ($o['paused'] !== '' && $queue) : ?>
 			<p class="aw-paused"><strong><?php esc_html_e('Paused:', 'y4apk'); ?></strong> <?php echo esc_html($o['paused']); ?></p>
+		<?php elseif ($w && $queue) : ?>
+			<p class="aw-paused"><strong><?php esc_html_e('Waiting:', 'y4apk'); ?></strong> <?php echo esc_html($w['why']); ?>
+				<?php echo esc_html(sprintf(__('The queue goes on in %s, by itself.', 'y4apk'), human_time_diff(time(), $w['until']))); ?></p>
 		<?php endif; ?>
 		<div class="au-card au-pad" style="margin-bottom:16px">
 			<div class="au-toolbar" style="margin:0">
@@ -1332,7 +1575,7 @@ class Y4APK_Writer {
 					<strong><?php echo esc_html(sprintf(_n('%s post waiting', '%s posts waiting', count($queue), 'y4apk'), number_format_i18n(count($queue)))); ?></strong>
 					<span class="au-small"><?php
 						if (!$queue) {
-							esc_html_e('Add posts from the Posts tab, or with “Write with ChatGPT (queue)” in Posts ▸ Bulk actions.', 'y4apk');
+							esc_html_e('Add posts from the Posts tab, or with “Write with AI (queue)” in Posts ▸ Bulk actions.', 'y4apk');
 						} elseif ($o['paused'] !== '') {
 							esc_html_e('Nothing is written while the queue is paused.', 'y4apk');
 						} else {
@@ -1382,42 +1625,100 @@ class Y4APK_Writer {
 		<?php endif;
 	}
 
-	private static function render_settings($o, $models, $model) {
-		$from_config = defined('Y4APK_OPENAI_KEY') && Y4APK_OPENAI_KEY;
+	private static function render_settings($o) {
+		$all = self::providers();
+		$notes = [
+			'gemini' => __('Free: a number of requests a day set by Google (most with the “Flash-Lite” models). Google may use free-tier requests to improve its products.', 'y4apk'),
+			'groq'   => __('Free: open models (gpt-oss, Llama), with a daily limit set by Groq.', 'y4apk'),
+			'openai' => __('Paid by use, separately from a ChatGPT plan: well under a cent an article with a “mini” model.', 'y4apk'),
+			'claude' => __('Paid by use, separately from a Claude plan. Claude Opus 5.5 unless you choose another model; Haiku 5.5 costs far less.', 'y4apk'),
+		];
+		$link = function ($url) {
+			return '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html(preg_replace('~^https?://|/$~', '', $url)) . '</a>';
+		};
+		$steps = [
+			'gemini' => [sprintf(esc_html__('Open %s and sign in with a Google account.', 'y4apk'), $link($all['gemini']['keys'])),
+				esc_html__('Create API key, copy it, paste it below, Save, then Test.', 'y4apk'),
+				sprintf(esc_html__('Your free limits: %s.', 'y4apk'), $link($all['gemini']['limits']))],
+			'groq'   => [sprintf(esc_html__('Sign up free at %s.', 'y4apk'), $link('https://console.groq.com/')),
+				esc_html__('API Keys ▸ Create API Key, copy it, paste it below, Save, then Test.', 'y4apk'),
+				sprintf(esc_html__('Your free limits: %s.', 'y4apk'), $link($all['groq']['limits']))],
+			'openai' => [sprintf(esc_html__('Sign in at %s (your ChatGPT login works).', 'y4apk'), $link('https://platform.openai.com/')),
+				esc_html__('Settings ▸ Billing: add credit ($5 is plenty to start).', 'y4apk'),
+				esc_html__('API keys ▸ Create new secret key, copy it, paste it below, Save, then Test.', 'y4apk')],
+			'claude' => [sprintf(esc_html__('Sign in at %s (your Claude login works).', 'y4apk'), $link($all['claude']['keys'])),
+				esc_html__('Billing: add credit.', 'y4apk'),
+				esc_html__('API Keys ▸ Create Key, copy it, paste it below, Save, then Test.', 'y4apk')],
+		];
+		$auto = [
+			'gemini' => __('Automatic: the newest Flash-Lite (the largest free allowance)', 'y4apk'),
+			'groq'   => __('Automatic: gpt-oss 120B, else Llama 3.3 70B', 'y4apk'),
+			'openai' => __('Automatic: the newest “mini”', 'y4apk'),
+		];
+		$placeholder = ['gemini' => 'AIza…', 'groq' => 'gsk_…', 'openai' => 'sk-…', 'claude' => 'sk-ant-…'];
 		?>
 		<div class="au-settings aw-settings">
 			<form class="au-card au-pad" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="grid-column:1/-1">
 				<input type="hidden" name="action" value="y4apk_writer_settings">
 				<?php wp_nonce_field('y4apk-writer-settings'); ?>
-				<div class="au-settings">
-					<div>
-						<h2><?php esc_html_e('Connect ChatGPT', 'y4apk'); ?></h2>
-						<p><?php esc_html_e('The site talks to ChatGPT through OpenAI’s API. It is paid by use, separately from a ChatGPT plan (Free or Plus do not include it):', 'y4apk'); ?></p>
-						<ol class="aw-steps">
-							<li><?php printf(esc_html__('Sign in at %s (your ChatGPT login works).', 'y4apk'), '<a href="https://platform.openai.com/" target="_blank" rel="noopener">platform.openai.com</a>'); ?></li>
-							<li><?php esc_html_e('Settings ▸ Billing: add credit ($5 is plenty to start; a short article costs well under a cent with a “mini” model).', 'y4apk'); ?></li>
-							<li><?php esc_html_e('API keys ▸ Create new secret key, copy it, paste it below and Save, then Test.', 'y4apk'); ?></li>
-						</ol>
-						<label class="au-label" for="aw-key"><?php esc_html_e('OpenAI API key', 'y4apk'); ?></label>
-						<?php if ($from_config) : ?>
-							<p class="description"><?php esc_html_e('Set in wp-config.php (Y4APK_OPENAI_KEY).', 'y4apk'); ?></p>
-						<?php else : ?>
-							<input type="password" id="aw-key" name="key" autocomplete="off" placeholder="<?php echo esc_attr($o['key'] !== '' ? '•••• ' . substr($o['key'], -4) . ' — ' . __('saved; leave empty to keep it', 'y4apk') : 'sk-…'); ?>">
-							<?php if ($o['key'] !== '') : ?><label><input type="checkbox" name="forget_key" value="1"> <?php esc_html_e('Remove the saved key', 'y4apk'); ?></label><?php endif; ?>
-						<?php endif; ?>
-						<label class="au-label" for="aw-model" style="margin-top:12px"><?php esc_html_e('Model', 'y4apk'); ?></label>
-						<select id="aw-model" name="model">
-							<option value="auto" <?php selected($o['model'], 'auto'); ?>><?php echo esc_html(sprintf(__('Automatic: the newest “mini”%s', 'y4apk'), $o['model'] === 'auto' && $model !== '' ? ' (' . $model . ')' : '')); ?></option>
-							<?php foreach (is_array($models) ? $models : [] as $m) : ?>
-								<option value="<?php echo esc_attr($m); ?>" <?php selected($o['model'], $m); ?>><?php echo esc_html($m); ?></option>
-							<?php endforeach; ?>
-							<?php if ($o['model'] !== 'auto' && (!is_array($models) || !in_array($o['model'], $models, true))) : ?>
-								<option value="<?php echo esc_attr($o['model']); ?>" selected><?php echo esc_html($o['model']); ?></option>
-							<?php endif; ?>
-						</select>
-						<p class="description"><?php esc_html_e('Test fills this list with the models your account has.', 'y4apk'); ?></p>
-						<p><button type="button" class="button" id="aw-test" <?php disabled($o['key'] === ''); ?>><?php esc_html_e('Test the connection', 'y4apk'); ?></button> <span id="aw-test-result" class="au-meta"></span></p>
+				<h2><?php esc_html_e('Which AI writes', 'y4apk'); ?></h2>
+				<div class="aw-providers">
+					<?php foreach ($all as $p => $info) : ?>
+						<label class="aw-provider<?php echo $o['provider'] === $p ? ' is-on' : ''; ?>">
+							<span class="aw-provider-top">
+								<input type="radio" name="provider" value="<?php echo esc_attr($p); ?>" <?php checked($o['provider'], $p); ?>>
+								<span class="aw-provider-name"><?php echo esc_html($info['name']); ?> <small><?php echo esc_html($info['by']); ?></small></span>
+								<span class="aw-badge<?php echo $info['free'] ? ' is-free' : ''; ?>"><?php echo $info['free'] ? esc_html__('Free tier', 'y4apk') : esc_html__('Paid', 'y4apk'); ?></span>
+							</span>
+							<span class="aw-provider-note"><?php echo esc_html($notes[$p]); ?></span>
+							<span class="aw-provider-state"><?php echo $o['keys'][$p] !== '' ? '✓ ' . esc_html__('Key saved', 'y4apk') : esc_html__('No key yet', 'y4apk'); ?></span>
+						</label>
+					<?php endforeach; ?>
+				</div>
+
+				<?php foreach ($all as $p => $info) :
+					$key = $o['keys'][$p];
+					$list = get_transient('y4apk_writer_models_' . $p);
+					$list = is_array($list) ? $list : [];
+					$names = $p === 'claude' ? self::claude_models() : [];
+					foreach ($list as $id) {
+						$names += [$id => $id];
+					}
+					if ($o['models'][$p] !== 'auto') {
+						$names += [$o['models'][$p] => $o['models'][$p]];
+					} ?>
+					<div class="aw-panel" data-panel="<?php echo esc_attr($p); ?>" <?php echo $o['provider'] === $p ? '' : 'hidden'; ?>>
+						<ol class="aw-steps"><?php foreach ($steps[$p] as $step) : ?><li><?php echo $step; // escaped above ?></li><?php endforeach; ?></ol>
+						<div class="aw-fields">
+							<div>
+								<label class="au-label" for="aw-key-<?php echo esc_attr($p); ?>"><?php echo esc_html(sprintf(__('%s API key', 'y4apk'), $info['name'])); ?></label>
+								<?php if (defined($info['const']) && constant($info['const'])) : ?>
+									<p class="description"><?php echo esc_html(sprintf(__('Set in wp-config.php (%s).', 'y4apk'), $info['const'])); ?></p>
+								<?php else : ?>
+									<input type="password" id="aw-key-<?php echo esc_attr($p); ?>" name="keys[<?php echo esc_attr($p); ?>]" autocomplete="off"
+										placeholder="<?php echo esc_attr($key !== '' ? '•••• ' . substr($key, -4) . ' — ' . __('saved; leave empty to keep it', 'y4apk') : $placeholder[$p]); ?>">
+									<?php if ($key !== '') : ?><label><input type="checkbox" name="forget[<?php echo esc_attr($p); ?>]" value="1"> <?php esc_html_e('Remove the saved key', 'y4apk'); ?></label><?php endif; ?>
+								<?php endif; ?>
+							</div>
+							<div>
+								<label class="au-label" for="aw-model-<?php echo esc_attr($p); ?>"><?php esc_html_e('Model', 'y4apk'); ?></label>
+								<select id="aw-model-<?php echo esc_attr($p); ?>" name="models[<?php echo esc_attr($p); ?>]" class="aw-model">
+									<?php if (isset($auto[$p])) : ?>
+										<option value="auto" <?php selected($o['models'][$p], 'auto'); ?>><?php echo esc_html($auto[$p] . ($list ? ' (' . self::pick($p, $list) . ')' : '')); ?></option>
+									<?php endif; ?>
+									<?php foreach ($names as $id => $label) : ?>
+										<option value="<?php echo esc_attr($id); ?>" <?php selected($o['models'][$p], $id); ?>><?php echo esc_html($label); ?></option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description"><?php esc_html_e('Test fills this list with the models your account has.', 'y4apk'); ?></p>
+							</div>
+						</div>
+						<p><button type="button" class="button aw-test" data-provider="<?php echo esc_attr($p); ?>" <?php disabled($key === ''); ?>><?php esc_html_e('Test the connection', 'y4apk'); ?></button>
+							<span class="aw-test-result au-meta"><?php echo $key === '' ? esc_html__('Save a key first.', 'y4apk') : ''; ?></span></p>
 					</div>
+				<?php endforeach; ?>
+
+				<div class="au-settings" style="margin-top:20px">
 					<div>
 						<h2><?php esc_html_e('What to ask', 'y4apk'); ?></h2>
 						<label class="au-label" for="aw-prompt"><?php esc_html_e('For games and apps', 'y4apk'); ?></label>
@@ -1425,8 +1726,10 @@ class Y4APK_Writer {
 						<label class="au-label" for="aw-prompt-other"><?php esc_html_e('For other posts (no APK, e.g. Roblox scripts)', 'y4apk'); ?></label>
 						<textarea id="aw-prompt-other" name="prompt_other" rows="3"><?php echo esc_textarea($o['prompt_other']); ?></textarea>
 						<p class="description"><?php esc_html_e('{name} the app’s name · {type} เกม or แอป · {type_en} game or app · {mod} the MOD · {category} · {developer}', 'y4apk'); ?></p>
-						<label><input type="checkbox" name="facts" value="1" <?php checked($o['facts']); ?>> <?php esc_html_e('Give ChatGPT the app’s Google Play description to go on (so it does not guess), asking it not to copy it', 'y4apk'); ?></label>
-						<h2 style="margin-top:16px"><?php esc_html_e('How it is laid out', 'y4apk'); ?></h2>
+						<label><input type="checkbox" name="facts" value="1" <?php checked($o['facts']); ?>> <?php esc_html_e('Give the AI the app’s Google Play description to go on (so it does not guess), asking it not to copy it', 'y4apk'); ?></label>
+					</div>
+					<div>
+						<h2><?php esc_html_e('How it is laid out', 'y4apk'); ?></h2>
 						<label><input type="checkbox" name="link_name" value="1" <?php checked($o['link_name']); ?>> <?php esc_html_e('Link the app’s name (first words, in bold with its MOD) to its Google Play page', 'y4apk'); ?></label>
 						<label><input type="checkbox" name="link_type" value="1" <?php checked($o['link_type']); ?>> <?php esc_html_e('Link the word “game” (or “app”) after the first paragraph to the post’s category', 'y4apk'); ?></label>
 						<label class="au-label" for="aw-heading" style="margin-top:10px"><?php esc_html_e('Closing heading (games and apps; empty: none)', 'y4apk'); ?></label>
@@ -1438,7 +1741,7 @@ class Y4APK_Writer {
 
 			<div class="au-card au-pad" style="grid-column:1/-1">
 				<h2><?php esc_html_e('Try it on one post', 'y4apk'); ?></h2>
-				<p><?php esc_html_e('Shows exactly what ChatGPT is asked and what the article would look like, without changing the post.', 'y4apk'); ?></p>
+				<p><?php esc_html_e('Shows exactly what the AI is asked and what the article would look like, without changing the post.', 'y4apk'); ?></p>
 				<div class="aw-try">
 					<input type="text" id="aw-try-ref" placeholder="<?php esc_attr_e('Post ID, address, or words from its title', 'y4apk'); ?>">
 					<button type="button" class="button" id="aw-try" <?php disabled($o['key'] === ''); ?>><?php esc_html_e('Write a preview', 'y4apk'); ?></button>

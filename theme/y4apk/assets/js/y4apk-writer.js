@@ -71,9 +71,11 @@
 		msg.className = 'aw-msg';
 		msg.textContent = T.working;
 		return ajax('write', { id: row.dataset.id, parts: parts() }).then(function (r) {
-			if (!r.ok && r.retry && r.code !== 'locked' && (tries || 0) < 2 && !stopped) {
+			// Busy for a moment (Google Play, or the AI's per-minute limit): try this post again shortly.
+			var pause = r.code === 'busy' ? Math.max(15, r.wait || 15) : 15;
+			if (!r.ok && r.retry && r.code !== 'locked' && pause <= 90 && (tries || 0) < 2 && !stopped) {
 				msg.textContent = r.message;
-				return wait(15000).then(function () { return writeRow(row, (tries || 0) + 1); });
+				return wait(pause * 1000).then(function () { return writeRow(row, (tries || 0) + 1); });
 			}
 			row.classList.remove('is-busy');
 			row.classList.add(r.ok ? 'is-good' : 'is-bad');
@@ -113,8 +115,8 @@
 			return writeRow(row).then(function (r) {
 				i++;
 				r.ok ? good++ : bad++;
-				// The account, not the post (key, credit, model): no use going on.
-				if (!r.ok && ['key', 'credit', 'model'].indexOf(r.code) >= 0) {
+				// The account, not the post (key, credit, model, a daily limit): no use going on.
+				if (!r.ok && (['key', 'credit', 'model'].indexOf(r.code) >= 0 || (r.code === 'busy' && r.wait > 90))) {
 					stopped = true;
 				}
 				return next();
@@ -222,26 +224,33 @@
 
 	/* ---- Settings ---- */
 
-	var test = $('#aw-test');
-	if (test) {
+	// Which AI: show its panel.
+	$$('.aw-provider input[name=provider]').forEach(function (radio) {
+		radio.addEventListener('change', function () {
+			$$('.aw-provider').forEach(function (l) { l.classList.toggle('is-on', l.contains(radio)); });
+			$$('.aw-panel').forEach(function (p) { p.hidden = p.dataset.panel !== radio.value; });
+		});
+	});
+	$$('.aw-test').forEach(function (test) {
 		test.addEventListener('click', function () {
-			var out = $('#aw-test-result');
+			var provider = test.dataset.provider, out = test.parentNode.querySelector('.aw-test-result');
 			out.textContent = T.working;
-			ajax('test').then(function (d) {
+			ajax('test', { provider: provider }).then(function (d) {
 				out.textContent = fmt(T.testOk, d.model, d.reply);
-				var select = $('#aw-model'), chosen = select.value;
-				$$('option:not([value=auto])', select).forEach(function (o) { o.remove(); });
+				// The account's models, keeping the ones listed already (and their names).
+				var select = $('#aw-model-' + provider);
 				d.models.forEach(function (m) {
-					var o = document.createElement('option');
-					o.value = o.textContent = m;
-					o.selected = m === chosen;
-					select.appendChild(o);
+					if (!$$('option', select).some(function (o) { return o.value === m; })) {
+						var o = document.createElement('option');
+						o.value = o.textContent = m;
+						select.appendChild(o);
+					}
 				});
 			}).catch(function (e) {
 				out.textContent = '✗ ' + e.message;
 			});
 		});
-	}
+	});
 
 	var tryIt = $('#aw-try'), last = null;
 	if (tryIt) {

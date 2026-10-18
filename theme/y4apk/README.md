@@ -319,12 +319,23 @@ allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
 post has an OBB, and the Android version needed. Each can be switched off in
 App updates ▸ Settings ▸ *On each post*.
 
-## Write with ChatGPT (2.23)
+## Write with AI (2.23–2.24)
 
-**Y4APK ▸ Write with ChatGPT** writes a post's article through OpenAI's API,
-asked the way it is asked in ChatGPT — the default prompt is *ช่วยเขียนบทความของ
-{type} {name} ไม่ต้องมีหัวข้อ ไม่ยาว เป็นภาษาอังกฤษ* ({type} is เกม or แอป from the
-app's Google Play genre) — and lays the answer out like the site's articles:
+**Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
+in Settings, each with its own key (or a `wp-config.php` constant):
+
+| AI | Cost | Endpoint | Automatic model | Key constant |
+|---|---|---|---|---|
+| **Gemini** (Google) | free tier, daily limit set by Google | `generativelanguage.googleapis.com/v1beta/openai` (OpenAI-compatible) | `gemini-flash-lite-latest`, else the newest Flash-Lite, else Flash (releases before previews) | `Y4APK_GEMINI_KEY` |
+| **Groq** | free tier, daily limit set by Groq | `api.groq.com/openai/v1` (OpenAI-compatible) | `openai/gpt-oss-120b`, else `llama-3.3-70b-versatile` | `Y4APK_GROQ_KEY` |
+| **ChatGPT** (OpenAI) | paid by use | `api.openai.com/v1` | the newest `gpt-*-mini` | `Y4APK_OPENAI_KEY` |
+| **Claude** (Anthropic) | paid by use | `api.anthropic.com/v1/messages` | — Claude Opus 5.5 unless another is chosen (Sonnet 5.5, Haiku 5.5, or any model *Test* finds) | `Y4APK_CLAUDE_KEY` |
+
+A fresh install starts on Gemini; 2.23's single OpenAI key and model carry
+over as ChatGPT's. The question is asked the way it is asked in ChatGPT — the
+default prompt is *ช่วยเขียนบทความของ{type} {name} ไม่ต้องมีหัวข้อ ไม่ยาว
+เป็นภาษาอังกฤษ* ({type} is เกม or แอป from the app's Google Play genre) — and the
+answer is laid out like the site's articles:
 
 ```
 <strong><a href="(Google Play)">OTR 2</a> MOD APK [Unlimited Money/…]</strong> – is an open-world …
@@ -336,11 +347,42 @@ The name is App Name (`wp_title_GP`), else the title up to "MOD"/"v1.2"/"(";
 the MOD is App MOD Feature (`wp_mods`), else the download's MOD Info, else the
 title's "(…)". The model is told to start with "<Name> is" and to answer in
 plain paragraphs; markdown, list marks and heading lines are stripped anyway,
-and everything it writes is escaped. With *Give ChatGPT the app's Google Play
+and everything it writes is escaped. With *Give the AI the app's Google Play
 description* on, the app's Play name, developer, genre and description go with
 the question (`[1][2][72][0][1]`, `[1][2][79][0][0]`), so it does not guess —
 asked not to copy it. Posts with no APK (Roblox scripts) get the second prompt,
 the name in bold, and no closing heading.
+
+How each is asked:
+
+- **OpenAI-compatible** (ChatGPT, Gemini, Groq): `POST /chat/completions` with a
+  system and a user message; `max_completion_tokens` (Gemini: `max_tokens`,
+  which is what it accepts); `reasoning_effort: low` for reasoning models
+  (`gpt-5*`/`o*`, Gemini Flash — not Flash-Lite, whose thinking is off — and
+  Groq's gpt-oss), asked again without it if a model refuses it.
+- **Claude**: the Messages API (`x-api-key`, `anthropic-version: 2023-06-01`),
+  `max_tokens: 16000`, the instructions as `system`, `output_config.effort: low`
+  (a short article needs little thinking; no `temperature` or thinking budget,
+  which current models refuse), and, on Claude Opus 5.5 / Opus 5 / Fable 5.1 /
+  Sonnet 5.5, `fallbacks: "default"` with `anthropic-beta:
+  server-side-fallback-2026-07-01`, so a request a safety classifier declines
+  is written by Anthropic's recommended other model instead. Either is dropped
+  and the request sent again if the model or account refuses it. Only the
+  `text` blocks are the article (thinking blocks are empty); `stop_reason:
+  refusal` is reported as declined and the post leaves the queue.
+- Called with `wp_remote_request()`, as WordPress code does: the theme runs on
+  PHP 7.4 hosting with no Composer, so no SDK is bundled.
+
+**Limits.** A 429 or a 5xx (Claude's 529 *overloaded* included) is the AI's
+limit or load, not the post's doing: the post keeps its place in the queue and
+the rounds wait (`y4apk_writer_wait`) for `retry-after`, else Gemini's "retry
+in Ns", else a minute (at least 20 s) — and for an hour when the message is a
+daily limit (Gemini's `…PerDay…` quota, Groq's "requests per day (RPD)"). The
+Queue tab and the header say what it waits for; *Run a round now* tries at
+once. On the page, *Write selected now* waits out a short limit and stops,
+saying why, at a daily one. A key the AI refuses, no credit left (OpenAI's
+`insufficient_quota`, Claude's 402 / "credit balance is too low"), or a model
+the account cannot use pauses the queue with the reason, until *Resume*.
 
 The same run can bring the app's **icon** — downloaded at 512 px as WebP
 (`[1][2][95][0][3][2]` + `=s512-rw`), saved as `<Name>-MOD.webp` with the title
@@ -350,34 +392,28 @@ same) — and its **screenshots** (up to 10, `[1][2][78][0][*][3][2]` +
 `=w1052-h592-rw`, into `ss_images`) up to date.
 
 - **Posts**: *No article yet* (under 40 words of text, headings left out), *Not
-  written by ChatGPT*, *Written by ChatGPT*, *In the queue*, *All*, by category
-  and title. Tick what to update (Article / App icon / Screenshots), then *Write
-  selected now* (one after another while the page is open, each row showing its
-  result) or *Add selected to the queue* / *Queue all*.
+  written by AI*, *Written by AI*, *In the queue*, *All*, by category and title.
+  Tick what to update (Article / App icon / Screenshots), then *Write selected
+  now* (one after another while the page is open, each row showing its result)
+  or *Add selected to the queue* / *Queue all*.
 - **Queue**: written in the background by WP-Cron, 1–10 posts every 5 minutes
-  (3 by default ≈ 36 an hour). Google Play or OpenAI busy: the post goes to the
-  back and the round stops; after 5 tries it is dropped (and logged). A key
-  OpenAI refuses, no credit left, or a model the account cannot use pauses the
-  queue with the reason, until *Resume*.
-- **Posts list**: *Write with ChatGPT* under each post (writes it now), and
-  *Write with ChatGPT (queue)* in Bulk actions.
+  (3 by default ≈ 36 an hour). Google Play busy, or the post being written by
+  another request: the post goes to the back and the round stops; after 5
+  tries it is dropped (and logged).
+- **Posts list**: *Write with AI* under each post (writes it now), and *Write
+  with AI (queue)* in Bulk actions.
 - **Undo** puts back the text, featured image and screenshots the last write
   replaced (kept in `_y4apk_ai_backup`, with what was written) — each only if
   it has not been changed since. WordPress also keeps a revision.
-- **Settings**: the API key (or `define('Y4APK_OPENAI_KEY', 'sk-…')` in
-  wp-config.php), the model (*Automatic* = the account's newest `gpt-*-mini`,
-  from `/v1/models`, re-read daily), both prompts ({name} {type} {type_en} {mod}
-  {category} {developer}), the closing heading, and the two links. *Test the
-  connection* lists the account's models and asks for one word, which also
-  shows there is credit. *Try it on one post* shows the exact question and the
-  laid-out article without saving; *Use this text for the post* saves it.
+- **Settings**: the AI and its key and model, both prompts ({name} {type}
+  {type_en} {mod} {category} {developer}), the closing heading, and the two
+  links. *Test the connection* lists the account's models and asks for one
+  word, which also shows the key works (and, for the paid ones, that there is
+  credit). *Try it on one post* shows the exact question and the laid-out
+  article without saving; *Use this text for the post* saves it.
 
-Requests go to `POST /v1/chat/completions` with `max_completion_tokens` and,
-for reasoning models (`gpt-5*`, `o*`), `reasoning_effort: low` (asked again
-without it if a model refuses it). A post is written by one request at a time
-(a row in `wp_options`, `INSERT IGNORE`), so a double click or a link opened
-twice does not pay for it twice. The API is paid by use, separately from a
-ChatGPT plan: platform.openai.com ▸ Billing.
+A post is written by one request at a time (a row in `wp_options`, `INSERT
+IGNORE`), so a double click or a link opened twice does not pay for it twice.
 
 ## App analytics (2.16)
 
