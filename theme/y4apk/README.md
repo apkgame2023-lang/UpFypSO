@@ -456,7 +456,8 @@ the account cannot use pauses the queue with the reason, until *Resume*.
 - **App Price** 0 when empty; **App Information** from Google Play (as App
   updates ▸ Settings allows); App Name and App Version when empty.
 - **Download row**: versions written the site's way ("1.22.0" →
-  "v1.22.0.apk"; "v4.5.zip" for an OBB); with no file yet, MOD Info, a size
+  "v1.22.0.apk", "368" → "v368.apk" (2.26.3; whole numbers were left as they
+  were, and posts written before are put right once); "v4.5.zip" for an OBB); with no file yet, MOD Info, a size
   (the box keeps a link only with one) and a **new folder** in files/up —
   "65694-Idle-Painter-MOD.apk", a 5-digit number no other folder has, as the
   site's own are — whose default.php is *App updates ▸ Settings ▸ Download
@@ -482,6 +483,13 @@ the account cannot use pauses the queue with the reason, until *Resume*.
   permalink (made after the permalink above changes; a draft gets the address
   it will have). If the name is not there, a word of the last paragraph is
   linked instead, as in the site's own posts.
+
+**Rank Math's SEO score** is worked out by Rank Math's own script in the post
+editor, so a post written here shows "SEO score 0" (it leaves *To write*
+anyway, being written) until it is opened in the editor — or until *Rank Math ▸ Status & Tools
+▸ Database Tools ▸ Recalculate scores* runs over all posts at once (they all
+have focus keywords now). "Index status: Neutral" is Google Search Console's
+"not seen yet" for a new address; it changes once Google crawls it.
 
 **Category from Google Play** (off by default) sets the post's categories to
 Games or Apps and the genre (`GAME_SIMULATION` → Games › Simulation, made if

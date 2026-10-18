@@ -678,13 +678,15 @@ class Y4APK_Writer {
 	 * latest; and one name everywhere (see match_post()).
 	 */
 	public static function migrate() {
-		if (get_option(self::DB) === '2.26.2' || get_transient('y4apk_writer_migrating')) {
+		$from = (string) get_option(self::DB, '');
+		if ($from === '2.26.3' || get_transient('y4apk_writer_migrating')) {
 			return;
 		}
+		$old = version_compare($from !== '' ? $from : '0', '2.26.2', '<'); // before 2.26.2: all of it; 2.26.2: the versions only
 		set_transient('y4apk_writer_migrating', 1, 5 * MINUTE_IN_SECONDS);
 		global $wpdb;
 		$at = get_option(self::DB . '_at', false);
-		if ($at === false) {
+		if ($at === false && $old) {
 			$ids = $wpdb->get_col($wpdb->prepare(
 				"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.post_content LIKE %s",
 				self::DONE, '%' . $wpdb->esc_like('&amp;amp;') . '%'
@@ -710,22 +712,47 @@ class Y4APK_Writer {
 					update_post_meta($id, 'wp_version_GP', $latest);
 				}
 			}
-			$at = 0;
 		}
+		$at = (int) $at;
 		$ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
 			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key IN (%s, %s) AND post_id > %d ORDER BY post_id LIMIT 200", self::DONE, self::BACKUP, (int) $at
 		)));
 		foreach ($ids as $id) {
-			self::match_post($id);
+			if ($old) {
+				self::match_post($id);
+			}
+			self::version_texts($id);
 			$at = $id;
 		}
 		if (count($ids) < 200) {
-			update_option(self::DB, '2.26.2', false);
+			update_option(self::DB, '2.26.3', false);
 			delete_option(self::DB . '_at');
 		} else {
 			update_option(self::DB . '_at', $at, false); // the rest on the next admin page
 		}
 		delete_transient('y4apk_writer_migrating');
+	}
+
+	/** The download rows' versions as the site writes them: "368" → "v368.apk" (2.26.2 left whole numbers as they were). */
+	private static function version_texts($id) {
+		$links = get_post_meta($id, 'repeatable_download_link', true);
+		if (!is_array($links)) {
+			return;
+		}
+		$new = $links;
+		foreach ($new as $k => $l) {
+			if (is_array($l) && !empty($l['download_version'])) {
+				$new[$k]['download_version'] = self::version_text($l['download_version'], isset($l['download_name']) ? $l['download_name'] : '');
+			}
+		}
+		if ($new !== $links) {
+			update_post_meta($id, 'repeatable_download_link', $new);
+			$b = get_post_meta($id, self::BACKUP, true);
+			if (isset($b['links']['after']) && $b['links']['after'] === $links) {
+				$b['links']['after'] = $new; // Undo still knows them
+				update_post_meta($id, self::BACKUP, wp_slash($b));
+			}
+		}
 	}
 
 	/** Saves a post's text as it is (no filters), Undo still knowing it. */
@@ -1253,10 +1280,10 @@ class Y4APK_Writer {
 		return isset($ext[$t]) ? $ext[$t] : 'apk';
 	}
 
-	/** "1.22.0" → "v1.22.0.apk", as the site writes download versions; anything else stays as it is. */
+	/** "1.22.0" → "v1.22.0.apk" (and "368" → "v368.apk"), as the site writes download versions; anything else stays as it is. */
 	public static function version_text($version, $type) {
 		$v = trim((string) $version);
-		return preg_match('/^v?(\d+(?:\.\d+)+)$/i', $v, $m) ? 'v' . $m[1] . '.' . self::file_ext($type) : $v;
+		return preg_match('/^v?(\d+(?:\.\d+)*)$/i', $v, $m) ? 'v' . $m[1] . '.' . self::file_ext($type) : $v;
 	}
 
 	/** Settings ▸ Title, filled: "Idle Painter MOD APK v1.24.22 (Unlimited Money)". */
