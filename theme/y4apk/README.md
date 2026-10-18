@@ -309,8 +309,9 @@ The app icon at the top is the page's main picture: it is fetched first
 (Slow 4G, 4× CPU) the main content appears at 1.4 s instead of 2.3 s and the
 page finishes loading at 2.2 s instead of 3.4 s (test site, without ads).
 
-**Why trust the file.** Under the title, "Updated 3 days ago", and when the
-version check agrees, "v7.8 = same version as Google Play ✓". Before the
+**Why trust the file.** Under the title, a small badge with a pulsing "live"
+dot: "Updated 3 days ago", and when the version check agrees, "· ✓ Latest
+version" (its tooltip names the version and Google Play; 2.22.1). Before the
 downloads, *What's new in v7.8* from Google Play (read with the version check,
 `[1][2][144][1][1]`, kept as plain lines in `_y4apk_gp_info`; shown only when
 that is the version the post offers). After them, *How to install*: download,
