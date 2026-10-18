@@ -319,6 +319,66 @@ allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
 post has an OBB, and the Android version needed. Each can be switched off in
 App updates ▸ Settings ▸ *On each post*.
 
+## Write with ChatGPT (2.23)
+
+**Y4APK ▸ Write with ChatGPT** writes a post's article through OpenAI's API,
+asked the way it is asked in ChatGPT — the default prompt is *ช่วยเขียนบทความของ
+{type} {name} ไม่ต้องมีหัวข้อ ไม่ยาว เป็นภาษาอังกฤษ* ({type} is เกม or แอป from the
+app's Google Play genre) — and lays the answer out like the site's articles:
+
+```
+<strong><a href="(Google Play)">OTR 2</a> MOD APK [Unlimited Money/…]</strong> – is an open-world …
+… The <a href="(the post's top category)">game</a> encourages …
+<h2>OTR 2 MOD APK (Unlimited Money/…) For Android - Download MOD APK from Y4Apk Free and Premium.</h2>
+```
+
+The name is App Name (`wp_title_GP`), else the title up to "MOD"/"v1.2"/"(";
+the MOD is App MOD Feature (`wp_mods`), else the download's MOD Info, else the
+title's "(…)". The model is told to start with "<Name> is" and to answer in
+plain paragraphs; markdown, list marks and heading lines are stripped anyway,
+and everything it writes is escaped. With *Give ChatGPT the app's Google Play
+description* on, the app's Play name, developer, genre and description go with
+the question (`[1][2][72][0][1]`, `[1][2][79][0][0]`), so it does not guess —
+asked not to copy it. Posts with no APK (Roblox scripts) get the second prompt,
+the name in bold, and no closing heading.
+
+The same run can bring the app's **icon** — downloaded at 512 px as WebP
+(`[1][2][95][0][3][2]` + `=s512-rw`), saved as `<Name>-MOD.webp` with the title
+"<Name> MOD" and "<Name> MOD APK (<MOD>)" as alt text, caption and description,
+and set as the featured image (not downloaded again while Play's icon is the
+same) — and its **screenshots** (up to 10, `[1][2][78][0][*][3][2]` +
+`=w1052-h592-rw`, into `ss_images`) up to date.
+
+- **Posts**: *No article yet* (under 40 words of text, headings left out), *Not
+  written by ChatGPT*, *Written by ChatGPT*, *In the queue*, *All*, by category
+  and title. Tick what to update (Article / App icon / Screenshots), then *Write
+  selected now* (one after another while the page is open, each row showing its
+  result) or *Add selected to the queue* / *Queue all*.
+- **Queue**: written in the background by WP-Cron, 1–10 posts every 5 minutes
+  (3 by default ≈ 36 an hour). Google Play or OpenAI busy: the post goes to the
+  back and the round stops; after 5 tries it is dropped (and logged). A key
+  OpenAI refuses, no credit left, or a model the account cannot use pauses the
+  queue with the reason, until *Resume*.
+- **Posts list**: *Write with ChatGPT* under each post (writes it now), and
+  *Write with ChatGPT (queue)* in Bulk actions.
+- **Undo** puts back the text, featured image and screenshots the last write
+  replaced (kept in `_y4apk_ai_backup`, with what was written) — each only if
+  it has not been changed since. WordPress also keeps a revision.
+- **Settings**: the API key (or `define('Y4APK_OPENAI_KEY', 'sk-…')` in
+  wp-config.php), the model (*Automatic* = the account's newest `gpt-*-mini`,
+  from `/v1/models`, re-read daily), both prompts ({name} {type} {type_en} {mod}
+  {category} {developer}), the closing heading, and the two links. *Test the
+  connection* lists the account's models and asks for one word, which also
+  shows there is credit. *Try it on one post* shows the exact question and the
+  laid-out article without saving; *Use this text for the post* saves it.
+
+Requests go to `POST /v1/chat/completions` with `max_completion_tokens` and,
+for reasoning models (`gpt-5*`, `o*`), `reasoning_effort: low` (asked again
+without it if a model refuses it). A post is written by one request at a time
+(a row in `wp_options`, `INSERT IGNORE`), so a double click or a link opened
+twice does not pay for it twice. The API is paid by use, separately from a
+ChatGPT plan: platform.openai.com ▸ Billing.
+
 ## App analytics (2.16)
 
 **Y4APK ▸ Analytics** — for the last 7, 30 or 90 days:
@@ -637,7 +697,7 @@ has all 13 sections, 85 controls and populated pickers.
 
 ## Bugs fixed along the way
 
-Found by running the theme against a real WordPress install; all four predate
+Found by running the theme against a real WordPress install; most predate
 the rebrand.
 
 - `components/home/home-category.php` passed the text domain as the *default
@@ -651,6 +711,12 @@ the rebrand.
   when a post had neither an APK nor an OBB download.
 - `template/header.php` and `template/footer.php` warned when a menu location
   had no menu assigned yet.
+- The service worker (2.10) turned on navigation preload for the whole site,
+  but leaves wp-admin, the download pages and search alone — and a navigation
+  it leaves alone with preload on is requested twice: once as the preload, once
+  for real. So for anyone who had opened the site in Chrome, every wp-admin page
+  loaded twice and GET actions (*Check version now*, bulk actions) ran twice.
+  2.23 turns preload off, also in browsers that already had it on.
 - `components/download/download-link.php` warned on the download page of a post
   with no download links, which stores an empty string rather than an array.
 - `inc/inits.php` set the screenshots metabox row counter only inside the branch

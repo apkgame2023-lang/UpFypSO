@@ -283,13 +283,24 @@ class Y4APK_App_Updates {
 	}
 
 	private static function dig($data, $path) {
+		$v = self::dig_any($data, $path);
+		return is_scalar($v) ? $v : null;
+	}
+
+	private static function dig_any($data, $path) {
 		foreach ($path as $key) {
 			if (!is_array($data) || !array_key_exists($key, $data)) {
 				return null;
 			}
 			$data = $data[$key];
 		}
-		return is_scalar($data) ? $data : null;
+		return $data;
+	}
+
+	/** A Play image address without its size ("…=w526-h296-rw" → "…"), or '' when it is not one. */
+	public static function play_image($url) {
+		$url = trim((string) $url);
+		return preg_match('~^https://[a-z0-9-]+\.googleusercontent\.com/~i', $url) ? preg_replace('~=[^/]*$~', '', $url) : '';
 	}
 
 	private static function valid_version($v) {
@@ -317,10 +328,10 @@ class Y4APK_App_Updates {
 	}
 
 	/** Play's "What's new" HTML as plain lines (at most 1,000 characters). */
-	public static function plain_lines($html) {
+	public static function plain_lines($html, $max = 1000) {
 		$text = html_entity_decode(wp_strip_all_tags(preg_replace('~<br\s*/?>|</p>|</li>~i', "\n", (string) $html)), ENT_QUOTES, 'UTF-8');
 		$lines = array_filter(array_map('trim', explode("\n", $text)), 'strlen');
-		return mb_substr(implode("\n", $lines), 0, 1000);
+		return mb_substr(implode("\n", $lines), 0, $max);
 	}
 
 	/** An age rating as App Information keeps it: "Rated for 12+", "PEGI 12", "Teen" → "12+", "12+", "13+". */
@@ -360,6 +371,22 @@ class Y4APK_App_Updates {
 			$rating = self::dig($data, [1, 2, 51, 0, 1]);
 			$votes = self::dig($data, [1, 2, 51, 2, 1]);
 			$news = (string) self::dig($data, [1, 2, 144, 1, 1]); // "What's new", HTML with <br>
+			// For Y4APK ▸ Write with ChatGPT: the icon, the screenshots and the description.
+			$icon = self::play_image(self::dig($data, [1, 2, 95, 0, 3, 2]));
+			if ($icon === '' && preg_match('~<meta[^>]+property="og:image"[^>]+content="([^"]+)"~i', $r[1], $og)) {
+				$icon = self::play_image(html_entity_decode($og[1], ENT_QUOTES));
+			}
+			$shots = [];
+			foreach ((array) self::dig_any($data, [1, 2, 78, 0]) as $shot) {
+				$u = self::play_image(self::dig($shot, [3, 2]));
+				if ($u !== '') {
+					$shots[] = $u;
+				}
+			}
+			$about = (string) self::dig($data, [1, 2, 72, 0, 1]);
+			if ($about === '' && isset($ld['description'])) {
+				$about = (string) $ld['description'];
+			}
 			// The schema.org data, when the page's own data has moved.
 			if ($developer === '' && isset($ld['author']['name'])) {
 				$developer = (string) $ld['author']['name'];
@@ -386,6 +413,11 @@ class Y4APK_App_Updates {
 				'rating'    => is_numeric($rating) && $rating >= 1 && $rating <= 5 ? round((float) $rating, 1) : 0,
 				'votes'     => is_numeric($votes) && $votes > 0 ? (int) $votes : 0,
 				'whatsnew'  => self::plain_lines($news),
+				'icon'      => $icon,
+				'screenshots' => array_values(array_unique($shots)),
+				'description' => self::plain_lines($about, 4000),
+				'genre'     => (string) self::dig($data, [1, 2, 79, 0, 0, 0]),
+				'game'      => strpos((string) self::dig($data, [1, 2, 79, 0, 0, 2]), 'GAME') === 0,
 				'readable'  => $data !== null,
 				'store'     => preg_match('/gl=([A-Z]{2})/', $params, $g) ? $g[1] : '',
 			];
@@ -1372,7 +1404,7 @@ class Y4APK_App_Updates {
 		return $out ? '<div class="au-chips" title="' . esc_attr__('As Google Play shows it', 'y4apk') . '">' . $out . '</div>' : '';
 	}
 
-	private static function icon($post_id) {
+	public static function icon($post_id) {
 		$src = get_the_post_thumbnail_url($post_id, 'thumbnail');
 		if ($src) {
 			return '<img class="au-icon" src="' . esc_url($src) . '" alt="" loading="lazy">';
@@ -1381,7 +1413,7 @@ class Y4APK_App_Updates {
 		return '<span class="au-icon au-icon-none" aria-hidden="true">' . esc_html($t !== '' ? mb_strtoupper(mb_substr($t, 0, 1)) : '?') . '</span>';
 	}
 
-	private static function styles() {
+	public static function styles() {
 		?>
 		<style>
 			.y4apk-au { --au-blue: #2271b1; --au-ink: #1d2327; --au-muted: #646970; --au-line: #dcdcde; --au-soft: #f6f7f7; --au-red: #d63638; --au-green: #00a32a; --au-amber: #dba617; margin-right: 20px; color: var(--au-ink); }

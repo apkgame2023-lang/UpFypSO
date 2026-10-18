@@ -55,8 +55,12 @@ self.addEventListener('activate', (event) => {
 				await caches.delete(key);
 			}
 		}
+		// Navigation preload stays off (and is turned off where an older version
+		// turned it on): for the pages left alone below — wp-admin, the download
+		// pages, search — the browser would send every request twice, once as the
+		// preload and once for real, running GET actions such as admin links twice.
 		if (self.registration.navigationPreload) {
-			await self.registration.navigationPreload.enable();
+			await self.registration.navigationPreload.disable();
 		}
 		await self.clients.claim();
 	})());
@@ -84,8 +88,7 @@ function cacheable(response) {
 
 async function handlePage(event) {
 	try {
-		const preloaded = await event.preloadResponse;
-		const response = preloaded || await fetch(event.request);
+		const response = await fetch(event.request);
 		if (cacheable(response)) {
 			const copy = response.clone();
 			event.waitUntil(caches.open(PAGE_CACHE)

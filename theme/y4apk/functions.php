@@ -29,6 +29,7 @@ require $theme_dir . '/inc/stats.php';
 require $theme_dir . '/inc/app-updates.php';
 require $theme_dir . '/inc/push.php';
 require $theme_dir . '/inc/r2.php';
+require $theme_dir . '/inc/writer.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';
 require $theme_dir . '/inc/rest-auth-debug.php';
