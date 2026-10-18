@@ -234,6 +234,11 @@ App updates rows show how many followers wait; Settings has the switch, totals
 and the last sends. For the Android app: keep *Notification delegation* on in
 PWABuilder.
 
+2.21.1: the JSON kept in post meta (`_y4apk_gp_info`, `_y4apk_gp_suggest`) is
+saved with `wp_slash()`, because post meta strips one level of backslashes: before,
+Thai and other non-Latin names came back as "u0e40u0e01…" and names with quotes
+not at all. Damaged suggestions are looked up again on upgrade.
+
 The save hook for the update flag now runs on `save_post` (priority 99), after
 the Download Links box has saved its rows, so editor saves are seen at once.
 

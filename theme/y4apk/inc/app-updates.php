@@ -116,6 +116,20 @@ class Y4APK_App_Updates {
 			}
 			update_option('y4apk_vc_schema', 4, true);
 		}
+		// Before 2.21.1 the JSON lost its backslashes on saving: Thai and other
+		// non-Latin names came back as "u0e40u0e01…", names with quotes not at
+		// all. Look those suggestions up again (Play details are re-read anyway).
+		if ((int) get_option('y4apk_vc_schema', 1) < 5) {
+			global $wpdb;
+			foreach ($wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::SUGGEST)) as $id) {
+				$raw = (string) get_post_meta($id, self::SUGGEST, true);
+				if (!is_array(json_decode($raw, true)) || preg_match('/u0[0-9a-f]{3}/i', $raw)) {
+					delete_post_meta($id, self::SUGGEST);
+					delete_post_meta($id, self::LINK);
+				}
+			}
+			update_option('y4apk_vc_schema', 5, true);
+		}
 		$next = wp_next_scheduled(self::HOOK);
 		if (self::enabled() && !$next) {
 			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'y4apk_15min', self::HOOK);
@@ -454,7 +468,7 @@ class Y4APK_App_Updates {
 			'store'     => isset($play['store']) ? $play['store'] : '',
 			'read'      => time(),
 		];
-		update_post_meta($post_id, self::INFO, wp_json_encode($info));
+		update_post_meta($post_id, self::INFO, wp_slash(wp_json_encode($info))); // post meta strips one level of backslashes
 
 		$changed = false;
 		foreach (['publisher' => 'developer', 'rated' => 'rated', 'requires' => 'requires'] as $key => $from) {
@@ -851,7 +865,7 @@ class Y4APK_App_Updates {
 			}
 		}
 		if ($first) {
-			update_post_meta($post_id, self::SUGGEST, wp_json_encode($first));
+			update_post_meta($post_id, self::SUGGEST, wp_slash(wp_json_encode($first)));
 			update_post_meta($post_id, self::LINK, 'suggested');
 		} else {
 			update_post_meta($post_id, self::LINK, 'nomatch');
