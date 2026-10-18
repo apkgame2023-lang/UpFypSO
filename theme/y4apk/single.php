@@ -10,7 +10,9 @@
     </div>
 	  <?php 
 	  get_template_part('components/single/single-meta');
+	  get_template_part('components/single/single-whatsnew');
 	  get_template_part('components/single/single-download-links');
+	  get_template_part('components/single/single-install');
 	  get_template_part('components/single/single-info');
 	  ?>
   </article>

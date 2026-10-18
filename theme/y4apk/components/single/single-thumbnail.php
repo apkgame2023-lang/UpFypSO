@@ -11,7 +11,7 @@ $rating_data = get_star_rating(get_the_ID());
             <div class="f-app-view-intro">
                 <div class="f-app-view-img">
                     <figure>
-                        <img src="<?php the_post_thumbnail_url(); ?>" width="116" height="116" alt="<?php echo $app_name; ?>" loading="lazy">
+                        <img src="<?php the_post_thumbnail_url(); ?>" width="116" height="116" alt="<?php echo $app_name; ?>" fetchpriority="high" decoding="async">
                     </figure>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 120" width="176" height="120">
                         <path fill="currentColor" d="M0,0V4H10A16,16,0,0,1,26,19.74V96a24,24,0,0,0,24,24h76a24,24,0,0,0,24-24V19.74A16,16,0,0,1,166,4h10V0Z"></path>
@@ -45,6 +45,16 @@ $rating_data = get_star_rating(get_the_ID());
                     </div>
                     <span class="fw-b"><?php echo $rating_data->rating_average; ?></span> (<span id="vote-num"><?php echo number_format($rating_data->rating_votes, 0, ",", ","); ?></span>)
                 </div>
+                <?php if (class_exists('Y4APK_App_Updates') && Y4APK_App_Updates::post_part_on('fresh')) :
+                    $fresh = Y4APK_App_Updates::freshness(get_the_ID()); ?>
+                <div class="f-app-fresh"><span class="f-app-fresh-dot"></span><?php
+                    printf(esc_html__('Updated %s ago', 'y4apk'), esc_html($fresh['ago']));
+                    if ($fresh['same']) {
+                        echo '<br><b>v' . esc_html($fresh['version']) . '</b> ' . esc_html__('= same version as Google Play', 'y4apk') . ' ✓';
+                    } elseif ($fresh['version'] !== '') {
+                        echo ' · <b>v' . esc_html($fresh['version']) . '</b>';
+                    } ?></div>
+                <?php endif; ?>
                 <div class="f-app-view-dw">
                     <a class="btn blue-style anchor" href="#download-now"><?php esc_html_e('Download', 'y4apk'); ?> ↓</a>
                 </div>

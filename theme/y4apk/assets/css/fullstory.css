@@ -258,3 +258,20 @@
 	.app-next > .fw-b::before { color: #29B1D8; }
 	.app-prev > .fw-b::before { color: #DE485F; }
 }
+/* --- 2.22: freshness line, What's new, How to install --- */
+.f-app-fresh { display: inline-block; max-width: 92%; margin: 10px auto 2px; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; font-size: 12.5px; line-height: 1.5; text-align: center; position: relative; z-index: 2; }
+.f-app-fresh-dot { display: inline-block; vertical-align: 1px; margin-right: 7px; width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 0 3px rgba(61,220,132,.25); }
+.f-app-new { padding: 18px 20px; margin-top: 16px; }
+.f-app-new-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.f-app-new-head small { opacity: .65; font-size: 12.5px; }
+.f-app-new-badge { flex: none; padding: 4px 9px; border-radius: 8px; background: #e8f7fc; color: #1a95ba; font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+.f-app-new ul { margin: 0; padding-left: 20px; line-height: 1.7; list-style: disc; }
+.f-app-install { padding: 16px 20px; margin-top: 16px; }
+.f-app-install summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.f-app-install summary::-webkit-details-marker { display: none; }
+.f-app-install summary small { opacity: .65; font-size: 12.5px; }
+.f-app-install ol { margin: 12px 0 0; padding-left: 0; list-style: none; counter-reset: y4step; }
+.f-app-install li { counter-increment: y4step; position: relative; padding: 0 0 12px 40px; line-height: 1.6; }
+.f-app-install li::before { content: counter(y4step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: #29b1d8; color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.f-app-install code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: #eef6f9; white-space: nowrap; }
+.f-app-install code.pkg { white-space: normal; overflow-wrap: anywhere; }

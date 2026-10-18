@@ -117,7 +117,7 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
-## App updates: which posts have a newer version out (2.17–2.21)
+## App updates: which posts have a newer version out (2.17–2.22)
 
 **Y4APK ▸ App updates** lists the posts whose download is older than the app's
 latest version, most downloaded first (last 30 days, from Analytics), with a form
@@ -251,9 +251,72 @@ country, App Information fields, and the exact PHP cron command for this
 server).
 
 **Running on time.** WP-Cron runs when an uncached page is opened, which a page
-cache makes rare. A Hostinger cron job every 15 minutes —
-`wget -q -O - https://y4apk.com/wp-cron.php?doing_wp_cron >/dev/null 2>&1` —
-keeps the steps regular (the page shows the line with the site's own address).
+cache makes rare. A Hostinger cron job (type PHP) every 15 minutes —
+`/usr/bin/php /home/…/public_html/wp-cron.php` — keeps the steps regular; the
+Settings tab shows the line with this server's own path.
+
+**7. Uploading the new file to Cloudflare R2** (2.22, `inc/r2.php`,
+`assets/js/y4apk-r2-upload.js`). The site's download links are folders on this
+server: `https://files.y4apk.com/up/79275-No-Limit-Drag-Racing-2-MOD.apk` is
+`public_html/files/up/79275-No-Limit-Drag-Racing-2-MOD.apk/default.php`, a
+"Preparing your download" page that sends the visitor to the file on R2
+(`https://files.y4apk.net/A/…apk`). With R2 set up (Settings ▸ *Uploads to
+Cloudflare R2*), every download line of the form has **⬆ Upload**:
+
+- the file goes **from the browser straight to R2** as an S3 multipart upload:
+  parts of 16 MB (more for very large files, at most 9,000 parts), four at a
+  time, each retried three times, through links this server signs (AWS
+  Signature V4, region `auto`; checked against botocore's signer). Nothing
+  passes through this server, so 2–3 GB files are fine. Progress, speed and
+  Cancel (which also aborts the upload on R2) show under the line; Save waits;
+- the server then completes the upload and checks R2 has every byte (HEAD); the
+  key is named like the bucket's files:
+  `T/Test-Racer-MOD-v9.0-Y4APK.COM-IDv123456.apk` (first letter of the app,
+  type, version, a random ID, the file's own extension);
+- **Save**, with *Replace*, writes the new R2 address into the post's own
+  folder page and keeps the post's link; with *Add*, or when the link is not one
+  of these folders, it makes a new folder numbered after the highest
+  (`91301-Keep-Game-MOD.apk`, counter in `y4apk_r2_next`), its page copied from
+  the existing design. Only uploads finished from this site for this post are
+  accepted (a transient per key); only folders inside the folder of pages are
+  touched (no `..`, no other hosts);
+- the page filler handles every design in use (checked on all 651 pages of
+  `files/up`): every R2 file address in the page becomes the new one, and the
+  places the pages keep for it (`<a class=d href=…>`, `location.href=…,0)`,
+  PHP `$apk="…"`) are filled even while they say `#` or point elsewhere; the
+  3-second fallback and ad codes stay. A page with no such place is kept as
+  `default.php.bak` and replaced.
+
+Setup: an R2 API token (*Object Read & Write*, the bucket) — its keys can also
+be `Y4APK_R2_KEY_ID` / `Y4APK_R2_SECRET` in wp-config.php — and, once, the
+bucket's CORS policy (shown on the card, with this site as origin and the ETag
+header exposed). *Test the connection* checks the keys from the server and an
+upload from the browser.
+
+*Replace* is the default for every post since 2.22 (it keeps the links); *Add*
+with the old link and no upload is stopped on the page with an explanation.
+
+## The post page (2.22)
+
+**Lighter.** The whole Font Awesome icon set was loaded from cdnjs in `<head>`
+— render-blocking, another server, and its font — for three footer icons; they
+are inline SVG now (`add_filter('y4apk_load_fontawesome', '__return_true')`
+brings the stylesheet back if something else needs it). `assets/js/main.js`
+carried jQuery UI 1.13.1 and Touch Punch (≈125 KB) that nothing used — the
+rating popup is plain show/hide — and is now only the theme's own code (3 KB).
+The app icon at the top is the page's main picture: it is fetched first
+(`fetchpriority="high"`), not lazily. On a mid-range Android phone emulation
+(Slow 4G, 4× CPU) the main content appears at 1.4 s instead of 2.3 s and the
+page finishes loading at 2.2 s instead of 3.4 s (test site, without ads).
+
+**Why trust the file.** Under the title, "Updated 3 days ago", and when the
+version check agrees, "v7.8 = same version as Google Play ✓". Before the
+downloads, *What's new in v7.8* from Google Play (read with the version check,
+`[1][2][144][1][1]`, kept as plain lines in `_y4apk_gp_info`; shown only when
+that is the version the post offers). After them, *How to install*: download,
+allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
+post has an OBB, and the Android version needed. Each can be switched off in
+App updates ▸ Settings ▸ *On each post*.
 
 ## App analytics (2.16)
 

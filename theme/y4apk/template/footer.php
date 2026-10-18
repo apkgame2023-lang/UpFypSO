@@ -155,16 +155,16 @@ $footer = wp_get_nav_menu_items($menu_locations['footer'] ?? 0);
 
          <div class="footer-social-bottom">
 
-         <a href="https://fb.com/Y4Apk" target="_blank" rel="noopener">
-         <i class="fab fa-facebook-f"></i>
+         <a href="https://fb.com/Y4Apk" target="_blank" rel="noopener" aria-label="Facebook">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M14 8V6.2c0-.8.2-1.2 1.4-1.2H17V2h-2.6C11.3 2 10 3.5 10 6v2H8v3h2v11h4V11h2.7l.3-3z"/></svg>
          </a>
 
-         <a href="https://www.youtube.com/@Y4Apk?sub_confirmation=1" target="_blank" rel="noopener">
-         <i class="fab fa-youtube"></i>
+         <a href="https://www.youtube.com/@Y4Apk?sub_confirmation=1" target="_blank" rel="noopener" aria-label="YouTube">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9l5.7 3.1z"/></svg>
          </a>
 
-         <a href="https://t.me/Y4Apk_Official" target="_blank" rel="noopener">
-         <i class="fab fa-telegram-plane"></i>
+         <a href="https://t.me/Y4Apk_Official" target="_blank" rel="noopener" aria-label="Telegram">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21.9 4.1 18.6 19.6c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L6 13.2l-4.9-1.5c-1.1-.3-1.1-1.1.2-1.6L20.4 2.8c.9-.3 1.7.2 1.5 1.3z"/></svg>
          </a>
 
          </div>
