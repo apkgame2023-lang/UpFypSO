@@ -20,7 +20,7 @@ if (empty($app_os)) {
         <span> <?php echo $app_required; ?>+</span>
     </div>
     <figure class="page_file-img">
-        <img src="<?php the_post_thumbnail_url(); ?>" alt="<?php echo $app_name; ?>" loading="lazy">
+        <img src="<?php echo esc_url(y4apk_icon_url(), ['http', 'https', 'data']); ?>" alt="<?php echo $app_name; ?>" loading="lazy">
     </figure>
     <div class="p-file-data-r">
         <i class="c-blue">

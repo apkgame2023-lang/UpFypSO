@@ -39,7 +39,7 @@ foreach($download_links as $index => $download) : if ($index === $download_id) :
     </div>
     <div class="p-file-timer-btn" style="opacity:0;pointer-events:none;visibility:hidden;">
         <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo $download['download_url']; ?>" target="_blank">
-			<?php esc_html_e('Download', 'Y4Apk'); ?> (<?php echo $download['download_size']; ?>)
+			<?php esc_html_e('Download', 'Y4Apk'); ?><?php echo y4apk_size_label(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 		</a>
     </div>
 </div>

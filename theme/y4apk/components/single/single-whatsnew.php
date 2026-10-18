@@ -15,4 +15,10 @@ if (!$news) return;
         </div>
     </div>
     <ul><?php foreach ($news['lines'] as $line) : ?><li><?php echo esc_html($line); ?></li><?php endforeach; ?></ul>
+    <?php if (!empty($news['more'])) : ?>
+    <details class="f-app-new-more">
+        <summary><?php printf(esc_html(_n('Show %s more', 'Show %s more', count($news['more']), 'y4apk')), esc_html(number_format_i18n(count($news['more'])))); ?></summary>
+        <ul><?php foreach ($news['more'] as $line) : ?><li><?php echo esc_html($line); ?></li><?php endforeach; ?></ul>
+    </details>
+    <?php endif; ?>
 </div>

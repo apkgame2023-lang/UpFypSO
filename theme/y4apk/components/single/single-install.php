@@ -11,7 +11,7 @@ foreach (is_array($links) ? $links : [] as $l) {
 if (!$apk) return;
 $package = (string) get_post_meta(get_the_ID(), 'wp_GP_ID', true);
 $requires = (string) get_post_meta(get_the_ID(), 'wp_requires_GP', true);
-$file = function ($l) { return trim($l['download_name'] . ' ' . $l['download_version']) . (!empty($l['download_size']) ? ' (' . $l['download_size'] . ')' : ''); };
+$file = function ($l) { return trim($l['download_name'] . ' ' . $l['download_version']) . (!empty($l['download_size']) && !in_array(trim($l['download_size']), ['—', '-'], true) ? ' (' . $l['download_size'] . ')' : ''); };
 ?>
 <details class="block f-app-install" open>
     <summary><span class="fw-b"><?php esc_html_e('How to install', 'y4apk'); ?></span>

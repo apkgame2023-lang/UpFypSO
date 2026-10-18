@@ -146,7 +146,7 @@ $featured_posts = get_theme_mod('featured_posts', [
                     <a href="<?php echo get_permalink($post['post_id']); ?>">
                         <div class="best-app-img">
                             <figure>
-                                <img src="<?php echo get_the_post_thumbnail_url($post['post_id'], 'thumbnail'); ?>" width="60" height="60" alt="<?php echo $post_name; ?>" loading="lazy">
+                                <img src="<?php echo esc_url(y4apk_icon_url($post['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo $post_name; ?>" loading="lazy">
                             </figure>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 76" width="90" height="76">
                                 <path fill="currentColor" d="M64,0H0V76A16,16,0,0,1,16,60.26H40a24,24,0,0,0,24-24V19.74A16,16,0,0,1,80,4H90V0Z"></path>

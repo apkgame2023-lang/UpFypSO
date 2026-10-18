@@ -200,7 +200,11 @@
 		this.stopped = true;
 		this.xhrs.forEach(function (x) { x.abort(); });
 		if (this.id) {
-			ajax('abort', { uploadId: this.id }).catch(function () {});
+			var id = this.id;
+			ajax('abort', { uploadId: id }).catch(function () {});
+			// A part already on its way can still land after the abort (S3 and R2 say an abort may need
+			// repeating): once more when it has, so no unfinished upload is left taking space.
+			setTimeout(function () { ajax('abort', { uploadId: id }).catch(function () {}); }, 4000);
 		}
 	};
 

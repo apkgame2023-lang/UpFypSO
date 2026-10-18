@@ -373,3 +373,30 @@ function footer_code() {
     }
 }
 add_action('wp_footer', 'footer_code');
+
+/**
+ * A post's icon: its featured image, else a tile with the app's first letter
+ * (a post with no image — an app gone from Google Play — showed a broken
+ * image on every card).
+ */
+function y4apk_icon_url($post_id = null, $size = 'post-thumbnail') {
+	$post_id = $post_id ? $post_id : get_the_ID();
+	$url = get_the_post_thumbnail_url($post_id, $size);
+	if ($url) {
+		return $url;
+	}
+	$name = trim(html_entity_decode(wp_strip_all_tags((string) get_post_meta($post_id, 'wp_title_GP', true)), ENT_QUOTES, 'UTF-8'));
+	$name = $name !== '' ? $name : trim(html_entity_decode(wp_strip_all_tags(get_the_title($post_id)), ENT_QUOTES, 'UTF-8'));
+	$letter = $name !== '' ? mb_strtoupper(mb_substr($name, 0, 1)) : '?';
+	$hue = abs(crc32($name)) % 360;
+	$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="26" fill="hsl(' . $hue . ',55%,46%)"/>'
+		. '<text x="60" y="60" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="62" font-weight="700" fill="#fff">' . htmlspecialchars($letter, ENT_QUOTES, 'UTF-8') . '</text></svg>';
+	return 'data:image/svg+xml,' . rawurlencode($svg);
+}
+
+/** " (31.37MB)" after a download's name, or nothing when its size is not known ("" or "—"). */
+function y4apk_size_label($size) {
+	$size = trim((string) $size);
+	return $size === '' || $size === '—' || $size === '-' ? '' : ' (<span itemprop="fileSize">' . esc_html($size) . '</span>)';
+}
+

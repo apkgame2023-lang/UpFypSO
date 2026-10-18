@@ -57,6 +57,7 @@ class Y4APK_Writer {
 	const SEO_MAX   = 60;                 // characters Google shows of a title
 	const DB        = 'y4apk_writer_db';  // the version posts written here were last brought up to
 	const DESC_AUTO = '_y4apk_seo_desc';  // the Rank Math SEO description written in by Write with AI
+	const GONE      = '_y4apk_gone';      // when the app was found gone from Google Play (its ID shows nothing, and no new listing)
 
 	public static function init() {
 		add_filter('cron_schedules', [__CLASS__, 'schedules']);
@@ -664,6 +665,7 @@ class Y4APK_Writer {
 			'category'     => $top ? self::plain($top->name) : '',
 			'category_url' => $top ? get_category_link($top) : '',
 			'developer'    => $developer !== '' ? $developer : ($on_play ? $play['developer'] : ''),
+			'package'      => $package,
 			'play_url'     => $package !== '' ? 'https://play.google.com/store/apps/details?id=' . $package : '',
 			'on_play'      => $on_play,
 			'play'         => $play,
@@ -1002,7 +1004,7 @@ class Y4APK_Writer {
 		$paras = array_slice($paras, 0, 6);
 
 		$name = self::text($ctx['show']);
-		if ($o['link_name'] && $ctx['play_url'] !== '') {
+		if ($o['link_name'] && $ctx['play_url'] !== '' && $ctx['on_play']) { // not a link to a page Google Play no longer has
 			$name = '<a href="' . esc_url($ctx['play_url']) . '">' . $name . '</a>';
 		}
 		$blocks = [];
@@ -1116,6 +1118,25 @@ class Y4APK_Writer {
 			return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'play');
 		}
 		$done = [];
+		// Gone from its Google Play ID: moved to a new one (the same name and developer), or gone for good.
+		if ($ctx['play']['status'] === 'missing' && $ctx['package'] !== '') {
+			$found = Y4APK_App_Updates::find_listing($ctx['name'], (string) get_post_meta($post_id, 'wp_developers_GP', true), $ctx['package']);
+			if ($found === null) {
+				return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'play');
+			}
+			if ($found !== '') {
+				$was = (string) get_post_meta($post_id, 'wp_GP_ID', true);
+				update_post_meta($post_id, 'wp_GP_ID', $found);
+				self::remember($post_id, 'package', $was, $found);
+				delete_post_meta($post_id, self::GONE);
+				$done[] = sprintf(__('moved on Google Play: %1$s → %2$s', 'y4apk'), $ctx['package'], $found);
+				$ctx = self::context($post_id);
+			} else {
+				update_post_meta($post_id, self::GONE, time());
+			}
+		} elseif ($ctx['play']['status'] === 'ok') {
+			delete_post_meta($post_id, self::GONE);
+		}
 		self::$note = '';
 		$o = self::settings();
 		$provider = $o['provider'];
@@ -1174,7 +1195,7 @@ class Y4APK_Writer {
 			$done[] = $ctx['on_play'] ? self::update_category($post_id, $ctx) : __('category left as it is (no Google Play app)', 'y4apk');
 		}
 		if ($parts & (self::ICONS | self::SHOTS) && !$ctx['on_play']) {
-			$done[] = $ctx['play_url'] === '' ? __('no Google Play app linked: icon and screenshots left as they are', 'y4apk') : __('not found on Google Play: icon and screenshots left as they are', 'y4apk');
+			$done[] = $ctx['play_url'] === '' ? __('no Google Play app linked: icon and screenshots left as they are', 'y4apk') : __('not on Google Play any more (removed, and no new listing with its name): icon and screenshots left as they are', 'y4apk');
 		} else {
 			if ($parts & self::ICONS) {
 				$icon = self::update_icon($post_id, $ctx);
@@ -1460,9 +1481,8 @@ class Y4APK_Writer {
 				if (empty($row['download_mod_info']) && $mod !== '') {
 					$row['download_mod_info'] = $mod;
 				}
-				if (empty($row['download_size'])) {
-					$size = (string) get_post_meta($post_id, 'wp_sizes_GP', true);
-					$row['download_size'] = $size !== '' ? $size : '—'; // the Download Links box keeps a row's link only with a size
+				if (empty($row['download_size']) || $row['download_size'] === '—') {
+					$row['download_size'] = (string) get_post_meta($post_id, 'wp_sizes_GP', true); // not known: none shown (2.25 wrote "—")
 				}
 				if (!$waiting && class_exists('Y4APK_R2')) {
 					$made = Y4APK_R2::make_folder($post_id, strtoupper($row['download_name']) === 'OBB' ? 'OBB' : 'MOD', self::file_ext($row['download_name']));
@@ -1675,6 +1695,14 @@ class Y4APK_Writer {
 				$kept[] = __('title', 'y4apk');
 			}
 		}
+		if (isset($b['package']) && $b['package']['before'] !== '') {
+			if ((string) get_post_meta($post_id, 'wp_GP_ID', true) === (string) $b['package']['after']) {
+				update_post_meta($post_id, 'wp_GP_ID', $b['package']['before']);
+				$back[] = __('Google Play ID', 'y4apk');
+			} else {
+				$kept[] = __('Google Play ID', 'y4apk');
+			}
+		}
 		if (isset($b['desc'])) {
 			if ((string) get_post_meta($post_id, 'rank_math_description', true) === (string) $b['desc']['after']) {
 				foreach (['rank_math_description', self::DESC_AUTO] as $key) {
@@ -1866,6 +1894,11 @@ class Y4APK_Writer {
 	}
 
 	/** Posts Rank Math has no SEO score for (its Analytics ▸ "No Data"), less those already written here. */
+	private static function count_gone() {
+		global $wpdb;
+		return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = %s", self::GONE));
+	}
+
 	private static function count_noscore() {
 		$q = new WP_Query(array_merge(self::query_args('noscore', 0, ''), ['posts_per_page' => 1]));
 		return (int) $q->found_posts;
@@ -1902,6 +1935,8 @@ class Y4APK_Writer {
 			$args['meta_query'] = [['key' => self::DONE, 'compare' => 'NOT EXISTS']];
 		} elseif ($show === 'ai') {
 			$args['meta_query'] = [['key' => self::DONE, 'compare' => 'EXISTS']];
+		} elseif ($show === 'gone') {
+			$args['meta_query'] = [['key' => self::GONE, 'compare' => 'EXISTS']];
 		}
 		return $args;
 	}
@@ -1909,7 +1944,7 @@ class Y4APK_Writer {
 	private static function filters() {
 		$show = isset($_REQUEST['show']) ? sanitize_key(wp_unslash($_REQUEST['show'])) : 'noscore';
 		return [
-			in_array($show, ['noscore', 'short', 'notai', 'ai', 'all', 'queued'], true) ? $show : 'noscore',
+			in_array($show, ['noscore', 'short', 'notai', 'ai', 'all', 'queued', 'gone'], true) ? $show : 'noscore',
 			isset($_REQUEST['cat']) ? absint($_REQUEST['cat']) : 0,
 			isset($_REQUEST['s']) ? sanitize_text_field(wp_unslash($_REQUEST['s'])) : '',
 		];
@@ -2238,6 +2273,8 @@ class Y4APK_Writer {
 			.aw-row.is-busy { border-color: var(--au-blue); box-shadow: 0 0 0 1px var(--au-blue); }
 			.aw-row.is-good { border-color: #b8e6bf; }
 			.aw-row.is-bad { border-color: #f4c6c7; }
+			.au-chip.aw-gone { background: #fdeeee; border-color: #f4c6c7; color: #b32d2e; }
+			a.au-chip { text-decoration: none; color: var(--au-blue); }
 			.aw-status { font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
 			.aw-ok { color: #007017; }
 			.aw-queued { color: #8a6100; }
@@ -2369,7 +2406,7 @@ class Y4APK_Writer {
 			} elseif ($view === 'settings') {
 				self::render_settings($o);
 			} else {
-				self::render_posts($o, ['noscore' => $noscore, 'short' => $short, 'notai' => $all - $written, 'ai' => $written, 'all' => $all, 'queued' => count($queue)]);
+				self::render_posts($o, ['noscore' => $noscore, 'short' => $short, 'notai' => $all - $written, 'ai' => $written, 'all' => $all, 'queued' => count($queue), 'gone' => self::count_gone()]);
 			}
 			?>
 		</div>
@@ -2392,6 +2429,7 @@ class Y4APK_Writer {
 			'notai'  => __('Not written by AI', 'y4apk'),
 			'ai'     => __('Written by AI', 'y4apk'),
 			'queued' => __('In the queue', 'y4apk'),
+			'gone'   => __('Not on Google Play', 'y4apk'),
 			'all'    => __('All', 'y4apk'),
 		];
 		?>
@@ -2467,6 +2505,8 @@ class Y4APK_Writer {
 					<div class="au-chips">
 						<span class="au-chip"><?php echo esc_html(sprintf(_n('%s word', '%s words', $words, 'y4apk'), number_format_i18n($words))); ?></span>
 						<?php if (!$package) : ?><span class="au-chip"><?php esc_html_e('No Google Play app', 'y4apk'); ?></span><?php endif; ?>
+						<?php if ($package && get_post_meta($id, self::GONE, true)) : ?><span class="au-chip aw-gone" title="<?php esc_attr_e('Its Google Play page shows nothing, and no listing has its name: removed by Google or the developer. Put a new Google Play ID in the post if it is somewhere else.', 'y4apk'); ?>"><?php esc_html_e('Not on Google Play', 'y4apk'); ?></span>
+							<a class="au-chip" href="<?php echo esc_url('https://play.google.com/store/search?q=' . rawurlencode(self::plain(get_post_meta($id, 'wp_title_GP', true) ?: get_the_title($id))) . '&c=apps'); ?>" target="_blank" rel="noopener"><?php esc_html_e('Search Google Play', 'y4apk'); ?></a><?php endif; ?>
 						<?php if ($cats) : ?><span class="au-chip"><?php echo esc_html(implode(', ', array_slice($cats, 0, 2))); ?></span><?php endif; ?>
 					</div>
 					<div class="aw-status"><div class="aw-state"><?php echo self::status_html($id); ?></div><span class="aw-msg"></span></div>

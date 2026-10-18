@@ -315,12 +315,23 @@ dot: "Updated 3 days ago", and when the version check agrees, "· ✓ Latest
 version" (its tooltip names the version and Google Play; 2.22.1). Before the
 downloads, *What's new in v7.8* from Google Play (read with the version check,
 `[1][2][144][1][1]`, kept as plain lines in `_y4apk_gp_info`; shown only when
-that is the version the post offers). After them, *How to install*: download,
+that is the version the post offers). Many apps paste every version's notes
+there ("Version 2.1.1: / - Bus price fix / Version 2.1: / - Bus / …"): since
+2.27 only the newest version's are shown, without their own "-" or "•", at
+most 5 lines and *Show N more* for the rest. After them, *How to install*: download,
 allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
 post has an OBB, and the Android version needed. Each can be switched off in
 App updates ▸ Settings ▸ *On each post*.
 
-## Write with AI (2.23–2.26)
+**No icon, no broken image** (2.27). A post with no featured image (an app gone
+from Google Play, whose icon could not be fetched) showed an empty `<img>` on
+every card and at the top of its page; it now shows a tile with the app's
+first letter in a colour of its own (`y4apk_icon_url()`, an inline SVG). A
+download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
+the Download Links box keeps each field on its own: a link used to be dropped
+on Save when the row had no size.
+
+## Write with AI (2.23–2.27)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
 in Settings, each with its own key (or a `wp-config.php` constant):
@@ -490,6 +501,17 @@ anyway, being written) until it is opened in the editor — or until *Rank Math 
 ▸ Database Tools ▸ Recalculate scores* runs over all posts at once (they all
 have focus keywords now). "Index status: Neutral" is Google Search Console's
 "not seen yet" for a new address; it changes once Google crawls it.
+
+**Apps gone from Google Play** (2.27). When a post's Google Play ID shows
+nothing in any store, Google Play is searched for its App Name: a listing with
+exactly that name *and* the same developer is the app under a new ID — the
+post's ID is changed to it (Undo puts the old one back) and it is written from
+there, icon and all. Otherwise the post is marked (`_y4apk_gone`) and listed
+under *Not on Google Play*, with a chip and a *Search Google Play* link for its
+name, to put a new ID in by hand or leave it; its article is still written,
+from what the AI knows, but the name no longer links to the dead Play page. A
+listing with the same name by another developer is never taken. Once the app
+is back on Google Play, the mark goes.
 
 **Category from Google Play** (off by default) sets the post's categories to
 Games or Apps and the genre (`GAME_SIMULATION` → Games › Simulation, made if
@@ -853,6 +875,15 @@ has all 13 sections, 85 controls and populated pickers.
 
 Found by running the theme against a real WordPress install; most predate
 the rebrand.
+
+- **R2 upload cancelled, an unfinished upload left behind** (2.27): the abort
+  went out while a part was still on its way, and that part could land after
+  it, leaving the multipart upload taking space on R2 (S3 and R2 say an abort
+  may need repeating). The page now aborts once more 4 seconds later; the
+  server keeps the cancelled upload known for 10 minutes for that, and refuses
+  anything else for it.
+- **"&amp;" in R2 folder and file names** (2.27): "Sneak &amp; Steal" made
+  "…-Sneak-amp-Steal-MOD.apk"; names are read as text now.
 
 - `components/home/home-category.php` passed the text domain as the *default
   value* of `get_theme_mod('terms', …)`, so a site that had not configured the

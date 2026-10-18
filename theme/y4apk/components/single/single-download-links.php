@@ -53,7 +53,7 @@ if(function_exists('single_bottom_ad')) single_bottom_ad();
                 <div class="attachment-name"><?php esc_html_e('DOWNLOAD MOD', 'y4apk'); ?></div>
                 <?php endif; ?>
                 <a class="btn btn-block attachment-link" href="<?php echo get_permalink() . 'download/' . $index; ?>/" rel="nofollow">
-					<?php echo $download['download_name']; ?> <?php echo $download['download_version']; ?> (<span itemprop="fileSize"><?php echo $download['download_size']; ?></span>)
+					<?php echo $download['download_name']; ?> <?php echo $download['download_version']; ?><?php echo y4apk_size_label(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 				</a>
                 <?php endif; endforeach; if ($hasApk) : // Close the b-grid block if APK downloads exist ?>
             </div>
@@ -73,7 +73,7 @@ if(function_exists('single_bottom_ad')) single_bottom_ad();
                 <div class="attachment-name"><?php esc_html_e('DOWNLOAD OBB', 'y4apk'); ?></div>
                 <?php endif; ?>
                 <a class="btn btn-block attachment-link" href="<?php echo get_permalink() . 'download/' . $index; ?>/" rel="nofollow">
-					<?php echo $download['download_name']; ?> <?php echo $download['download_version']; ?> (<span itemprop="fileSize"><?php echo $download['download_size']; ?></span>)
+					<?php echo $download['download_name']; ?> <?php echo $download['download_version']; ?><?php echo y4apk_size_label(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 				</a>
                 <?php endif; endforeach; if ($hasObb) : // Close the b-grid block if OBB download exists ?>
             </div>

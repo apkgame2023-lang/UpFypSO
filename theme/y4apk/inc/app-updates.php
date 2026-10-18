@@ -41,6 +41,7 @@ class Y4APK_App_Updates {
 	const LINK         = '_y4apk_gp_link';    // content | scanned | search | suggested | nomatch | confirmed | rejected
 	const SUGGEST      = '_y4apk_gp_suggest'; // {"id","title","developer"}
 	const INFO         = '_y4apk_gp_info';    // {"developer","rated","requires","rating","votes","read"} as last read from Google Play
+	const NEWS_LINES = 5; // "What's new" lines shown before "Show all"
 	const NO_FILE      = '_y4apk_no_file';    // the download folder Write with AI made, its page still waiting for a file
 	const PER_PAGE     = 50;
 	const PRIORITY     = 8;   // of the 20 checks a step, for the posts Google shows most and people follow
@@ -531,7 +532,37 @@ class Y4APK_App_Updates {
 		if (!is_array($i) || empty($i['whatsnew']) || $n === '' || self::number(isset($i['version']) ? $i['version'] : '') !== $n) {
 			return null;
 		}
-		return ['version' => $n, 'lines' => explode("\n", $i['whatsnew']), 'updated' => isset($i['updated']) ? (int) $i['updated'] : 0];
+		$lines = self::news_lines($i['whatsnew']);
+		return ['version' => $n, 'lines' => array_slice($lines, 0, self::NEWS_LINES), 'more' => array_slice($lines, self::NEWS_LINES),
+			'updated' => isset($i['updated']) ? (int) $i['updated'] : 0];
+	}
+
+	/**
+	 * "What's new" as a short list (2.27): many apps paste every version's notes
+	 * there ("Version 2.1.1: / - Bus price fix / Version 2.1: / - Bus / …"), so
+	 * only the newest version's are kept, without their own "-" or "•" (the
+	 * list has its bullets).
+	 */
+	public static function news_lines($text) {
+		$heading = '/^(?:what[\'’]?s new(?:\s+in)?\s*)?(?:(?:version|ver\.?|v)\s*\d+(?:[.\-]\d+)*|\d+(?:\.\d+)+)\s*[:\-–]?\s*$/iu';
+		$sections = [[]];
+		foreach (explode("\n", (string) $text) as $line) {
+			$line = trim(preg_replace('/^\s*(?:[-–—•*·▪►✓✔]+\s*|\d{1,2}[.)]\s+)/u', '', $line));
+			if ($line === '') {
+				continue;
+			}
+			if (preg_match($heading, $line)) {
+				$sections[] = [];
+				continue;
+			}
+			$sections[count($sections) - 1][] = $line;
+		}
+		foreach ($sections as $lines) {
+			if ($lines) {
+				return $lines; // the first notes there are: the newest version's
+			}
+		}
+		return [];
 	}
 
 	public static function info_on($key) {
@@ -960,6 +991,34 @@ class Y4APK_App_Updates {
 			update_post_meta($post_id, self::LINK, 'nomatch');
 		}
 		return false;
+	}
+
+	/**
+	 * An app gone from its Google Play ID may be there under a new one: the
+	 * listing with exactly this name (and developer, when known), not $not.
+	 * Its package, '' when there is none, null when Google is busy.
+	 */
+	public static function find_listing($name, $developer, $not = '') {
+		$name = trim(html_entity_decode(wp_strip_all_tags((string) $name), ENT_QUOTES, 'UTF-8'));
+		if ($name === '') {
+			return '';
+		}
+		$r = self::get('https://play.google.com/store/search?q=' . rawurlencode($name) . '&c=apps&hl=en&gl=US');
+		if ($r === null || $r[0] === 429 || $r[0] >= 500) {
+			return null;
+		}
+		preg_match_all('~/store/apps/details\?id=([A-Za-z][\w.]*)~', $r[1], $m);
+		$candidates = array_slice(array_values(array_diff(array_unique($m[1]), [$not])), 0, 3);
+		foreach ($candidates as $package) {
+			$app = self::play_app($package);
+			if ($app['status'] === 'busy') {
+				return null;
+			}
+			if (self::same_app($name, html_entity_decode((string) $developer, ENT_QUOTES, 'UTF-8'), $app)) {
+				return $package;
+			}
+		}
+		return '';
 	}
 
 	/* ---------------------------------------------------------------- *

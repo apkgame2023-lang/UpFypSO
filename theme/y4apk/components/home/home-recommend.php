@@ -48,7 +48,7 @@ if(!empty($recommend_posts)) :
                     <a href="<?php echo get_permalink($post['post_id']); ?>">
                         <div class="recommend-app-img">
                             <figure>
-								<img src="<?php echo get_the_post_thumbnail_url($post['post_id'], 'thumbnail'); ?>" width="60" height="60" alt="<?php echo $post_name; ?>" loading="lazy">
+								<img src="<?php echo esc_url(y4apk_icon_url($post['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo $post_name; ?>" loading="lazy">
 							</figure>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 80" width="90" height="80">
                                 <path fill="currentColor" d="M20,0A20,20,0,0,0,0,20V80H4v-.26A16,16,0,0,1,19.83,64H44A20,20,0,0,0,64,44V19.74h0A16,16,0,0,1,80,4H90V0Z"></path>

@@ -11,7 +11,7 @@ $rating_data = get_star_rating(get_the_ID());
             <div class="f-app-view-intro">
                 <div class="f-app-view-img">
                     <figure>
-                        <img src="<?php the_post_thumbnail_url(); ?>" width="116" height="116" alt="<?php echo $app_name; ?>" fetchpriority="high" decoding="async">
+                        <img src="<?php echo esc_url(y4apk_icon_url(), ['http', 'https', 'data']); ?>" width="116" height="116" alt="<?php echo $app_name; ?>" fetchpriority="high" decoding="async">
                     </figure>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 120" width="176" height="120">
                         <path fill="currentColor" d="M0,0V4H10A16,16,0,0,1,26,19.74V96a24,24,0,0,0,24,24h76a24,24,0,0,0,24-24V19.74A16,16,0,0,1,166,4h10V0Z"></path>
@@ -57,7 +57,7 @@ $rating_data = get_star_rating(get_the_ID());
                     <a class="btn blue-style anchor" href="#download-now"><?php esc_html_e('Download', 'y4apk'); ?> ↓</a>
                 </div>
                 <div class="f-app-view-intro-bg">
-                    <img src="<?php the_post_thumbnail_url(); ?>" width="116" height="116" alt="Background" loading="lazy">
+                    <img src="<?php echo esc_url(y4apk_icon_url(), ['http', 'https', 'data']); ?>" width="116" height="116" alt="Background" loading="lazy">
                 </div>
                 <svg class="intro-scroll" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 72" width="36" height="72" style="display:none;">
                     <path fill="#fff" d="M31.31,11.3A15.88,15.88,0,0,1,20,16h0a20,20,0,0,0,0,40h0A16,16,0,0,1,36,72V56h0V0A15.88,15.88,0,0,1,31.31,11.3Z"></path>

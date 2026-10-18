@@ -239,17 +239,18 @@ function save_download_links($post_id){
         // The hidden "Add Link" row has a Type picked but nothing else: not a download.
         if ($download_name[$i] !== '' && ($download_version[$i] !== '' || $download_size[$i] !== '' || $download_url[$i] !== '')) {
             $new_data[$i]['download_name'] = sanitize_text_field($download_name[$i]);
+            // Each field on its own (2.27): a link used to be kept only with a size, a version only with a link.
             if ($download_size[$i] !== '') {
                 $new_data[$i]['download_size'] = sanitize_text_field($download_size[$i]);
-                if ($download_url[$i] !== '') {
-                    $new_data[$i]['download_url'] = esc_url($download_url[$i]);
-                    if ($download_version[$i] !== '') {
-                        $new_data[$i]['download_version'] = sanitize_text_field($download_version[$i]);
-                        if ($download_mod_info[$i] !== '') {
-                            $new_data[$i]['download_mod_info'] = sanitize_text_field($download_mod_info[$i]);
-                        }
-                    }
-                }
+            }
+            if ($download_url[$i] !== '') {
+                $new_data[$i]['download_url'] = esc_url($download_url[$i]);
+            }
+            if ($download_version[$i] !== '') {
+                $new_data[$i]['download_version'] = sanitize_text_field($download_version[$i]);
+            }
+            if (isset($download_mod_info[$i]) && $download_mod_info[$i] !== '') {
+                $new_data[$i]['download_mod_info'] = sanitize_text_field($download_mod_info[$i]);
             }
         }
     }

@@ -240,7 +240,8 @@ HTML;
 	}
 
 	public static function app_name($post_id) {
-		$name = trim((string) get_post_meta($post_id, 'wp_title_GP', true));
+		// As it reads: the importer stores "&" as "&amp;" ("Sneak &amp; Steal" made "Sneak-amp-Steal").
+		$name = trim(html_entity_decode(wp_strip_all_tags((string) get_post_meta($post_id, 'wp_title_GP', true)), ENT_QUOTES, 'UTF-8'));
 		return self::slug($name !== '' ? $name : Y4APK_App_Updates::name_from_title(get_post_field('post_title', $post_id))) ?: 'App';
 	}
 
@@ -282,9 +283,9 @@ HTML;
 		}
 	}
 
-	private static function upload($id) {
+	private static function upload($id, $aborting = false) {
 		$u = get_transient('y4apk_r2_up_' . md5((string) $id));
-		if (!is_array($u) || (int) $u['user'] !== get_current_user_id()) {
+		if (!is_array($u) || (int) $u['user'] !== get_current_user_id() || !empty($u['aborted']) && !$aborting) {
 			wp_send_json_error(['message' => __('That upload is not known here (expired?). Start it again.', 'y4apk')], 400);
 		}
 		return $u;
@@ -363,9 +364,11 @@ HTML;
 
 	public static function ajax_abort() {
 		self::guard();
-		$u = self::upload(wp_unslash(isset($_POST['uploadId']) ? $_POST['uploadId'] : ''));
+		$u = self::upload(wp_unslash(isset($_POST['uploadId']) ? $_POST['uploadId'] : ''), true);
 		self::call('DELETE', $u['key'], ['uploadId' => $u['id']]);
-		delete_transient('y4apk_r2_up_' . md5($u['id']));
+		// Kept a few minutes, cancelled: the page aborts once more after the parts already sent have landed.
+		$u['aborted'] = true;
+		set_transient('y4apk_r2_up_' . md5($u['id']), $u, 10 * MINUTE_IN_SECONDS);
 		wp_send_json_success();
 	}
 
