@@ -47,11 +47,11 @@ $rating_data = get_star_rating(get_the_ID());
                 </div>
                 <?php if (class_exists('Y4APK_App_Updates') && Y4APK_App_Updates::post_part_on('fresh')) :
                     $fresh = Y4APK_App_Updates::freshness(get_the_ID()); ?>
-                <div class="f-app-fresh"<?php if ($fresh['same']) : ?> title="<?php echo esc_attr(sprintf(__('v%s — the same version as on Google Play', 'y4apk'), $fresh['version'])); ?>"<?php endif; ?>><span class="f-app-fresh-dot" aria-hidden="true"></span><?php
+                <div class="f-app-fresh"<?php if ($fresh['same']) : ?> title="<?php echo esc_attr(sprintf(__('v%s — the same version as on Google Play', 'y4apk'), $fresh['version'])); ?>"<?php endif; ?>><span class="f-app-fresh-dot" aria-hidden="true"></span><span class="f-app-fresh-text"><?php
                     printf(esc_html__('Updated %s ago', 'y4apk'), esc_html($fresh['ago']));
                     if ($fresh['same']) {
                         echo ' · ✓ ' . esc_html__('Latest version', 'y4apk');
-                    } ?></div>
+                    } ?></span></div>
                 <?php endif; ?>
                 <div class="f-app-view-dw">
                     <a class="btn blue-style anchor" href="#download-now"><?php esc_html_e('Download', 'y4apk'); ?> ↓</a>

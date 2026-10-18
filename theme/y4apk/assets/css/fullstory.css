@@ -63,7 +63,7 @@
 	transform: translate(-50%, -50%); -webkit-transform: translate(-50%, -50%);
 }
 
-.f-app-title { display: block; max-width: 25rem; margin: 0 auto; margin-bottom: 1rem; font-size: 1.25rem; line-height: 1.3em; max-height: 3.9em; overflow: hidden; }
+.f-app-title { display: block; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; max-width: 25rem; margin: 0 auto; margin-bottom: 1rem; font-size: 1.25rem; line-height: 1.3em; max-height: 5.2em; overflow: hidden; }
 .f-app-view-rate { font-size: .875rem; line-height: 1.5rem; margin-bottom: 1.25rem; white-space: nowrap; }
 
 .f-app-view-intro-bg { position: absolute; left: 0; top: 0; bottom: 0; right: 0; overflow: hidden; border-radius: inherit; pointer-events: none; z-index: -1; }
@@ -79,7 +79,7 @@
 @media (max-width: 42.4375rem) {
 	.f-app-view-over { padding-left: 1.5rem; padding-right: 1.5rem; }
 	.f-app-view-screens { overflow: hidden; }
-	.f-app-view-intro { border-radius: 1.25rem; height: 23.5rem; padding: 1.5rem; padding-top: 0; margin-bottom: 1.5rem; }
+	.f-app-view-intro { border-radius: 1.25rem; padding: 1.5rem; padding-top: 0; margin-bottom: 1.5rem; }
 	.f-app-view-img { top: -.25rem; margin-top: 0; }
 	.f-app-view-intro-bg img { width: auto; min-height: 100%; }
 
@@ -104,7 +104,7 @@
 
 	.f-app-view-intro { min-width: 38rem; height: 100%; border-top-left-radius: .875rem; border-bottom-left-radius: .875rem; padding-left: 2rem; padding-right: 2rem; }
 
-	.f-app-title { font-size: 1.5rem; margin-bottom: .5rem; max-height: 2.6em; }
+	.f-app-title { font-size: 1.5rem; margin-bottom: .5rem; max-height: 2.6em; -webkit-line-clamp: 2; line-clamp: 2; }
 	.rate-star { display: inline-block; vertical-align: top; }
 	.f-app-view-rate .rate-star { margin-right: .5rem; }
 	.f-app-view-screens .screenshots::before { display: none; }
@@ -259,7 +259,8 @@
 	.app-prev > .fw-b::before { color: #DE485F; }
 }
 /* --- 2.22: freshness line, What's new, How to install --- */
-.f-app-fresh { display: inline-flex; align-items: center; gap: 6px; max-width: 92%; margin: 10px auto 16px; padding: 3px 10px 3px 8px; border-radius: 999px; background: rgba(0,0,0,.28); color: #fff; font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; z-index: 2; }
+.f-app-fresh { display: flex; width: fit-content; align-items: center; gap: 6px; max-width: 92%; margin: -4px auto 16px; padding: 3px 10px 3px 8px; border-radius: 999px; background: rgba(0,0,0,.28); color: #fff; font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; position: relative; z-index: 2; }
+.f-app-fresh-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* a live signal: the dot, and a ring that keeps spreading out from it */
 .f-app-fresh-dot { position: relative; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #3ddc84; }
 .f-app-fresh-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #3ddc84; animation: y4live 1.6s ease-out infinite; }
