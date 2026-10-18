@@ -320,7 +320,7 @@ allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
 post has an OBB, and the Android version needed. Each can be switched off in
 App updates ▸ Settings ▸ *On each post*.
 
-## Write with AI (2.23–2.25)
+## Write with AI (2.23–2.26)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
 in Settings, each with its own key (or a `wp-config.php` constant):
@@ -397,15 +397,46 @@ the account cannot use pauses the queue with the reason, until *Resume*.
 
 - **Title** from *Settings ▸ Title* (`{name} MOD APK v{version} ({mod})` →
   "Idle Painter MOD APK v1.24.22 (Unlimited Money)") when the title has no
-  "(…)" yet; one that has keeps its words, and only its version follows Google
-  Play's latest. The version is Google Play's latest while the post has no file
-  (no download link, or "#"); with a file it stays the file's. Rank Math's SEO
-  and social titles follow when they were the same as the title.
-- **MOD**: App MOD Feature, else the download's MOD Info, else the title's
-  "(…)", else *Settings ▸ MOD for posts that have none* (the theme's Google
-  Play importer MOD, else "Unlimited Money"; empty: none). It goes into App MOD
-  Feature, the title, the article's "MOD APK [Unlimited Money]" and its
-  closing heading.
+  "(…)" yet or is the one Write with AI wrote; one you wrote keeps its words,
+  and only its version (and a MOD put in here) follows. The version is Google
+  Play's latest while the post has no file (no download link, or "#"); with a
+  file it stays the file's. When the full Play name makes it longer than 60
+  characters, the **short name** is used: the name before " - " / " – " / " | ",
+  or before ": " when a tagline of 3+ words follows ("ActionDirector - Video
+  Editing" → "ActionDirector", "Spotify: Music and Podcasts" → "Spotify", but
+  "Euro Truck Simulator: Europe" stays).
+- **Rank Math SEO title** (2.26, `rank_math_title`), what Google shows: *Settings
+  ▸ Rank Math SEO title* (`{name} MOD APK v{version} ({mod}) Download`) in at
+  most 60 characters — the full name, else the short one, else without
+  "Download"; version and MOD always stay: "ActionDirector MOD APK v7.12.5
+  (Premium Unlocked) Download" (58/60) instead of Rank Math's default "%title%
+  - Y4Apk" (72/60). Written where Rank Math has its default (empty or
+  "%title%…"), the post title, or one written here (`_y4apk_seo_title`); one
+  you typed stays.
+- **Permalink** (2.26): `/actiondirector-mod/`, the short name + "MOD", so Rank
+  Math finds the focus keyword "ActionDirector MOD" in the address. One that
+  is already that, or `…-mod-apk` (or either with "-2" when another post had it
+  first), stays; one with the version or MOD in it changes, and WordPress's
+  `_wp_old_slug` sends the old address to the new one (301).
+- **MOD** (2.26): yours — App MOD Feature, else the download's MOD Info, else
+  the title's "(…)" — is never changed. A post with none (or with one Write with
+  AI put in, `_y4apk_mod_auto`, such as 2.25's "Unlimited Money" for every
+  app) gets **the MOD that MOD APK sites list for that app** — ActionDirector
+  "Premium Unlocked", not "Unlimited Money". It is asked in the same request
+  as the article (a last line "MOD: …", taken off before the text is laid out),
+  or on its own when only Post details are written. Gemini answers with
+  **Grounding with Google Search** (`tools: [{google_search: {}}]`), Claude
+  with its **web search** tool (`web_search_20260209` on Opus 5.5 / 5 / 4.6+,
+  Sonnet 5.5 / 5 / 4.6, Fable; `web_search_20250305` on older ones; at most 3
+  searches; only the text after the last search is the answer; a `pause_turn`
+  is sent back to carry on); each is asked again without it if the model or
+  account refuses it. Groq and ChatGPT answer from what they know. "unknown",
+  or anything that is not a short label, falls back to *Settings ▸ Not found:
+  games* ("Unlimited Money") or *apps* ("Premium Unlocked"); a MOD found once
+  is kept when a later search comes back empty. Where the MOD changes, it
+  changes everywhere: App MOD Feature, the title, the download's MOD Info,
+  Rank Math's social titles and — when no new article is written — the
+  article's "MOD APK […]" and closing heading.
 - **App Price** 0 when empty; **App Information** from Google Play (as App
   updates ▸ Settings allows); App Name and App Version when empty.
 - **Download row**: versions written the site's way ("1.22.0" →
@@ -418,14 +449,22 @@ the account cannot use pauses the queue with the reason, until *Resume*.
   updates ▸ *Need a new file* as "No file yet", with Play's latest version and
   its folder filled in: Upload + Save puts the file's address in both places
   (the 3-second fallback stays) and clears the mark.
-- **Rank Math focus keywords**, when there are none: "Idle Painter, Idle
-  Painter MOD, Idle Painter MOD APK" (`rank_math_focus_keyword`).
+- **Rank Math focus keywords**, when there are none (or 2.25's): the one in
+  the permalink first — "ActionDirector MOD, ActionDirector MOD APK,
+  ActionDirector, ActionDirector - Video Editing" (`rank_math_focus_keyword`).
+- **A link to the post itself** (2.26, *Link the app's name in the second
+  paragraph to the post's own permalink*): the AI is asked to name the app
+  once more in the second paragraph, and that name links to the post's
+  permalink (made after the permalink above changes; a draft gets the address
+  it will have). If the name is not there, a word of the last paragraph is
+  linked instead, as in the site's own posts.
 
 **Category from Google Play** (off by default) sets the post's categories to
 Games or Apps and the genre (`GAME_SIMULATION` → Games › Simulation, made if
 missing, as the importer names them).
 
-Undo puts back all of these too (the folder stays, unused). The list opens on
+Undo puts back all of these too, the permalink included (the folder stays,
+unused). The list opens on
 **To write**: the posts Rank Math has no SEO score for — its Analytics ▸ "No
 Data" — less those already written here (Rank Math scores a post when it is
 opened in the editor). An answer that comes back as one long paragraph is
@@ -456,8 +495,8 @@ same) — and its **screenshots** (the first 5, `[1][2][78][0][*][3][2]` +
   {type_en} {mod} {category} {developer}), the closing heading, and the two
   links. *Test the connection* lists the account's models and asks for one
   word, which also shows the key works (and, for the paid ones, that there is
-  credit). *Try it on one post* shows the exact question and the laid-out
-  article without saving; *Use this text for the post* saves it.
+  credit). *Try it on one post* shows the exact question, the MOD found and
+  the laid-out article without saving; *Use this text for the post* saves it.
 
 A post is written by one request at a time (a row in `wp_options`, `INSERT
 IGNORE`), so a double click or a link opened twice does not pay for it twice.

@@ -263,7 +263,7 @@
 				last = d;
 				out.hidden = false;
 				$('.aw-try-prompt', out).textContent = d.prompt;
-				$('.aw-try-meta', out).textContent = '· ' + d.title + ' · ' + d.words + ' words · ' + d.model;
+				$('.aw-try-meta', out).textContent = '· ' + d.title + ' · ' + d.words + ' words · ' + d.model + (d.mod ? ' · MOD “' + d.mod + '”' + (d.found ? ' (found)' : '') : '');
 				$('.aw-article', out).innerHTML = d.html;
 				$('#aw-apply').disabled = false;
 			}).catch(function (e) {
@@ -283,7 +283,7 @@
 				return;
 			}
 			apply.disabled = true;
-			ajax('apply', { id: last.id, answer: last.answer }).then(function (r) {
+			ajax('apply', { id: last.id, answer: last.answer, mod: last.found ? last.mod : '' }).then(function (r) {
 				$('#aw-apply-result').innerHTML = '';
 				var a = document.createElement('a');
 				a.href = r.view;
