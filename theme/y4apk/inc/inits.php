@@ -134,6 +134,20 @@ function save_app_info($post_id){
 	update_post_meta($post_id, 'total_rating', round($new_average * $new_votes));
 }
 
+/** The Type of a download row, picked from a list (a type typed in before stays in it). */
+function y4apk_download_type_select($value = 'MOD') {
+    $types = ['MOD', 'APK', 'OBB', 'XAPK', 'APKS', 'IPA', 'ZIP', 'Script', 'PC'];
+    $value = (string) $value;
+    if ($value !== '' && !in_array($value, $types, true)) {
+        $types[] = $value;
+    }
+    $out = '<select class="widefat" name="download_name[]">';
+    foreach ($types as $type) {
+        $out .= '<option value="' . esc_attr($type) . '"' . selected($value, $type, false) . '>' . esc_html($type) . '</option>';
+    }
+    return $out . '</select>';
+}
+
 function download_links_callback($post){
     $download_links = get_post_meta($post->ID, 'repeatable_download_link', true);
 	wp_nonce_field('download_links_nonce', 'download_links_nonce');
@@ -156,7 +170,7 @@ function download_links_callback($post){
                     <?php foreach ($download_links as $field) : ?>
                         <tr>
                             <td class="handle_icon"><span class="handle">&#9776;</span></td>
-                            <td><input type="text" class="widefat" name="download_name[]" value="<?= esc_attr($field['download_name']); ?>" /></td>
+                            <td><?= y4apk_download_type_select(isset($field['download_name']) ? $field['download_name'] : 'MOD'); ?></td>
                             <td><input type="text" class="widefat" name="download_version[]" value="<?= esc_attr($field['download_version']); ?>" /></td>
                             <td><input type="text" class="widefat" name="download_mod_info[]" value="<?= esc_attr($field['download_mod_info']); ?>" /></td>
                             <td><input type="text" class="widefat" name="download_size[]" value="<?= esc_attr($field['download_size']); ?>" /></td>
@@ -167,7 +181,7 @@ function download_links_callback($post){
                 <?php else : ?>
                     <tr>
                         <td class="handle_icon"><span class="handle">&#9776;</span></td>
-                        <td><input type="text" class="widefat" name="download_name[]" value="APK" /></td>
+                        <td><?= y4apk_download_type_select('MOD'); ?></td>
                         <td><input type="text" class="widefat" name="download_version[]" value="<?= esc_attr(get_post_meta($post->ID, 'wp_version_GP', true)); ?>" /></td>
                         <td><input type="text" class="widefat" name="download_mod_info[]" value="<?= esc_attr(get_post_meta($post->ID, 'wp_mods', true)); ?>" /></td>
                         <td><input type="text" class="widefat" name="download_size[]" value="<?= esc_attr(get_post_meta($post->ID, 'wp_sizes_GP', true)); ?>" /></td>
@@ -177,7 +191,7 @@ function download_links_callback($post){
                 <?php endif; ?>
                 <tr class="empty-d-row" style="display:none;">
                     <td class="handle_icon"><span class="handle">&#9776;</span></td>
-                    <td><input type="text" class="widefat" name="download_name[]" /></td>
+                    <td><?= y4apk_download_type_select('MOD'); ?></td>
                     <td><input type="text" class="widefat" name="download_version[]" /></td>
                     <td><input type="text" class="widefat" name="download_mod_info[]" /></td>
                     <td><input type="text" class="widefat" name="download_size[]" /></td>
@@ -222,7 +236,8 @@ function save_download_links($post_id){
     $count = count($download_name);
 
     for ($i = 0; $i < $count; $i++) {
-        if ($download_name[$i] !== '') {
+        // The hidden "Add Link" row has a Type picked but nothing else: not a download.
+        if ($download_name[$i] !== '' && ($download_version[$i] !== '' || $download_size[$i] !== '' || $download_url[$i] !== '')) {
             $new_data[$i]['download_name'] = sanitize_text_field($download_name[$i]);
             if ($download_size[$i] !== '') {
                 $new_data[$i]['download_size'] = sanitize_text_field($download_size[$i]);

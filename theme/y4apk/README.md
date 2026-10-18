@@ -275,9 +275,10 @@ Cloudflare R2*), every download line of the form has **⬆ Upload**:
   type, version, a random ID, the file's own extension);
 - **Save**, with *Replace*, writes the new R2 address into the post's own
   folder page and keeps the post's link; with *Add*, or when the link is not one
-  of these folders, it makes a new folder numbered after the highest
-  (`91301-Keep-Game-MOD.apk`, counter in `y4apk_r2_next`), its page copied from
-  the existing design. Only uploads finished from this site for this post are
+  of these folders, it makes a new folder (`65694-Keep-Game-MOD.apk`: since
+  2.25 a 5-digit number no other folder has, as the site's own are, not one
+  after the highest), its page the *Download page for new folders* in
+  Settings. Only uploads finished from this site for this post are
   accepted (a transient per key); only folders inside the folder of pages are
   touched (no `..`, no other hosts);
 - the page filler handles every design in use (checked on all 651 pages of
@@ -319,7 +320,7 @@ allow "Install unknown apps", the OBB folder (`Android/obb/<package>`) when the
 post has an OBB, and the Android version needed. Each can be switched off in
 App updates ▸ Settings ▸ *On each post*.
 
-## Write with AI (2.23–2.24)
+## Write with AI (2.23–2.25)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
 in Settings, each with its own key (or a `wp-config.php` constant):
@@ -392,11 +393,49 @@ saying why, at a daily one. A key the AI refuses, no credit left (OpenAI's
 `insufficient_quota`, Claude's 402 / "credit balance is too low"), or a model
 the account cannot use pauses the queue with the reason, until *Resume*.
 
+**Post details** (2.25, on by default) make a post ready for its file:
+
+- **Title** from *Settings ▸ Title* (`{name} MOD APK v{version} ({mod})` →
+  "Idle Painter MOD APK v1.24.22 (Unlimited Money)") when the title has no
+  "(…)" yet; one that has keeps its words, and only its version follows Google
+  Play's latest. The version is Google Play's latest while the post has no file
+  (no download link, or "#"); with a file it stays the file's. Rank Math's SEO
+  and social titles follow when they were the same as the title.
+- **MOD**: App MOD Feature, else the download's MOD Info, else the title's
+  "(…)", else *Settings ▸ MOD for posts that have none* (the theme's Google
+  Play importer MOD, else "Unlimited Money"; empty: none). It goes into App MOD
+  Feature, the title, the article's "MOD APK [Unlimited Money]" and its
+  closing heading.
+- **App Price** 0 when empty; **App Information** from Google Play (as App
+  updates ▸ Settings allows); App Name and App Version when empty.
+- **Download row**: versions written the site's way ("1.22.0" →
+  "v1.22.0.apk"; "v4.5.zip" for an OBB); with no file yet, MOD Info, a size
+  (the box keeps a link only with one) and a **new folder** in files/up —
+  "65694-Idle-Painter-MOD.apk", a 5-digit number no other folder has, as the
+  site's own are — whose default.php is *App updates ▸ Settings ▸ Download
+  page for new folders* with its two "#" (Manual download, `location.href="#",0`)
+  still waiting. The post is marked (`_y4apk_no_file`) and listed in App
+  updates ▸ *Need a new file* as "No file yet", with Play's latest version and
+  its folder filled in: Upload + Save puts the file's address in both places
+  (the 3-second fallback stays) and clears the mark.
+- **Rank Math focus keywords**, when there are none: "Idle Painter, Idle
+  Painter MOD, Idle Painter MOD APK" (`rank_math_focus_keyword`).
+
+**Category from Google Play** (off by default) sets the post's categories to
+Games or Apps and the genre (`GAME_SIMULATION` → Games › Simulation, made if
+missing, as the importer names them).
+
+Undo puts back all of these too (the folder stays, unused). The list opens on
+**To write**: the posts Rank Math has no SEO score for — its Analytics ▸ "No
+Data" — less those already written here (Rank Math scores a post when it is
+opened in the editor). An answer that comes back as one long paragraph is
+split in two between sentences; at most 5 screenshots are kept.
+
 The same run can bring the app's **icon** — downloaded at 512 px as WebP
 (`[1][2][95][0][3][2]` + `=s512-rw`), saved as `<Name>-MOD.webp` with the title
 "<Name> MOD" and "<Name> MOD APK (<MOD>)" as alt text, caption and description,
 and set as the featured image (not downloaded again while Play's icon is the
-same) — and its **screenshots** (up to 10, `[1][2][78][0][*][3][2]` +
+same) — and its **screenshots** (the first 5, `[1][2][78][0][*][3][2]` +
 `=w1052-h592-rw`, into `ss_images`) up to date.
 
 - **Posts**: *No article yet* (under 40 words of text, headings left out), *Not

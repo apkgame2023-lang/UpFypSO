@@ -15,11 +15,14 @@
  * Signature V4), so 2–3 GB files never pass through this server and its upload
  * limits. On Save (Y4APK_App_Updates::handle_save), "Replace" rewrites the R2
  * address in the post's own folder and keeps its link; "Add" — or a link that is
- * not one of these folders — makes a new folder, numbered after the last one,
- * from the design of the existing pages.
+ * not one of these folders — makes a new folder (see below).
  *
  * R2 needs an API token (Object Read & Write) and a CORS rule letting this site
  * PUT and read the ETag header; the settings card shows both.
+ *
+ * New folders are named like the site's own — "65694-Idle-Painter-MOD.apk", a
+ * 5-digit number no other folder has — and start from the download page in
+ * Settings, whose two places for the file say "#" until one is saved.
  */
 
 if (!defined('ABSPATH')) {
@@ -32,6 +35,90 @@ class Y4APK_R2 {
 	const MIN_PART  = 16777216; // 16 MiB; R2 wants every part but the last the same size
 	const MAX_PARTS = 9000;     // S3 allows 10,000
 	const TYPES     = ['apk', 'xapk', 'apks', 'apkm', 'zip', 'obb'];
+
+	/** The download page new folders start with, until Settings has another. */
+	const PAGE = <<<'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Preparing the file</title>
+
+<style>
+body{margin:0;height:100vh;display:flex;justify-content:center;align-items:center;background:#fbfdfd;font-family:Arial;overflow:hidden;user-select:none}
+#bg{position:fixed;inset:0;z-index:-1}
+.c{text-align:center}
+.c img{width:50vw;max-width:300px}
+.s{border:6px solid #eee;border-top:6px solid #ff2a2a;border-radius:50%;width:50px;height:50px;margin:20px auto;animation:r 1s linear infinite}
+.t{color:#666;font-size:14px;margin-top:10px}
+.d{display:inline-block;margin-top:10px;color:#ff2a2a;text-decoration:none}
+@keyframes r{to{transform:rotate(360deg)}}
+@media(max-width:600px){.c img{width:80vw}.s{width:70px;height:70px}}
+</style>
+
+</head>
+<body>
+
+<canvas id=bg></canvas>
+
+<div class=c>
+<img src="https://ds.y4apk.com/images/2-Logo.Y4Apk.svg">
+<div class=s></div>
+<p class=t>Preparing your download...</p>
+<p class=t>Redirecting in <b id=cnt>3</b>s</p>
+<a class=d href="#">Manual download</a>
+</div>
+
+<script>
+
+document.oncontextmenu=()=>false;
+document.onselectstart=()=>false;
+document.onkeydown=e=>{
+if(e.key=="F12"||(e.ctrlKey&&["u","c","x","s"].includes(e.key.toLowerCase()))||(e.ctrlKey&&e.shiftKey))
+e.preventDefault()
+};
+
+if(top!==self)top.location=self.location;
+
+setInterval(()=>{
+let s=Date.now();debugger;
+if(Date.now()-s>100)document.body.innerHTML=""
+},1000);
+
+let c=bg,x=c.getContext("2d"),p=[];
+onresize=()=>{c.width=innerWidth;c.height=innerHeight};onresize();
+
+for(let i=0;i<50;i++)
+p.push({x:Math.random()*c.width,y:Math.random()*c.height,vx:(Math.random()-.5)*.6,vy:(Math.random()-.5)*.6});
+
+(function d(){
+x.clearRect(0,0,c.width,c.height);
+p.forEach(a=>{
+a.x+=a.vx;a.y+=a.vy;
+(a.x<0||a.x>c.width)&&(a.vx*=-1);
+(a.y<0||a.y>c.height)&&(a.vy*=-1);
+x.beginPath();x.arc(a.x,a.y,2,0,7);x.fillStyle="#ff2a2a";x.fill();
+p.forEach(b=>{
+let dx=a.x-b.x,dy=a.y-b.y;
+if(Math.sqrt(dx*dx+dy*dy)<120){
+x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);
+x.strokeStyle="rgba(255,40,40,.35)";x.stroke();
+}});
+});
+requestAnimationFrame(d);
+})();
+
+let t=3;
+setInterval(()=>{if(t>0)cnt.textContent=--t},1000);
+
+setTimeout(()=>location.href="#",0);
+setTimeout(()=>location.href="https://y4apk.com/run-script-apk/",3000);
+
+</script>
+
+</body>
+</html>
+HTML;
 
 	public static function init() {
 		if (!is_admin()) {
@@ -326,39 +413,51 @@ class Y4APK_R2 {
 		return is_dir($o['dir'] . '/' . $name) ? $name : '';
 	}
 
-	/** A free folder for a new download: "79276-No-Limit-Drag-Racing-2-MOD.apk", numbered after the highest one. */
+	/**
+	 * A free folder for a new download, named as the site's are:
+	 * "65694-Idle-Painter-MOD.apk" — a 5-digit number no other folder has (the
+	 * site's own numbers are in no order), the app's name, MOD (or OBB…).
+	 */
 	public static function new_folder($post_id, $type, $ext) {
 		$o = self::settings();
-		$next = (int) get_option('y4apk_r2_next', 0);
-		if (!$next) {
-			foreach (scandir($o['dir']) ?: [] as $d) {
-				if (preg_match('/^(\d+)-/', $d, $m)) {
-					$next = max($next, (int) $m[1]);
-				}
+		$used = [];
+		foreach (scandir($o['dir']) ?: [] as $d) {
+			if (preg_match('/^(\d+)-/', $d, $m)) {
+				$used[(int) $m[1]] = true;
 			}
-			$next++;
 		}
 		$base = self::app_name($post_id) . '-' . (self::slug(strtoupper($type)) ?: 'MOD') . '.' . $ext;
-		while (file_exists($o['dir'] . '/' . $next . '-' . $base)) {
-			$next++;
-		}
-		update_option('y4apk_r2_next', $next + 1, false);
-		return $next . '-' . $base;
+		do {
+			$n = wp_rand(10000, 99999);
+		} while (isset($used[$n]) || file_exists($o['dir'] . '/' . $n . '-' . $base));
+		return $n . '-' . $base;
 	}
 
-	/** The design of the existing pages (any default.php with both places to fill), else a plain one. */
+	/** The download page a new folder starts with (Settings ▸ Download page for new folders): "#" where the file goes. */
+	public static function page_template() {
+		$page = (string) get_option('y4apk_r2_page', '');
+		return $page !== '' ? $page : self::PAGE;
+	}
+
 	private static function template() {
+		return self::page_template();
+	}
+
+	/**
+	 * A new download folder for a post that has no file yet, its page waiting
+	 * ("#") until a file is saved in App updates: ['folder', 'url'] or WP_Error.
+	 */
+	public static function make_folder($post_id, $type = 'MOD', $ext = 'apk') {
 		$o = self::settings();
-		foreach (array_slice(glob($o['dir'] . '/*/default.php', GLOB_NOSORT) ?: [], 0, 40) as $f) {
-			$html = (string) file_get_contents($f);
-			if (preg_match('~<a class=d href="[^"]*"~', $html) && preg_match('~location\.href="[^"]*",0\)~', $html)) {
-				return $html;
-			}
+		if (!is_dir($o['dir']) || !wp_is_writable($o['dir'])) {
+			return new WP_Error('y4apk_r2_dir', __('the download pages folder is not set (App updates ▸ Settings)', 'y4apk'));
 		}
-		return '<!DOCTYPE html><html><head><meta name=viewport content="width=device-width,initial-scale=1"><title>Preparing the file</title>'
-			. '<style>body{margin:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:Arial;background:#fbfdfd}.c{text-align:center}.d{color:#ff2a2a}</style></head>'
-			. '<body><div class=c><p>Preparing your download...</p><a class=d href="#">Manual download</a></div>'
-			. '<script>setTimeout(()=>location.href="#",0);</script></body></html>';
+		$folder = self::new_folder($post_id, $type, $ext);
+		$dir = $o['dir'] . '/' . $folder;
+		if (!wp_mkdir_p($dir) || file_put_contents($dir . '/default.php', self::page_template(), LOCK_EX) === false) {
+			return new WP_Error('y4apk_r2_write', sprintf(__('could not make the folder %s', 'y4apk'), $folder));
+		}
+		return ['folder' => $folder, 'url' => $o['dir_url'] . $folder];
 	}
 
 	/**
@@ -383,7 +482,7 @@ class Y4APK_R2 {
 		return [$html, $a + $b + $c + $d];
 	}
 
-	/** Point a folder's download page at a file (a new folder gets the design of the existing pages). */
+	/** Point a folder's download page at a file (a new folder gets the page in Settings). */
 	public static function point_folder($folder, $file_url) {
 		$o = self::settings();
 		if (!preg_match('#^https?://[A-Za-z0-9.:\-]+/[A-Za-z0-9._~%/\-]+$#', $file_url)) {
@@ -490,6 +589,14 @@ class Y4APK_R2 {
 		}
 		$o['dir'] = untrailingslashit(sanitize_text_field(isset($in['dir']) ? (string) $in['dir'] : ''));
 		update_option(self::OPTION, $o, false);
+		if (isset($in['page'])) { // the page new folders start with: the built-in one when emptied
+			$page = str_replace("\r\n", "\n", (string) $in['page']);
+			if (trim($page) === '' || trim($page) === trim(self::PAGE)) {
+				delete_option('y4apk_r2_page');
+			} else {
+				update_option('y4apk_r2_page', $page, false);
+			}
+		}
 		wp_safe_redirect(add_query_arg(['page' => Y4APK_App_Updates::SLUG, 'view' => 'settings', 'y4apk_settings' => 1], admin_url('admin.php')) . '#au-r2');
 		exit;
 	}
@@ -531,6 +638,9 @@ class Y4APK_R2 {
 						<?php $field('dir_url', __('Download pages address', 'y4apk'), $o['dir_url']); ?>
 					</div>
 				</div>
+				<label style="display:block;margin:4px 0 10px"><span class="au-label"><?php esc_html_e('Download page for new folders', 'y4apk'); ?></span>
+					<textarea name="page" rows="8" spellcheck="false" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;border-radius:8px"><?php echo esc_textarea(self::page_template()); ?></textarea>
+					<small class="au-small"><?php esc_html_e('Write with AI puts this in the default.php of each folder it makes for a post with no file yet. Its two “#” (Manual download, and location.href="#",0) become the file’s address when you upload the file in “Need a new file”. Empty: the built-in page.', 'y4apk'); ?></small></label>
 				<p><button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 					<button type="button" class="button" id="au-r2-test" <?php disabled($o['account'] === '' || $o['key_id'] === '' || $o['secret'] === ''); ?>><?php esc_html_e('Test the connection', 'y4apk'); ?></button>
 					<span id="au-r2-test-result" class="au-meta"></span></p>

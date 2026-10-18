@@ -41,6 +41,7 @@ class Y4APK_App_Updates {
 	const LINK         = '_y4apk_gp_link';    // content | scanned | search | suggested | nomatch | confirmed | rejected
 	const SUGGEST      = '_y4apk_gp_suggest'; // {"id","title","developer"}
 	const INFO         = '_y4apk_gp_info';    // {"developer","rated","requires","rating","votes","read"} as last read from Google Play
+	const NO_FILE      = '_y4apk_no_file';    // the download folder Write with AI made, its page still waiting for a file
 	const PER_PAGE     = 50;
 	const PRIORITY     = 8;   // of the 20 checks a step, for the posts Google shows most and people follow
 	const GSC          = 'y4apk_gsc';
@@ -220,8 +221,15 @@ class Y4APK_App_Updates {
 		return (string) $version;
 	}
 
-	/** Is the stored latest version newer than the post's download? */
+	/** Is the stored latest version newer than the post's download — or is its download a folder still waiting for a file? */
 	public static function needs_update($post_id) {
+		$waiting = (string) get_post_meta($post_id, self::NO_FILE, true);
+		if ($waiting !== '') {
+			list(, $link) = self::download($post_id);
+			if ($link && html_entity_decode((string) $link['download_url']) === $waiting) {
+				return true;
+			}
+		}
 		$latest = self::number(get_post_meta($post_id, self::LATEST, true));
 		$current = self::number(self::current_version($post_id));
 		return $latest !== '' && $current !== '' && version_compare($latest, $current, '>');
@@ -418,6 +426,7 @@ class Y4APK_App_Updates {
 				'description' => self::plain_lines($about, 4000),
 				'genre'     => (string) self::dig($data, [1, 2, 79, 0, 0, 0]),
 				'game'      => strpos((string) self::dig($data, [1, 2, 79, 0, 0, 2]), 'GAME') === 0,
+				'genre_id'  => (string) self::dig($data, [1, 2, 79, 0, 0, 2]), // "GAME_SIMULATION", "TOOLS"
 				'readable'  => $data !== null,
 				'store'     => preg_match('/gl=([A-Z]{2})/', $params, $g) ? $g[1] : '',
 			];
@@ -1293,6 +1302,11 @@ class Y4APK_App_Updates {
 			}
 		}
 
+		// A folder Write with AI made has its file now (or the post another link).
+		if (isset($uploads[$index]) || $updates[$index]['download_url'] !== (string) get_post_meta($post_id, self::NO_FILE, true)) {
+			delete_post_meta($post_id, self::NO_FILE);
+		}
+
 		$new_links = [];
 		foreach ($links as $i => $entry) {
 			if (!isset($updates[$i])) {
@@ -1732,7 +1746,11 @@ class Y4APK_App_Updates {
 						</div>
 						<div class="au-vers">
 							<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
-							<span class="au-ver"><?php echo esc_html($current); ?></span>
+							<?php if (get_post_meta($id, self::NO_FILE, true) !== '') : ?>
+								<span class="au-ver" title="<?php esc_attr_e('Write with AI made its download folder; upload the file here.', 'y4apk'); ?>"><?php esc_html_e('No file yet', 'y4apk'); ?></span>
+							<?php else : ?>
+								<span class="au-ver"><?php echo esc_html($current); ?></span>
+							<?php endif; ?>
 							<span class="au-label"><?php echo esc_html(sprintf(__('Latest · %s', 'y4apk'), $source)); ?></span>
 							<span class="au-ver is-new"><?php echo esc_html($latest); ?></span>
 							<?php if (isset($gsc['posts'][$id])) : $g = $gsc['posts'][$id]; ?>
