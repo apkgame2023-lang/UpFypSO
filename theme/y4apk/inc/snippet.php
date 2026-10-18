@@ -11,8 +11,7 @@ function y4apk_seo_schema(){
 	$app_name = get_post_meta($post_id, 'wp_title_GP', true);
 	$app_version = get_post_meta(get_the_ID(), 'wp_version_GP', true);
 	$app_publisher = get_post_meta($post_id, 'wp_developers_GP', true);
-	$app_size = get_post_meta($post_id, 'wp_sizes', true);
-	$app_price = get_post_meta($post_id, 'price', true);
+	$app_size = get_post_meta($post_id, 'wp_sizes_GP', true); // was 'wp_sizes', a field no post has
 	$app_os = get_post_meta($post_id, 'platform', true);
 	$app_os = (!empty($app_os)) ? $app_os : 'Android';
 	$app_requires = get_post_meta($post_id, 'wp_requires_GP', true);
@@ -73,7 +72,7 @@ function y4apk_seo_schema(){
 			<?php } ?>
 			"offers": {
 				"@type": "Offer",
-				"price": "<?php echo (!empty($app_price)) ? $app_price : '0'; ?>",
+				"price": "0",
 				"priceCurrency": "USD"
 			}
 		}

@@ -353,6 +353,15 @@ class Y4APK_Push {
 		if ($n === '') {
 			return;
 		}
+		// A download folder still waiting for its file (Write with AI put Google Play's newer version in):
+		// nothing to download yet, so no "updated" message until the file is there.
+		$waiting = (string) get_post_meta($post_id, Y4APK_App_Updates::NO_FILE, true);
+		if ($waiting !== '') {
+			list(, $link) = Y4APK_App_Updates::download($post_id);
+			if ($link && html_entity_decode((string) $link['download_url']) === $waiting) {
+				return;
+			}
+		}
 		$known = (string) get_post_meta($post_id, self::VERSION_META, true);
 		if ($known !== '' && !version_compare($n, $known, '>')) {
 			return;

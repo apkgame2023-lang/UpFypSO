@@ -1,7 +1,6 @@
 <?php 
 $app_name = get_post_meta(get_the_ID(), 'wp_title_GP', true);
 $app_name = $app_name ?: get_the_title();
-$app_price = get_post_meta(get_the_ID(), 'price', true);
 $is_security_check = get_theme_mod('security_check_swt', true);
 $modified_date = get_the_modified_date('d-m-Y, H:i', get_the_ID());
 if (date('Ymd') === get_the_modified_date('Ymd', get_the_ID())) {
@@ -47,7 +46,7 @@ if($is_security_check) :
         <div class="fw-b"><?php esc_html_e('Safety Check:', 'y4apk'); ?></div>
         <p><?php esc_html_e('The game/app', 'y4apk'); ?> <?php echo $app_name; ?> <?php esc_html_e('has been tested and does not contain any viruses!', 'y4apk'); ?></p>
     </div>
-    <div class="f-app-seo-text"> <?php esc_html_e('Site', 'y4apk'); ?> <?php echo get_bloginfo('name'); ?> <?php esc_html_e('checks every game and apps, goes through a long check for performance, each mod contains a lot of useful features that will simplify your package files.', 'y4apk'); ?> <br> <?php esc_html_e('Updated:', 'y4apk'); ?> <?php echo $modified_date; ?> <?php esc_html_e('/ Price:', 'y4apk'); ?> <?php echo $app_price ?: "0"; ?> <?php esc_html_e('USD / Author:', 'y4apk'); ?> <?php echo $user_info->display_name; ?></div>
+    <div class="f-app-seo-text"> <?php esc_html_e('Site', 'y4apk'); ?> <?php echo get_bloginfo('name'); ?> <?php esc_html_e('checks every game and apps, goes through a long check for performance, each mod contains a lot of useful features that will simplify your package files.', 'y4apk'); ?> <br> <?php esc_html_e('Updated:', 'y4apk'); ?> <?php echo $modified_date; ?> <?php esc_html_e('/ Price:', 'y4apk'); ?> <?php echo '0'; // every MOD APK here is free to download, paid on Google Play or not ?> <?php esc_html_e('USD / Author:', 'y4apk'); ?> <?php echo $user_info->display_name; ?></div>
 </div>
 <?php
 endif;

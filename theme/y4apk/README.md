@@ -331,7 +331,7 @@ download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
 
-## Write with AI (2.23–2.27)
+## Write with AI (2.23–2.28)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
 in Settings, each with its own key (or a `wp-config.php` constant):
@@ -501,6 +501,41 @@ anyway, being written) until it is opened in the editor — or until *Rank Math 
 ▸ Database Tools ▸ Recalculate scores* runs over all posts at once (they all
 have focus keywords now). "Index status: Neutral" is Google Search Console's
 "not seen yet" for a new address; it changes once Google crawls it.
+
+**Add from Google Play** (2.28, a tab of Write with AI). A search (a name,
+words, or a Google Play address) or one of Google Play's lists (popular games
+or apps, or a category: Simulation, Racing, Tools, …) shows the apps the site
+has no post for — every post's Google Play ID is checked, any status but
+trash; those it has are listed apart, and a post with the same App Name but
+no ID is pointed out ("maybe the same"). Each card shows the app's icon,
+developer, genre, rating and version (Google Play's details, kept 12 hours).
+*Add* (or *Add selected*, one after another) makes a draft with its name,
+Google Play ID, developer and version, then Write with AI writes it with every
+part — article, MOD, title, permalink, SEO title and description, focus
+keywords, icon, 5 screenshots, category from Google Play, a download folder
+waiting for its file (App updates ▸ Need a new file) and the size from Aptoide
+— and publishes it once its article is written (or keeps it a draft, as
+ticked). The AI busy: the draft goes first in the queue, which writes and
+publishes it. No AI key: it gets everything but the article and stays a
+draft. The Posts tab's ticks are not changed by it.
+
+**Sizes** (2.28). Google Play no longer shows an app's size, so a download
+with none gets App Size, else the size of the app's APK on Aptoide (its public
+`getMeta`, `file.filesize`): "150.00MB", near enough until the file is uploaded
+and its own size goes in. Write with AI does it when it writes a post, and App
+updates' check does it for every post as it goes round (an app Aptoide does
+not have is not asked again for a week). Sizes are never made up.
+
+**Price** (2.28). Every MOD APK here is free to download, paid on Google Play
+or not: App Price is set to 0 when a post is written ("$4.99" → 0), and the
+page ("Price: 0 USD") and its data for Google (`"price": "0"`) say 0 for every
+post. The data's `fileSize` now reads App Size (it read `wp_sizes`, a field no
+post has).
+
+**No "updated" push before the file** (2.28). Write with AI puts Google Play's
+newer version on a post whose download folder still waits for its file; that
+counted as an update and told the post's followers. The push now waits until
+the file is there (the folder's mark is gone), and goes then.
 
 **Apps gone from Google Play** (2.27). When a post's Google Play ID shows
 nothing in any store, Google Play is searched for its App Name: a listing with

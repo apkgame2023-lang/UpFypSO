@@ -1187,6 +1187,12 @@ class Y4APK_Writer {
 				return self::result(false, $saved->get_error_message());
 			}
 			array_unshift($done, sprintf(_n('%s word', '%s words', $article['words'], 'y4apk'), number_format_i18n($article['words'])));
+			// Added from Google Play to be published: now that it has its article.
+			if (get_post_meta($post_id, Y4APK_Discover::PUBLISH, true) && get_post_status($post_id) !== 'publish') {
+				wp_update_post(['ID' => $post_id, 'post_status' => 'publish']);
+				delete_post_meta($post_id, Y4APK_Discover::PUBLISH);
+				$done[] = __('published', 'y4apk');
+			}
 			if ($ctx['apk'] && ($d = self::update_description($post_id)) !== '') {
 				$done[] = $d;
 			}
@@ -1394,7 +1400,7 @@ class Y4APK_Writer {
 
 	/** The meta Post details may change, for Undo. */
 	private static function details_meta($post_id) {
-		$keys = ['wp_mods', 'price', 'wp_title_GP', 'wp_version_GP', 'rank_math_focus_keyword', 'rank_math_title', 'rank_math_facebook_title', 'rank_math_twitter_title',
+		$keys = ['wp_mods', 'price', 'wp_title_GP', 'wp_version_GP', 'wp_sizes_GP', 'rank_math_focus_keyword', 'rank_math_title', 'rank_math_facebook_title', 'rank_math_twitter_title',
 			Y4APK_App_Updates::NO_FILE, self::MOD_AUTO, self::MOD_FOUND, self::SEO_AUTO];
 		$out = [];
 		foreach ($keys as $k) {
@@ -1432,7 +1438,8 @@ class Y4APK_Writer {
 					update_post_meta($post_id, self::MOD_FOUND, wp_slash($mod));
 				}
 			}
-			if (trim((string) get_post_meta($post_id, 'price', true)) === '') {
+			// 0 for every MOD APK, paid on Google Play or not ("$4.99" → 0): free to download here.
+			if (trim((string) get_post_meta($post_id, 'price', true)) !== '0') {
 				update_post_meta($post_id, 'price', '0');
 			}
 		}
@@ -1481,9 +1488,6 @@ class Y4APK_Writer {
 				if (empty($row['download_mod_info']) && $mod !== '') {
 					$row['download_mod_info'] = $mod;
 				}
-				if (empty($row['download_size']) || $row['download_size'] === '—') {
-					$row['download_size'] = (string) get_post_meta($post_id, 'wp_sizes_GP', true); // not known: none shown (2.25 wrote "—")
-				}
 				if (!$waiting && class_exists('Y4APK_R2')) {
 					$made = Y4APK_R2::make_folder($post_id, strtoupper($row['download_name']) === 'OBB' ? 'OBB' : 'MOD', self::file_ext($row['download_name']));
 					if (is_wp_error($made)) {
@@ -1495,6 +1499,17 @@ class Y4APK_Writer {
 					}
 				}
 				unset($row);
+			}
+			// No size (Google Play shows none any more): App Size, else the app's APK on Aptoide (2.28; 2.25 wrote "—").
+			if (isset($links[$i]) && in_array(trim((string) (isset($links[$i]['download_size']) ? $links[$i]['download_size'] : '')), ['', '—', '-'], true)) {
+				$size = (string) Y4APK_App_Updates::size_for($post_id);
+				$links[$i]['download_size'] = $size;
+				if ($size !== '' && in_array(trim((string) get_post_meta($post_id, 'wp_sizes_GP', true)), ['', '—', '-'], true)) {
+					update_post_meta($post_id, 'wp_sizes_GP', $size);
+				}
+				if ($size !== '') {
+					$done[] = sprintf(__('size %s', 'y4apk'), $size);
+				}
 			}
 			if ($links !== $links_before) {
 				update_post_meta($post_id, 'repeatable_download_link', $links);
@@ -1793,17 +1808,18 @@ class Y4APK_Writer {
 		}
 	}
 
-	public static function enqueue($ids, $parts) {
+	public static function enqueue($ids, $parts, $front = false) {
 		$q = self::queue();
 		$have = array_flip(array_map(function ($item) { return (int) $item[0]; }, $q));
-		$added = 0;
+		$new = [];
 		foreach (array_map('intval', $ids) as $id) {
 			if ($id > 0 && !isset($have[$id])) {
-				$q[] = [$id, (int) $parts & self::PARTS, 0];
+				$new[] = [$id, (int) $parts & self::PARTS, 0];
 				$have[$id] = 1;
-				$added++;
 			}
 		}
+		$added = count($new);
+		$q = $front ? array_merge($new, $q) : array_merge($q, $new); // front: posts just added from Google Play, before the 5,000 waiting
 		update_option(self::QUEUE, $q, false);
 		self::schedule();
 		return $added;
@@ -1968,7 +1984,7 @@ class Y4APK_Writer {
 		if (!$parts) {
 			wp_send_json_error(['message' => __('Tick at least one of Article, Icon and Screenshots.', 'y4apk')]);
 		}
-		if ($parts !== self::settings()['parts']) {
+		if ($parts !== self::settings()['parts'] && empty($_POST['keep'])) { // keep: Add from Google Play's own parts, not the Posts tab's ticks
 			self::save_settings(['parts' => $parts]);
 		}
 		return $parts;
@@ -2007,7 +2023,7 @@ class Y4APK_Writer {
 			$ids = isset($_POST['ids']) ? array_map('absint', (array) $_POST['ids']) : [];
 		}
 		$ids = array_values(array_filter($ids, function ($id) { return current_user_can('edit_post', $id); }));
-		$added = self::enqueue($ids, $parts);
+		$added = self::enqueue($ids, $parts, !empty($_POST['front']));
 		wp_send_json_success(['added' => $added, 'waiting' => count(self::queue()), 'message' => sprintf(_n('%s post added to the queue.', '%s posts added to the queue.', $added, 'y4apk'), number_format_i18n($added))]);
 	}
 
@@ -2220,6 +2236,10 @@ class Y4APK_Writer {
 			return;
 		}
 		wp_enqueue_script('y4apk-writer', get_template_directory_uri() . '/assets/js/y4apk-writer.js', [], Y4APK_THEME_VERSION, true);
+		if (isset($_GET['view']) && $_GET['view'] === 'add') {
+			wp_enqueue_script('y4apk-discover', get_template_directory_uri() . '/assets/js/y4apk-discover.js', ['y4apk-writer'], Y4APK_THEME_VERSION, true);
+			wp_localize_script('y4apk-discover', 'y4apkDiscover', Y4APK_Discover::script_text());
+		}
 		wp_localize_script('y4apk-writer', 'y4apkWriter', [
 			'ajax'  => admin_url('admin-ajax.php'),
 			'nonce' => wp_create_nonce('y4apk-writer'),
@@ -2328,9 +2348,9 @@ class Y4APK_Writer {
 
 	public static function render_page() {
 		$o = self::settings();
-		$views = ['posts', 'queue', 'settings'];
+		$views = ['posts', 'queue', 'add', 'settings'];
 		$view = isset($_GET['view']) && in_array($_GET['view'], $views, true) ? $_GET['view'] : 'posts';
-		if ($view === 'settings' && !current_user_can('manage_options')) {
+		if ($view === 'settings' && !current_user_can('manage_options') || $view === 'add' && !current_user_can('publish_posts')) {
 			$view = 'posts';
 		}
 		$queue = self::queue();
@@ -2395,6 +2415,9 @@ class Y4APK_Writer {
 			<nav class="au-tabs">
 				<a class="au-tab<?php echo $view === 'posts' ? ' is-on' : ''; ?>" href="<?php echo esc_url(self::url('posts')); ?>"><?php esc_html_e('Posts', 'y4apk'); ?></a>
 				<a class="au-tab<?php echo $view === 'queue' ? ' is-on' : ''; ?>" href="<?php echo esc_url(self::url('queue')); ?>"><?php esc_html_e('Queue', 'y4apk'); ?><span class="au-count"><?php echo esc_html(number_format_i18n(count($queue))); ?></span></a>
+				<?php if (current_user_can('publish_posts')) : ?>
+					<a class="au-tab<?php echo $view === 'add' ? ' is-on' : ''; ?>" href="<?php echo esc_url(self::url('add')); ?>"><?php esc_html_e('Add from Google Play', 'y4apk'); ?></a>
+				<?php endif; ?>
 				<?php if (current_user_can('manage_options')) : ?>
 					<a class="au-tab<?php echo $view === 'settings' ? ' is-on' : ''; ?>" href="<?php echo esc_url(self::url('settings')); ?>"><?php esc_html_e('Settings', 'y4apk'); ?></a>
 				<?php endif; ?>
@@ -2403,6 +2426,8 @@ class Y4APK_Writer {
 			<?php
 			if ($view === 'queue') {
 				self::render_queue($o, $queue, $per_hour);
+			} elseif ($view === 'add') {
+				Y4APK_Discover::render();
 			} elseif ($view === 'settings') {
 				self::render_settings($o);
 			} else {

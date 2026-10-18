@@ -266,6 +266,11 @@ class Y4APK_App_Updates {
 		return preg_match('/^[A-Za-z][\w]*(\.[A-Za-z0-9_]+)+$/', $text) ? $text : '';
 	}
 
+	/** A Google Play page (search, category), as get() fetches it: [status code, body] or null. */
+	public static function play_page($url) {
+		return strpos((string) $url, 'https://play.google.com/') === 0 ? self::get($url) : null;
+	}
+
 	/** [status code, body], or null when the request failed outright. */
 	private static function get($url) {
 		$r = wp_remote_get($url, [
@@ -437,15 +442,79 @@ class Y4APK_App_Updates {
 
 	/** Version from Aptoide's public API: string, '' when not there, null when it did not answer. */
 	public static function aptoide_version($package) {
+		$m = self::aptoide_meta($package);
+		return $m === null ? null : $m['version'];
+	}
+
+	/** Aptoide's public data for an app: ['version' => … or '', 'size' => bytes or 0], or null when it did not answer. */
+	public static function aptoide_meta($package) {
 		$r = self::get('https://ws2.aptoide.com/api/7/app/getMeta/package_name=' . rawurlencode($package));
 		if ($r === null || $r[0] === 429 || $r[0] >= 500) {
 			return null;
 		}
 		$data = json_decode($r[1], true);
-		$v = isset($data['data']['file']['vername']) ? $data['data']['file']['vername'] : '';
-		// Plain dotted numbers only: Aptoide also lists other builds of an app
-		// ("1009.0-wv" for Brawl Stars, whose Play version is 69.414).
-		return $r[0] === 200 && preg_match('/^\d+(?:\.\d+){0,4}$/', (string) $v) ? $v : '';
+		$file = $r[0] === 200 && isset($data['data']['file']) && is_array($data['data']['file']) ? $data['data']['file'] : [];
+		$v = isset($file['vername']) ? (string) $file['vername'] : '';
+		$size = isset($file['filesize']) ? $file['filesize'] : (isset($data['data']['size']) ? $data['data']['size'] : 0);
+		return [
+			// Plain dotted numbers only: Aptoide also lists other builds of an app
+			// ("1009.0-wv" for Brawl Stars, whose Play version is 69.414).
+			'version' => preg_match('/^\d+(?:\.\d+){0,4}$/', $v) ? $v : '',
+			'size'    => $r[0] === 200 && is_numeric($size) && $size > 0 ? (float) $size : 0,
+		];
+	}
+
+	/** "245.12MB", as the site writes sizes. */
+	public static function size_text($bytes) {
+		$bytes = (float) $bytes;
+		return $bytes >= 1073741824 ? sprintf('%.2fGB', $bytes / 1073741824) : sprintf('%.2fMB', $bytes / 1048576);
+	}
+
+	/**
+	 * A size for a download that has none (2.28; Google Play no longer shows
+	 * sizes): App Size if the post has one, else the size of the app's APK on
+	 * Aptoide — the same app, near enough until the file is uploaded and its
+	 * own size goes in. '' when there is none, null when Aptoide was busy.
+	 */
+	public static function size_for($post_id) {
+		$app = trim((string) get_post_meta($post_id, 'wp_sizes_GP', true));
+		if (!in_array($app, ['', '—', '-'], true)) {
+			return $app;
+		}
+		$package = self::package_from(get_post_meta($post_id, 'wp_GP_ID', true));
+		if ($package === '' || get_transient('y4apk_nosize_' . md5($package))) {
+			return '';
+		}
+		$m = self::aptoide_meta($package);
+		if ($m === null) {
+			return null;
+		}
+		if ($m['size'] > 0) {
+			return self::size_text($m['size']);
+		}
+		set_transient('y4apk_nosize_' . md5($package), 1, WEEK_IN_SECONDS); // not there: not asked again for a week
+		return '';
+	}
+
+	/** The main download's size when it has none (and an empty App Size): true when one was found, false when not, null when Aptoide was busy. */
+	public static function fill_size($post_id) {
+		list($i, $main) = self::download($post_id);
+		$links = get_post_meta($post_id, 'repeatable_download_link', true);
+		$have = $main && isset($main['download_size']) ? trim((string) $main['download_size']) : '';
+		if (!$main || !is_array($links) || !isset($links[$i]) || !in_array($have, ['', '—', '-'], true)) {
+			return false;
+		}
+		$size = self::size_for($post_id);
+		if (!$size) {
+			return $size === null ? null : false;
+		}
+		$app = trim((string) get_post_meta($post_id, 'wp_sizes_GP', true));
+		$links[$i]['download_size'] = $size;
+		update_post_meta($post_id, 'repeatable_download_link', $links);
+		if ($app === '' || $app === '—') {
+			update_post_meta($post_id, 'wp_sizes_GP', $size);
+		}
+		return true;
 	}
 
 	/** ['version' => …, 'source' => play|aptoide|''], or null to try again later. */
@@ -478,6 +547,7 @@ class Y4APK_App_Updates {
 		if ($play['status'] === 'ok') {
 			self::apply_info($post_id, $play);
 		}
+		self::fill_size($post_id); // a download with no size: Aptoide's, once
 		update_post_meta($post_id, self::LATEST, $latest['version']);
 		update_post_meta($post_id, self::SOURCE, $latest['source']);
 		update_post_meta($post_id, self::CHECKED, time());
