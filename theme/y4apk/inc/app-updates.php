@@ -42,13 +42,16 @@ class Y4APK_App_Updates {
 	const SUGGEST      = '_y4apk_gp_suggest'; // {"id","title","developer"}
 	const INFO         = '_y4apk_gp_info';    // {"developer","rated","requires","rating","votes","read"} as last read from Google Play
 	const PER_PAGE     = 50;
+	const PRIORITY     = 8;   // of the 20 checks a step, for the posts Google shows most and people follow
+	const GSC          = 'y4apk_gsc';
 	const UA           = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 	public static function init() {
 		add_filter('cron_schedules', [__CLASS__, 'schedules']);
 		add_action(self::HOOK, [__CLASS__, 'tick']);
-		// Any save, including the block editor's (REST, not an admin page).
-		add_action('save_post_post', [__CLASS__, 'refresh_flag'], 20);
+		// Any save, including the block editor's (REST, not an admin page) —
+		// after the Download Links box has saved its rows (save_post, 10).
+		add_action('save_post', [__CLASS__, 'saved'], 99, 2);
 		if (!is_admin()) {
 			return;
 		}
@@ -60,6 +63,8 @@ class Y4APK_App_Updates {
 		add_action('admin_post_y4apk_vc_bulk', [__CLASS__, 'handle_bulk']);
 		add_action('admin_post_y4apk_vc_run', [__CLASS__, 'handle_run']);
 		add_action('admin_post_y4apk_vc_settings', [__CLASS__, 'handle_settings']);
+		add_action('admin_post_y4apk_gsc_sync', [__CLASS__, 'handle_gsc_sync']);
+		add_action('admin_post_y4apk_gsc_upload', [__CLASS__, 'handle_gsc_upload']);
 		add_filter('manage_post_posts_columns', [__CLASS__, 'column']);
 		add_action('manage_post_posts_custom_column', [__CLASS__, 'column_value'], 10, 2);
 		add_filter('views_edit-post', [__CLASS__, 'view_link']);
@@ -206,6 +211,12 @@ class Y4APK_App_Updates {
 		$latest = self::number(get_post_meta($post_id, self::LATEST, true));
 		$current = self::number(self::current_version($post_id));
 		return $latest !== '' && $current !== '' && version_compare($latest, $current, '>');
+	}
+
+	public static function saved($post_id, $post) {
+		if ($post && $post->post_type === 'post') {
+			self::refresh_flag($post_id);
+		}
 	}
 
 	public static function refresh_flag($post_id) {
@@ -468,6 +479,270 @@ class Y4APK_App_Updates {
 	}
 
 	/* ---------------------------------------------------------------- *
+	 * Google Search data (Search Console, through Site Kit or a CSV)
+	 * ---------------------------------------------------------------- */
+
+	/**
+	 * Clicks and impressions per post over the last 28 days:
+	 * ['synced', 'source' (sitekit|csv), 'from', 'to', 'rows', 'posts' => [id => [impressions, clicks, position]]].
+	 */
+	public static function gsc() {
+		$d = get_option(self::GSC, []);
+		return is_array($d) && isset($d['posts']) && is_array($d['posts']) ? $d : ['synced' => 0, 'source' => '', 'rows' => 0, 'posts' => []];
+	}
+
+	public static function sitekit_active() {
+		return defined('GOOGLESITEKIT_VERSION');
+	}
+
+	/**
+	 * Search Console's numbers per page, read through Site Kit as $user_id (an
+	 * administrator Site Kit lets see Search Console). true, or WP_Error.
+	 */
+	public static function gsc_sync_sitekit($user_id = 0) {
+		if (!self::sitekit_active()) {
+			return new WP_Error('y4apk_no_sitekit', __('Site Kit by Google is not active.', 'y4apk'));
+		}
+		$from = gmdate('Y-m-d', current_time('timestamp') - 29 * DAY_IN_SECONDS);
+		$to = gmdate('Y-m-d', current_time('timestamp') - 2 * DAY_IN_SECONDS); // Search Console runs ~2 days behind
+		$before = get_current_user_id();
+		if ($user_id) {
+			wp_set_current_user($user_id);
+		}
+		try {
+			$request = new WP_REST_Request('GET', '/google-site-kit/v1/modules/search-console/data/searchanalytics');
+			$request->set_query_params(['startDate' => $from, 'endDate' => $to, 'dimensions' => 'page', 'limit' => 25000]);
+			$response = rest_do_request($request);
+		} catch (Throwable $e) {
+			$response = new WP_Error('y4apk_sitekit', $e->getMessage());
+		}
+		if ($user_id) {
+			wp_set_current_user($before);
+		}
+		if (is_wp_error($response)) {
+			return $response;
+		}
+		if ($response->is_error()) {
+			return $response->as_error();
+		}
+		// Google's row objects, as plain arrays.
+		$rows = json_decode(wp_json_encode($response->get_data()), true);
+		if (!is_array($rows)) {
+			return new WP_Error('y4apk_sitekit', __('Site Kit answered, but not with Search Console rows.', 'y4apk'));
+		}
+		$pages = [];
+		foreach ($rows as $r) {
+			if (isset($r['keys'][0])) {
+				$pages[] = [(string) $r['keys'][0], (int) ($r['clicks'] ?? 0), (int) ($r['impressions'] ?? 0), (float) ($r['position'] ?? 0)];
+			}
+		}
+		self::gsc_store($pages, 'sitekit', $from, $to);
+		return true;
+	}
+
+	/**
+	 * Rows from a Search Console export (Performance ▸ Pages ▸ Export: the
+	 * ZIP, or its Pages.csv). Number of pages read, or WP_Error.
+	 */
+	public static function gsc_import_file($path, $name) {
+		$csv = '';
+		if (preg_match('/\.zip$/i', $name)) {
+			if (!class_exists('ZipArchive')) {
+				return new WP_Error('y4apk_zip', __('This server cannot open ZIP files: upload the Pages.csv from inside the ZIP instead.', 'y4apk'));
+			}
+			$zip = new ZipArchive();
+			if ($zip->open($path) !== true) {
+				return new WP_Error('y4apk_zip', __('That ZIP file could not be opened.', 'y4apk'));
+			}
+			for ($i = 0; $i < $zip->numFiles; $i++) {
+				$entry = (string) $zip->getNameIndex($i);
+				if (preg_match('/(^|\/)(pages|หน้า)[^\/]*\.csv$/iu', $entry)) {
+					$csv = (string) $zip->getFromIndex($i);
+					break;
+				}
+			}
+			$zip->close();
+		} else {
+			$csv = (string) file_get_contents($path);
+		}
+		$csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv);
+		$lines = preg_split('/\r\n|\n|\r/', trim($csv));
+		if (!$csv || count($lines) < 2) {
+			return new WP_Error('y4apk_csv', __('No pages found: export Performance ▸ Pages from Search Console and upload the ZIP or its Pages.csv.', 'y4apk'));
+		}
+		// Columns by name: "Top pages", "Clicks", "Impressions", "CTR", "Position" (in any language Search Console exports, the order is the same).
+		$head = array_map('strtolower', str_getcsv(array_shift($lines)));
+		$col = function ($names, $fallback) use ($head) {
+			foreach ($head as $i => $h) {
+				foreach ($names as $n) {
+					if (strpos($h, $n) !== false) {
+						return $i;
+					}
+				}
+			}
+			return $fallback;
+		};
+		$c_page = $col(['page', 'url', 'หน้า'], 0);
+		$c_clicks = $col(['click', 'คลิก'], 1);
+		$c_impr = $col(['impression', 'การแสดงผล'], 2);
+		$c_pos = $col(['position', 'อันดับ', 'ตำแหน่ง'], 4);
+		$num = function ($v) {
+			return (float) str_replace([',', ' ', "\xC2\xA0"], '', (string) $v);
+		};
+		$pages = [];
+		foreach ($lines as $line) {
+			$r = str_getcsv($line);
+			if (isset($r[$c_page]) && preg_match('~^https?://~i', $r[$c_page])) {
+				$pages[] = [$r[$c_page], (int) $num($r[$c_clicks] ?? 0), (int) $num($r[$c_impr] ?? 0), $num($r[$c_pos] ?? 0)];
+			}
+		}
+		if (!$pages) {
+			return new WP_Error('y4apk_csv', __('No page addresses found in that file.', 'y4apk'));
+		}
+		self::gsc_store($pages, 'csv', '', '');
+		return count($pages);
+	}
+
+	/** The post a page address belongs to, by its slug (its /download/N/ pages count for it too). */
+	private static function gsc_slug($url) {
+		$path = trim((string) wp_parse_url($url, PHP_URL_PATH), '/');
+		$base = trim((string) wp_parse_url(home_url('/'), PHP_URL_PATH), '/');
+		if ($base !== '' && strpos($path . '/', $base . '/') === 0) {
+			$path = trim(substr($path, strlen($base)), '/');
+		}
+		$parts = array_values(array_filter(explode('/', $path), 'strlen'));
+		if (count($parts) >= 2 && $parts[count($parts) - 2] === 'download' && ctype_digit($parts[count($parts) - 1])) {
+			array_splice($parts, -2);
+		}
+		if ($parts && in_array(end($parts), ['amp', 'download'], true)) {
+			array_pop($parts);
+		}
+		return $parts ? strtolower(rawurlencode(rawurldecode(end($parts)))) : '';
+	}
+
+	/** Match pages to posts and keep the totals per post. */
+	private static function gsc_store($pages, $source, $from, $to) {
+		global $wpdb;
+		$by_slug = [];
+		foreach ($pages as $p) {
+			$slug = self::gsc_slug($p[0]);
+			if ($slug !== '') {
+				$by_slug[$slug][] = $p;
+			}
+		}
+		$ids = [];
+		foreach (array_chunk(array_keys($by_slug), 500) as $chunk) {
+			$in = implode(',', array_fill(0, count($chunk), '%s'));
+			foreach ($wpdb->get_results($wpdb->prepare(
+				"SELECT ID, post_name FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' AND post_name IN ($in)", $chunk)) as $r) {
+				$ids[strtolower($r->post_name)] = (int) $r->ID;
+			}
+		}
+		$posts = [];
+		$tries = 0;
+		foreach ($by_slug as $slug => $rows) {
+			$id = isset($ids[$slug]) ? $ids[$slug] : 0;
+			if (!$id && $tries < 100) { // another permalink structure: ask WordPress, for a hundred at most
+				$tries++;
+				$id = url_to_postid($rows[0][0]);
+				$id = $id && get_post_type($id) === 'post' ? $id : 0;
+			}
+			if (!$id) {
+				continue;
+			}
+			foreach ($rows as $p) {
+				$t = isset($posts[$id]) ? $posts[$id] : [0, 0, 0.0];
+				// Average position, weighted by impressions.
+				$t[2] = ($t[0] + $p[2]) > 0 ? ($t[2] * $t[0] + $p[3] * $p[2]) / ($t[0] + $p[2]) : 0;
+				$t[0] += $p[2];
+				$t[1] += $p[1];
+				$posts[$id] = $t;
+			}
+		}
+		foreach ($posts as $id => $t) {
+			$posts[$id] = [$t[0], $t[1], round($t[2], 1)];
+		}
+		update_option(self::GSC, ['synced' => time(), 'source' => $source, 'from' => $from, 'to' => $to, 'rows' => count($pages), 'posts' => $posts], false);
+	}
+
+	/**
+	 * Linked posts Google shows most — and posts people follow — whose version
+	 * has not been checked for a day, most important first.
+	 */
+	public static function priority_ids($limit) {
+		global $wpdb;
+		$score = [];
+		foreach (self::gsc()['posts'] as $id => $t) {
+			$score[(int) $id] = (float) $t[0];
+		}
+		if (class_exists('Y4APK_Push')) {
+			foreach (Y4APK_Push::most_followed(200) as $id => $n) {
+				$score[$id] = (isset($score[$id]) ? $score[$id] : 0) + 500 * $n;
+			}
+		}
+		if (!$score || $limit < 1) {
+			return [];
+		}
+		arsort($score);
+		$top = array_slice(array_keys($score), 0, 400);
+		$in = implode(',', array_map('intval', $top));
+		$linked = array_flip(array_map('intval', $wpdb->get_col("SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = 'wp_GP_ID' AND meta_value <> '' AND post_id IN ($in)")));
+		$checked = [];
+		foreach ($wpdb->get_results($wpdb->prepare("SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND post_id IN ($in)", self::CHECKED)) as $r) {
+			$checked[(int) $r->post_id] = (int) $r->meta_value;
+		}
+		$out = [];
+		foreach ($top as $id) {
+			if (isset($linked[$id]) && (!isset($checked[$id]) || $checked[$id] < time() - DAY_IN_SECONDS) && get_post_status($id) === 'publish') {
+				$out[] = $id;
+				if (count($out) >= $limit) {
+					break;
+				}
+			}
+		}
+		return $out;
+	}
+
+	public static function handle_gsc_sync() {
+		if (!current_user_can('manage_options')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
+		}
+		check_admin_referer('y4apk-gsc-sync');
+		$r = self::gsc_sync_sitekit();
+		$back = ['page' => self::SLUG, 'view' => 'settings'];
+		if (is_wp_error($r)) {
+			set_transient('y4apk_gsc_error', $r->get_error_message(), 5 * MINUTE_IN_SECONDS);
+			$back['y4apk_error'] = 'gsc';
+		} else {
+			// The daily sync reads as this administrator, whom Site Kit just let in.
+			update_option('y4apk_gsc_user', get_current_user_id(), false);
+			$back['y4apk_gsc'] = 1;
+		}
+		wp_safe_redirect(add_query_arg($back, admin_url('admin.php')));
+		exit;
+	}
+
+	public static function handle_gsc_upload() {
+		if (!current_user_can('manage_options')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
+		}
+		check_admin_referer('y4apk-gsc-upload');
+		$back = ['page' => self::SLUG, 'view' => 'settings'];
+		$file = isset($_FILES['gsc']) ? $_FILES['gsc'] : null;
+		$r = $file && empty($file['error']) && is_uploaded_file($file['tmp_name'])
+			? self::gsc_import_file($file['tmp_name'], (string) $file['name'])
+			: new WP_Error('y4apk_csv', __('Choose the file Search Console exported.', 'y4apk'));
+		if (is_wp_error($r)) {
+			set_transient('y4apk_gsc_error', $r->get_error_message(), 5 * MINUTE_IN_SECONDS);
+			$back['y4apk_error'] = 'gsc';
+		} else {
+			$back['y4apk_gsc'] = 1;
+		}
+		wp_safe_redirect(add_query_arg($back, admin_url('admin.php')));
+		exit;
+	}
+
+	/* ---------------------------------------------------------------- *
 	 * Linking posts to Google Play
 	 * ---------------------------------------------------------------- */
 
@@ -612,6 +887,19 @@ class Y4APK_App_Updates {
 			$done['searched']++;
 		}
 
+		// Important posts first: checked at least daily, not once a round.
+		$done['priority'] = 0;
+		if (!$done['busy']) {
+			foreach (self::priority_ids(self::PRIORITY) as $id) {
+				if (self::check_post($id) === null) {
+					$done['busy'] = true;
+					break;
+				}
+				$done['priority']++;
+				$done['checked']++;
+			}
+		}
+
 		if (!$done['busy']) {
 			global $wpdb;
 			$cursor = (int) get_option('y4apk_vc_cursor', 0);
@@ -619,7 +907,7 @@ class Y4APK_App_Updates {
 				"SELECT DISTINCT pm.post_id FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 				 WHERE pm.meta_key = 'wp_GP_ID' AND pm.meta_value <> '' AND pm.post_id > %d
 				   AND p.post_type = 'post' AND p.post_status = 'publish'
-				 ORDER BY pm.post_id LIMIT %d", $cursor, self::BATCH));
+				 ORDER BY pm.post_id LIMIT %d", $cursor, self::BATCH - $done['priority']));
 			$all = true;
 			foreach ($ids as $id) {
 				$r = self::check_post((int) $id);
@@ -631,11 +919,20 @@ class Y4APK_App_Updates {
 				$cursor = (int) $id;
 				$done['checked']++;
 			}
-			if ($all && count($ids) < self::BATCH) {
+			if ($all && count($ids) < self::BATCH - $done['priority']) {
 				$cursor = 0; // round finished
 				update_option('y4apk_vc_round_done', time(), false);
 			}
 			update_option('y4apk_vc_cursor', $cursor, false);
+		}
+
+		// Google Search numbers once a day, as the administrator who first synced them.
+		$gsc_user = (int) get_option('y4apk_gsc_user', 0);
+		if ($gsc_user && self::sitekit_active() && self::gsc()['source'] !== 'csv' && self::gsc()['synced'] < time() - 20 * HOUR_IN_SECONDS
+			&& (int) get_option('y4apk_gsc_tried', 0) < time() - HOUR_IN_SECONDS) {
+			update_option('y4apk_gsc_tried', time(), false);
+			$r = self::gsc_sync_sitekit($gsc_user);
+			$done['gsc'] = !is_wp_error($r);
 		}
 
 		update_option('y4apk_vc_last_step', time(), false);
@@ -1041,6 +1338,10 @@ class Y4APK_App_Updates {
 			.au-ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; padding: 2px 8px; border-radius: 6px; background: var(--au-soft); border: 1px solid #e4e6e8; }
 			.au-ver.is-new { background: #fcf0f1; border-color: #f4c6c7; color: var(--au-red); font-weight: 600; }
 			.au-meta { font-size: 12px; color: var(--au-muted); }
+			.au-google { color: #1a73e8; }
+			.au-follow { color: #8a6100; }
+			.au-toolbar-info a { text-decoration: none; }
+			.au-toolbar-info a.is-on { font-weight: 600; color: var(--au-ink); }
 			.au-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
 			.au-line { display: grid; grid-template-columns: 66px 150px 115px minmax(160px, 1fr); gap: 8px; align-items: center; }
 			.au-line input[type=text], .au-line input[type=url] { width: 100%; min-height: 32px; margin: 0; border-radius: 6px; }
@@ -1128,10 +1429,18 @@ class Y4APK_App_Updates {
 				$downloads[(int) $r->dim] = (int) $r->n;
 			}
 		}
-		usort($needs_ids, function ($a, $b) use ($downloads) {
-			$da = isset($downloads[$a]) ? $downloads[$a] : 0;
-			$db = isset($downloads[$b]) ? $downloads[$b] : 0;
-			return $da === $db ? $b - $a : $db - $da;
+		// Google search first when there are numbers for it (impressions, then
+		// clicks), else downloads; newest posts break ties.
+		$gsc = self::gsc();
+		$order = isset($_GET['order']) && in_array($_GET['order'], ['google', 'downloads'], true) ? $_GET['order'] : ($gsc['posts'] ? 'google' : 'downloads');
+		$followers = class_exists('Y4APK_Push') ? Y4APK_Push::followers_of($needs_ids) : [];
+		usort($needs_ids, function ($a, $b) use ($downloads, $gsc, $order) {
+			$key = function ($id) use ($downloads, $gsc, $order) {
+				$g = isset($gsc['posts'][$id]) ? $gsc['posts'][$id] : [0, 0];
+				$d = isset($downloads[$id]) ? $downloads[$id] : 0;
+				return $order === 'google' ? [$g[0], $g[1], $d, $id] : [$d, $g[0], $g[1], $id];
+			};
+			return $key($b) <=> $key($a);
 		});
 		$paged = max(1, isset($_GET['paged']) ? absint($_GET['paged']) : 1);
 		$pages = max(1, (int) ceil(count($needs_ids) / self::PER_PAGE));
@@ -1164,7 +1473,7 @@ class Y4APK_App_Updates {
 			<div class="au-head">
 				<div>
 					<h1><?php esc_html_e('App updates', 'y4apk'); ?></h1>
-					<p><?php esc_html_e('Every 15 minutes, posts are linked to their Google Play app and checked against its latest version. Posts whose file is older are listed, most downloaded first; nothing changes on them until you save a new file. App Information (publisher, age rating, Android version, rating) follows Google Play as set in Settings.', 'y4apk'); ?></p>
+					<p><?php esc_html_e('Every 15 minutes, posts are linked to their Google Play app and checked against its latest version. Posts whose file is older are listed — those Google Search shows most first (or the most downloaded) — and nothing changes on them until you save a new file. App Information (publisher, age rating, Android version, rating) follows Google Play as set in Settings.', 'y4apk'); ?></p>
 				</div>
 				<div class="au-actions">
 					<span class="au-pill"><span class="au-dot <?php echo esc_attr($status[0]); ?>"></span><?php echo esc_html($status[1]); ?></span>
@@ -1180,6 +1489,8 @@ class Y4APK_App_Updates {
 
 			<?php if (!empty($_GET['y4apk_saved'])) : $sid = absint($_GET['y4apk_saved']); ?>
 				<div class="notice notice-success is-dismissible"><p><?php printf(esc_html__('Saved: %s', 'y4apk'), '<a href="' . esc_url(get_permalink($sid)) . '" target="_blank">' . esc_html(get_the_title($sid)) . '</a>'); ?></p></div>
+			<?php elseif (!empty($_GET['y4apk_gsc'])) : $g = self::gsc(); ?>
+				<div class="notice notice-success is-dismissible"><p><?php echo esc_html(sprintf(__('Google Search numbers updated: %1$s pages, %2$s posts matched.', 'y4apk'), number_format_i18n($g['rows']), number_format_i18n(count($g['posts'])))); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_settings'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Settings saved.', 'y4apk'); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_error'])) : ?>
@@ -1188,6 +1499,7 @@ class Y4APK_App_Updates {
 						'id'        => __('That is not a Google Play link or app ID.', 'y4apk'),
 						'same-link' => __('Nothing saved: “Add” keeps the old download, so the new one needs the new file’s link. Paste it, or choose “Replace”.', 'y4apk'),
 						'changed'   => __('Nothing saved: the post’s downloads were changed after this page was opened. Here they are as they are now.', 'y4apk'),
+						'gsc'       => sprintf(__('Google Search numbers not updated: %s', 'y4apk'), (string) get_transient('y4apk_gsc_error')),
 					];
 					echo esc_html(isset($errors[$_GET['y4apk_error']]) ? $errors[$_GET['y4apk_error']] : __('Enter the new version and the download link.', 'y4apk')); ?></p></div>
 			<?php elseif (isset($_GET['ran'])) : $ran = array_map('intval', explode('.', sanitize_text_field(wp_unslash($_GET['ran'])))) + [0, 0, 0, 0]; ?>
@@ -1242,8 +1554,20 @@ class Y4APK_App_Updates {
 			<?php if ($view === 'needs') : ?>
 				<div class="au-toolbar">
 					<input type="search" class="au-search" data-au-filter="au-needs" placeholder="<?php esc_attr_e('Filter this page by name…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Filter this page by name', 'y4apk'); ?>">
-					<span class="au-toolbar-info"><?php echo esc_html(sprintf(__('%1$s posts · most downloaded in the last 30 days first · page %2$s of %3$s', 'y4apk'), number_format_i18n(count($needs_ids)), number_format_i18n($paged), number_format_i18n($pages))); ?></span>
+					<span class="au-toolbar-info">
+						<?php esc_html_e('Order:', 'y4apk'); ?>
+						<a href="<?php echo esc_url($url('needs', ['order' => 'google'])); ?>" class="<?php echo $order === 'google' ? 'is-on' : ''; ?>"><?php esc_html_e('Google search', 'y4apk'); ?></a> ·
+						<a href="<?php echo esc_url($url('needs', ['order' => 'downloads'])); ?>" class="<?php echo $order === 'downloads' ? 'is-on' : ''; ?>"><?php esc_html_e('Downloads', 'y4apk'); ?></a>
+						· <?php echo esc_html(sprintf(__('%1$s posts · page %2$s of %3$s', 'y4apk'), number_format_i18n(count($needs_ids)), number_format_i18n($paged), number_format_i18n($pages))); ?>
+					</span>
 				</div>
+				<?php if (!$gsc['posts']) : ?>
+					<p class="au-note" style="margin:0 0 12px"><?php printf(esc_html__('No Google Search numbers yet, so posts are ordered by downloads. %s to see first the posts Google shows most.', 'y4apk'),
+						'<a href="' . esc_url($url('settings')) . '#au-gsc">' . esc_html__('Connect them in Settings', 'y4apk') . '</a>'); ?></p>
+				<?php elseif ($order === 'google') : ?>
+					<p class="au-note" style="margin:0 0 12px"><?php echo esc_html(sprintf(__('Ordered by how often Google showed each post in search (%1$s), from Search Console, updated %2$s ago.', 'y4apk'),
+						$gsc['from'] ? $gsc['from'] . ' – ' . $gsc['to'] : __('your export', 'y4apk'), human_time_diff($gsc['synced']))); ?></p>
+				<?php endif; ?>
 				<div class="au-list" id="au-needs">
 				<?php if (!$page_ids) : ?>
 					<div class="au-card au-empty"><?php echo $checked
@@ -1278,7 +1602,13 @@ class Y4APK_App_Updates {
 							<span class="au-ver"><?php echo esc_html($current); ?></span>
 							<span class="au-label"><?php echo esc_html(sprintf(__('Latest · %s', 'y4apk'), $source)); ?></span>
 							<span class="au-ver is-new"><?php echo esc_html($latest); ?></span>
+							<?php if (isset($gsc['posts'][$id])) : $g = $gsc['posts'][$id]; ?>
+								<span class="au-meta au-google" title="<?php esc_attr_e('Google Search, last 28 days', 'y4apk'); ?>"><?php echo esc_html(sprintf(_n('%s impression', '%s impressions', $g[0], 'y4apk'), number_format_i18n($g[0])) . ' · ' . sprintf(_n('%s click on Google', '%s clicks on Google', $g[1], 'y4apk'), number_format_i18n($g[1]))); ?></span>
+							<?php endif; ?>
 							<span class="au-meta"><?php echo esc_html(sprintf(_n('%s download in 30 days', '%s downloads in 30 days', isset($downloads[$id]) ? $downloads[$id] : 0, 'y4apk'), number_format_i18n(isset($downloads[$id]) ? $downloads[$id] : 0))); ?></span>
+							<?php if (!empty($followers[$id])) : ?>
+								<span class="au-meta au-follow"><?php echo esc_html(sprintf(_n('🔔 %s follower waits for this', '🔔 %s followers wait for this', $followers[$id], 'y4apk'), number_format_i18n($followers[$id]))); ?></span>
+							<?php endif; ?>
 						</div>
 						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-form">
 							<input type="hidden" name="action" value="y4apk_vc_save">
@@ -1413,6 +1743,40 @@ class Y4APK_App_Updates {
 					</div>
 					<p><button class="button button-primary"><?php esc_html_e('Save settings', 'y4apk'); ?></button></p>
 				</form>
+				<?php $g = self::gsc(); ?>
+				<div class="au-card au-pad" id="au-gsc" style="margin-top:14px">
+					<h2 style="font-size:15px;margin:0 0 6px"><?php esc_html_e('Google Search numbers (Search Console)', 'y4apk'); ?></h2>
+					<p class="au-note" style="margin:0 0 12px"><?php esc_html_e('How often Google showed and people clicked each post in the last 28 days. They order “Need a new file”, and the posts Google shows most get their version checked every day instead of once a round.', 'y4apk'); ?></p>
+					<p style="margin:0 0 12px"><strong><?php
+						echo $g['posts']
+							? esc_html(sprintf(__('%1$s posts with numbers, from %2$s, updated %3$s ago.', 'y4apk'), number_format_i18n(count($g['posts'])),
+								$g['source'] === 'csv' ? __('an uploaded export', 'y4apk') : __('Site Kit', 'y4apk'), human_time_diff($g['synced'])))
+							: esc_html__('No numbers yet.', 'y4apk'); ?></strong></p>
+					<div class="au-settings">
+						<div>
+							<h2><?php esc_html_e('From Site Kit (every day)', 'y4apk'); ?></h2>
+							<p><?php echo self::sitekit_active()
+								? esc_html__('Site Kit is active. Sync once here; after that the numbers update by themselves once a day.', 'y4apk')
+								: esc_html__('Site Kit by Google is not active. Turn it on and connect Search Console, or upload an export.', 'y4apk'); ?></p>
+							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+								<input type="hidden" name="action" value="y4apk_gsc_sync"><?php wp_nonce_field('y4apk-gsc-sync'); ?>
+								<button class="button button-primary" <?php disabled(!self::sitekit_active()); ?>><?php esc_html_e('Sync from Site Kit now', 'y4apk'); ?></button>
+							</form>
+						</div>
+						<div>
+							<h2><?php esc_html_e('Or upload an export', 'y4apk'); ?></h2>
+							<p><?php esc_html_e('Search Console ▸ Performance ▸ Search results ▸ Pages ▸ Export ▸ Download CSV. Upload the ZIP, or the Pages.csv inside it.', 'y4apk'); ?></p>
+							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data">
+								<input type="hidden" name="action" value="y4apk_gsc_upload"><?php wp_nonce_field('y4apk-gsc-upload'); ?>
+								<input type="file" name="gsc" accept=".zip,.csv">
+								<button class="button"><?php esc_html_e('Upload', 'y4apk'); ?></button>
+							</form>
+						</div>
+					</div>
+				</div>
+				<?php if (class_exists('Y4APK_Push')) {
+					Y4APK_Push::settings_card();
+				} ?>
 				<div class="au-card au-pad" style="margin-top:14px">
 					<h2 style="font-size:15px;margin:0 0 6px"><?php esc_html_e('Server cron job (Hostinger)', 'y4apk'); ?></h2>
 					<p class="au-note" style="margin:0 0 10px"><?php esc_html_e('WordPress runs background steps when someone opens an uncached page, so with a page cache they can come rarely. A cron job in hPanel ▸ Advanced ▸ Cron Jobs (type PHP, every 15 or 30 minutes) runs them on time. Its command:', 'y4apk'); ?></p>

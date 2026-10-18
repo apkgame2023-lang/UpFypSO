@@ -12,6 +12,9 @@
  * and leaves alone everything it has no business touching: anything that is not
  * a GET, every other origin (ads, analytics, CDNs), wp-admin, logins, the REST
  * API, AJAX, the download pages and the files themselves.
+ *
+ * It also shows update notifications (inc/push.php): a push carries
+ * {title, body, url, icon, tag}; tapping it opens the post.
  */
 
 const VERSION = '__VERSION__';
@@ -129,4 +132,33 @@ self.addEventListener('fetch', (event) => {
 	if (['style', 'script', 'font', 'image'].includes(request.destination) || STATIC_ASSET.test(url.pathname)) {
 		event.respondWith(handleAsset(event));
 	}
+});
+
+self.addEventListener('push', (event) => {
+	let data = {};
+	try {
+		data = event.data ? event.data.json() : {};
+	} catch (err) {
+		data = { body: event.data ? event.data.text() : '' };
+	}
+	event.waitUntil(self.registration.showNotification(data.title || 'Y4APK', {
+		body: data.body || '',
+		icon: data.icon || undefined,
+		tag: data.tag || undefined,
+		renotify: !!data.tag,
+		data: { url: data.url || SCOPE },
+	}));
+});
+
+self.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const url = (event.notification.data && event.notification.data.url) || SCOPE;
+	event.waitUntil((async () => {
+		for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+			if (client.url === url && 'focus' in client) {
+				return client.focus();
+			}
+		}
+		return self.clients.openWindow(url);
+	})());
 });

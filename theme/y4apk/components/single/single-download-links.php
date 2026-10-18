@@ -80,4 +80,5 @@ if(function_exists('single_bottom_ad')) single_bottom_ad();
         </div>
         <?php endif; endif; endif; ?>
     </div>
+    <?php do_action('y4apk_after_download_links', get_the_ID()); ?>
 </div>

@@ -117,7 +117,7 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
-## App updates: which posts have a newer version out (2.17–2.20)
+## App updates: which posts have a newer version out (2.17–2.21)
 
 **Y4APK ▸ App updates** lists the posts whose download is older than the app's
 latest version, most downloaded first (last 30 days, from Analytics), with a form
@@ -201,6 +201,41 @@ Ratings and age ratings differ by country, hence the store setting. The App
 Information rating slider now moves by 0.1 so 4.4 survives a save. Note that the
 theme's schema markup (`inc/snippet.php`) publishes these numbers as the post's
 `aggregateRating`.
+
+**5. Google Search numbers** (2.21). Clicks and impressions per page over the
+last 28 days come from Search Console through **Site Kit** (its
+`google-site-kit/v1/modules/search-console/data/searchanalytics` datapoint,
+`dimensions=page`, up to 25,000 rows): *Sync from Site Kit now* in Settings once,
+then once a day by itself, read as the administrator who synced. Without Site Kit,
+upload Search Console's export (Performance ▸ Pages ▸ Export: the ZIP or its
+Pages.csv). Pages are matched to posts by slug (Thai and other encoded slugs too;
+a post's `/download/N/` pages count for it); totals are kept in the option
+`y4apk_gsc`. *Need a new file* is ordered by Google impressions (switch: Google
+search / Downloads) and shows them per row. Each background step first checks up
+to 8 linked posts not checked for a day, picked by impressions plus 500 per
+follower, so the posts that matter most are checked daily; the rest go round as
+before (a round takes longer: run the cron job every 15 minutes to keep it short).
+
+**6. Update notifications** (2.21, `inc/push.php`). Under each post's downloads,
+*Notify me when updated* (shown only where the browser supports web push and
+Y4APK ▸ App is on: the app's service worker shows the notifications). Following
+stores the browser's push subscription (`{prefix}y4apk_push_subs`) and the post
+(`_follows`); `POST /wp-json/y4apk/v1/follow` takes same-site requests only and
+push addresses of the browsers' push services only (FCM, Mozilla, Windows, Apple).
+When a post's newest APK version goes above the one followers were told about
+(`_y4apk_push_version`, set when someone follows) — saved in App updates or in the
+post editor — a message per follower goes into `_queue`; the first 100 are sent at
+once in parallel, the rest a minute later by WP-Cron. Standard Web Push: VAPID
+(RFC 8292, ES256, key pair made on first use and kept in the `y4apk_push` option)
+and per-browser encryption (RFC 8291, aes128gcm). The message says "<App> has an
+update — Version X is ready to download" and opens the post. Browsers that have
+unsubscribed (404/410) are forgotten; busy push services are retried twice. The
+App updates rows show how many followers wait; Settings has the switch, totals
+and the last sends. For the Android app: keep *Notification delegation* on in
+PWABuilder.
+
+The save hook for the update flag now runs on `save_post` (priority 99), after
+the Download Links box has saved its rows, so editor saves are seen at once.
 
 **The page** (2.20) is full width: a status pill (running / slow / stalled /
 off) and *Run a step now*; five cards (linked, versions checked, need a new

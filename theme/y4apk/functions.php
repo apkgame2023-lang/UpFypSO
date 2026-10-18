@@ -27,6 +27,7 @@ require $theme_dir . '/inc/pwa.php';
 require $theme_dir . '/inc/direct-link.php';
 require $theme_dir . '/inc/stats.php';
 require $theme_dir . '/inc/app-updates.php';
+require $theme_dir . '/inc/push.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';
 require $theme_dir . '/inc/rest-auth-debug.php';
