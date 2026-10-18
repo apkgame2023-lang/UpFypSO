@@ -285,7 +285,7 @@ class Y4APK_Writer {
 				$wait = max($wait, HOUR_IN_SECONDS);
 				$msg = sprintf(__('%s’s daily limit is reached; the queue waits for it.', 'y4apk'), $info['name']) . ' ' . $msg;
 			}
-			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60))]);
+			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60)), 'status' => $code]);
 		}
 		if ($code === 404 || preg_match('/model_not_found|not_found/', $what)) {
 			return new WP_Error('model', sprintf(__('This %1$s account cannot use the model “%2$s”. Choose another in Settings.', 'y4apk'), $info['name'], $model));
@@ -409,8 +409,16 @@ class Y4APK_Writer {
 
 	/** Can this AI search the web while answering? */
 	public static function searches($provider) {
-		return in_array($provider, ['gemini', 'claude'], true);
+		return $provider === 'claude' || $provider === 'gemini' && !get_transient(self::nosearch_key(self::model('gemini')));
 	}
+
+	/** Set for 6 hours when Google Search ran out on a Gemini model (or its free tier has none). */
+	private static function nosearch_key($model) {
+		return 'y4apk_writer_nosearch_' . md5((string) $model);
+	}
+
+	/** Said with the result: how the MOD was found when the search could not be used. */
+	private static $note = '';
 
 	/** Gemini: generateContent, with the key in x-goog-api-key. */
 	private static function chat_gemini($system, $user, $model, $search = false) {
@@ -423,18 +431,23 @@ class Y4APK_Writer {
 		if (strpos($model, 'flash-lite') === false) {
 			$body['generationConfig']['thinkingConfig'] = preg_match('/^gemini-2\./', $model) ? ['thinkingBudget' => 512] : ['thinkingLevel' => 'low'];
 		}
-		if ($search) {
+		if ($search && !get_transient(self::nosearch_key($model))) {
 			$body['tools'] = [['google_search' => new stdClass()]]; // Grounding with Google Search
 		}
 		$path = '/models/' . rawurlencode($model) . ':generateContent';
+		$dropped = false;
 		for ($try = 0; $try < 3; $try++) {
 			$r = self::api('gemini', 'POST', $path, $body);
 			if (!is_wp_error($r) || !in_array($r->get_error_code(), ['api', 'busy'], true)) {
 				break;
 			}
 			$m = strtolower($r->get_error_message());
-			if (isset($body['tools']) && preg_match('/search|ground|tool/', $m)) {
-				unset($body['tools']); // no Google Search for this model or key (or its own limit): answer without it
+			$data = $r->get_error_data();
+			// Google Search has its own quota — none at all on some free tiers ("You exceeded your current
+			// quota" at once): asked again without it, so the article is still written.
+			if (isset($body['tools']) && (preg_match('/search|ground|tool/', $m) || isset($data['status']) && $data['status'] === 429)) {
+				unset($body['tools']);
+				$dropped = true;
 			} elseif ($r->get_error_code() === 'api' && isset($body['generationConfig']['thinkingConfig']) && strpos($m, 'think') !== false) {
 				unset($body['generationConfig']['thinkingConfig']); // a model that does not take it
 			} else {
@@ -443,6 +456,10 @@ class Y4APK_Writer {
 		}
 		if (is_wp_error($r)) {
 			return $r;
+		}
+		if ($dropped) {
+			set_transient(self::nosearch_key($model), 1, 6 * HOUR_IN_SECONDS); // no asking with it again for a while
+			self::$note = __('Google Search is not in this Gemini key’s quota (free tier): the MOD is what Gemini knows; Settings’ MOD where it does not', 'y4apk');
 		}
 		$u = isset($r['usageMetadata']) ? (array) $r['usageMetadata'] : [];
 		self::count_usage(isset($u['promptTokenCount']) ? $u['promptTokenCount'] : 0,
@@ -925,6 +942,7 @@ class Y4APK_Writer {
 			return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'play');
 		}
 		$done = [];
+		self::$note = '';
 		$o = self::settings();
 		$provider = $o['provider'];
 		$model = self::model($provider);
@@ -956,6 +974,9 @@ class Y4APK_Writer {
 			$ctx['mod'] = $found !== '' ? $found : self::default_mod($ctx['game']);
 			$ctx['mod_found'] = $found !== '';
 			$done[] = $found !== '' ? sprintf(__('MOD “%s” (found)', 'y4apk'), $found) : sprintf(__('MOD “%s” (none found; Settings’)', 'y4apk'), $ctx['mod']);
+			if (self::$note !== '') {
+				$done[] = self::$note;
+			}
 		}
 		if ($parts & self::DETAILS) {
 			$done = array_merge($done, self::update_details($post_id, $ctx, $answer !== null));

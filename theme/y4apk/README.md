@@ -430,7 +430,13 @@ the account cannot use pauses the queue with the reason, until *Resume*.
   Sonnet 5.5 / 5 / 4.6, Fable; `web_search_20250305` on older ones; at most 3
   searches; only the text after the last search is the answer; a `pause_turn`
   is sent back to carry on); each is asked again without it if the model or
-  account refuses it. Groq and ChatGPT answer from what they know. "unknown",
+  account refuses it. Google Search has its own quota on Gemini, and some free
+  keys have none for their model: the request with it gets an instant 429 "You
+  exceeded your current quota" while the same model writes fine without it.
+  So a 429 with search on is asked again at once without it (2.26.1), and
+  Gemini is not asked to search for 6 hours (`y4apk_writer_nosearch_*`); the
+  MOD is then what Gemini knows, and the result says so. A 429 without search
+  is the model's own limit, as before. Groq and ChatGPT answer from what they know. "unknown",
   or anything that is not a short label, falls back to *Settings ▸ Not found:
   games* ("Unlimited Money") or *apps* ("Premium Unlocked"); a MOD found once
   is kept when a later search comes back empty. Where the MOD changes, it
