@@ -326,7 +326,7 @@ in Settings, each with its own key (or a `wp-config.php` constant):
 
 | AI | Cost | Endpoint | Automatic model | Key constant |
 |---|---|---|---|---|
-| **Gemini** (Google) | free tier, daily limit set by Google | `generativelanguage.googleapis.com/v1beta/openai` (OpenAI-compatible) | `gemini-flash-lite-latest`, else the newest Flash-Lite, else Flash (releases before previews) | `Y4APK_GEMINI_KEY` |
+| **Gemini** (Google) | free tier, daily limit set by Google | `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` (its own API) | `gemini-flash-lite-latest`, else the newest Flash-Lite, else Flash (releases before previews) | `Y4APK_GEMINI_KEY` |
 | **Groq** | free tier, daily limit set by Groq | `api.groq.com/openai/v1` (OpenAI-compatible) | `openai/gpt-oss-120b`, else `llama-3.3-70b-versatile` | `Y4APK_GROQ_KEY` |
 | **ChatGPT** (OpenAI) | paid by use | `api.openai.com/v1` | the newest `gpt-*-mini` | `Y4APK_OPENAI_KEY` |
 | **Claude** (Anthropic) | paid by use | `api.anthropic.com/v1/messages` | — Claude Opus 5.5 unless another is chosen (Sonnet 5.5, Haiku 5.5, or any model *Test* finds) | `Y4APK_CLAUDE_KEY` |
@@ -355,11 +355,19 @@ the name in bold, and no closing heading.
 
 How each is asked:
 
-- **OpenAI-compatible** (ChatGPT, Gemini, Groq): `POST /chat/completions` with a
-  system and a user message; `max_completion_tokens` (Gemini: `max_tokens`,
-  which is what it accepts); `reasoning_effort: low` for reasoning models
-  (`gpt-5*`/`o*`, Gemini Flash — not Flash-Lite, whose thinking is off — and
-  Groq's gpt-oss), asked again without it if a model refuses it.
+- **OpenAI-compatible** (ChatGPT, Groq): `POST /chat/completions` with a system
+  and a user message, `max_completion_tokens`, and `reasoning_effort: low` for
+  reasoning models (`gpt-5*`/`o*`, Groq's gpt-oss), asked again without it if
+  a model refuses it.
+- **Gemini**: its own `generateContent`, the key in `x-goog-api-key` — AI
+  Studio now issues "AQ." auth keys instead of "AIza" ones, and those are
+  refused as a Bearer token on Google's OpenAI-compatible endpoint (2.24.0
+  used it; 2.24.1 does not). The instructions go in `systemInstruction`,
+  `maxOutputTokens: 8192`; Flash gets a little thinking (`thinkingLevel: low`,
+  or `thinkingBudget: 512` on 2.5), Flash-Lite none, asked again without it if
+  a model refuses it. Only non-thought `text` parts are the article; a
+  `SAFETY` (or similar) finish or a blocked prompt is reported as declined.
+  Models come from `GET /v1beta/models`, those with `generateContent`.
 - **Claude**: the Messages API (`x-api-key`, `anthropic-version: 2023-06-01`),
   `max_tokens: 16000`, the instructions as `system`, `output_config.effort: low`
   (a short article needs little thinking; no `temperature` or thinking budget,

@@ -19,9 +19,11 @@
  * write keeps what it replaced, so it can be undone as long as nobody has
  * changed that part of the post since.
  *
- * Gemini and Groq are reached through their OpenAI-compatible chat endpoints,
- * Claude through the Messages API — all with wp_remote_request(), as WordPress
- * code does (the theme runs on PHP 7.4 hosting with no Composer).
+ * Gemini is reached through its own generateContent API (AI Studio's new "AQ."
+ * keys do not work on its OpenAI-compatible endpoint), Groq through its
+ * OpenAI-compatible one, Claude through the Messages API — all with
+ * wp_remote_request(), as WordPress code does (the theme runs on PHP 7.4
+ * hosting with no Composer).
  */
 
 if (!defined('ABSPATH')) {
@@ -73,7 +75,7 @@ class Y4APK_Writer {
 	/** The services that can write. url: the API; keys: where to make a key; const: the wp-config.php alternative. */
 	public static function providers() {
 		return [
-			'gemini' => ['name' => 'Gemini', 'by' => 'Google', 'free' => true, 'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+			'gemini' => ['name' => 'Gemini', 'by' => 'Google', 'free' => true, 'url' => 'https://generativelanguage.googleapis.com/v1beta',
 				'keys' => 'https://aistudio.google.com/apikey', 'limits' => 'https://aistudio.google.com/rate-limit', 'const' => 'Y4APK_GEMINI_KEY'],
 			'groq'   => ['name' => 'Groq', 'by' => 'Groq', 'free' => true, 'url' => 'https://api.groq.com/openai/v1',
 				'keys' => 'https://console.groq.com/keys', 'limits' => 'https://console.groq.com/settings/limits', 'const' => 'Y4APK_GROQ_KEY'],
@@ -210,9 +212,13 @@ class Y4APK_Writer {
 		if ($key === '') {
 			return new WP_Error('key', sprintf(__('Add your %s API key in Settings first.', 'y4apk'), $info['name']));
 		}
-		$headers = $provider === 'claude'
-			? array_merge(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'], $headers)
-			: array_merge(['Authorization' => 'Bearer ' . $key], $headers);
+		if ($provider === 'claude') {
+			$headers = array_merge(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'], $headers);
+		} elseif ($provider === 'gemini') {
+			$headers = array_merge(['x-goog-api-key' => $key], $headers); // "AQ." and "AIza" keys alike
+		} else {
+			$headers = array_merge(['Authorization' => 'Bearer ' . $key], $headers);
+		}
 		$args = ['method' => $method, 'timeout' => $timeout, 'headers' => $headers + ['Content-Type' => 'application/json']];
 		if ($body !== null) {
 			$args['body'] = wp_json_encode($body);
@@ -238,8 +244,8 @@ class Y4APK_Writer {
 			isset($err['type']) ? (string) $err['type'] : '',
 			isset($err['status']) ? (string) $err['status'] : '',
 		])));
-		$model = isset($body['model']) ? $body['model'] : '';
-		if ($code === 401 || preg_match('/invalid_api_key|authentication_error/', $what) || preg_match('/api key not valid|invalid api key|incorrect api key/i', $msg)) {
+		$model = isset($body['model']) ? $body['model'] : (preg_match('~/models/([^:/?]+)~', $path, $mm) ? rawurldecode($mm[1]) : '');
+		if ($code === 401 || preg_match('/invalid_api_key|authentication_error|permission_denied/', $what) || preg_match('/api key (not valid|expired)|invalid api key|incorrect api key/i', $msg)) {
 			return new WP_Error('key', sprintf(__('%s did not accept the API key. Check it in Settings.', 'y4apk'), $info['name']));
 		}
 		if ($code === 402 || preg_match('/insufficient_quota|billing_error/', $what) || stripos($msg, 'credit balance') !== false) {
@@ -269,7 +275,8 @@ class Y4APK_Writer {
 		if (!$fresh && is_array($cached)) {
 			return $cached;
 		}
-		$r = self::api($provider, 'GET', $provider === 'claude' ? '/models?limit=100' : '/models', null, 20);
+		$path = ['claude' => '/models?limit=100', 'gemini' => '/models?pageSize=1000'];
+		$r = self::api($provider, 'GET', isset($path[$provider]) ? $path[$provider] : '/models', null, 20);
 		if (is_wp_error($r)) {
 			return $r;
 		}
@@ -281,8 +288,13 @@ class Y4APK_Writer {
 		];
 		$want = ['openai' => '/^(gpt-\d|o\d)/', 'gemini' => '/^gemini-/', 'groq' => '/./', 'claude' => '/^claude-/'];
 		$ids = [];
-		foreach (isset($r['data']) ? (array) $r['data'] : [] as $m) {
-			$id = preg_replace('~^models/~', '', isset($m['id']) ? (string) $m['id'] : '');
+		// Gemini: {models: [{name: "models/…", supportedGenerationMethods}]}; the others: {data: [{id}]}.
+		$list = isset($r['models']) ? (array) $r['models'] : (isset($r['data']) ? (array) $r['data'] : []);
+		foreach ($list as $m) {
+			if (isset($m['supportedGenerationMethods']) && !in_array('generateContent', (array) $m['supportedGenerationMethods'], true)) {
+				continue;
+			}
+			$id = preg_replace('~^models/~', '', isset($m['id']) ? (string) $m['id'] : (isset($m['name']) ? (string) $m['name'] : ''));
 			if (preg_match($want[$provider], $id) && !preg_match($skip[$provider], $id)) {
 				$ids[] = $id;
 			}
@@ -364,19 +376,62 @@ class Y4APK_Writer {
 
 	/** The model's answer as text, or a WP_Error. */
 	public static function chat($system, $user, $provider, $model, $max = 4000) {
-		return $provider === 'claude' ? self::chat_claude($system, $user, $model) : self::chat_compatible($system, $user, $provider, $model, $max);
+		if ($provider === 'claude') {
+			return self::chat_claude($system, $user, $model);
+		}
+		return $provider === 'gemini' ? self::chat_gemini($system, $user, $model) : self::chat_compatible($system, $user, $provider, $model, $max);
 	}
 
-	/** OpenAI, and Gemini and Groq through their OpenAI-compatible endpoints. */
+	/** Gemini: generateContent, with the key in x-goog-api-key. */
+	private static function chat_gemini($system, $user, $model) {
+		$body = [
+			'systemInstruction' => ['parts' => [['text' => $system]]],
+			'contents'          => [['role' => 'user', 'parts' => [['text' => $user]]]],
+			'generationConfig'  => ['maxOutputTokens' => 8192],
+		];
+		// Flash thinks by default; a little is plenty for a short article. Flash-Lite does not unless asked.
+		if (strpos($model, 'flash-lite') === false) {
+			$body['generationConfig']['thinkingConfig'] = preg_match('/^gemini-2\./', $model) ? ['thinkingBudget' => 512] : ['thinkingLevel' => 'low'];
+		}
+		$path = '/models/' . rawurlencode($model) . ':generateContent';
+		$r = self::api('gemini', 'POST', $path, $body);
+		if (is_wp_error($r) && $r->get_error_code() === 'api' && isset($body['generationConfig']['thinkingConfig']) && stripos($r->get_error_message(), 'think') !== false) {
+			unset($body['generationConfig']['thinkingConfig']); // a model that does not take it
+			$r = self::api('gemini', 'POST', $path, $body);
+		}
+		if (is_wp_error($r)) {
+			return $r;
+		}
+		$u = isset($r['usageMetadata']) ? (array) $r['usageMetadata'] : [];
+		self::count_usage(isset($u['promptTokenCount']) ? $u['promptTokenCount'] : 0,
+			(isset($u['candidatesTokenCount']) ? $u['candidatesTokenCount'] : 0) + (isset($u['thoughtsTokenCount']) ? $u['thoughtsTokenCount'] : 0));
+		$cand = isset($r['candidates'][0]) ? $r['candidates'][0] : [];
+		$finish = isset($cand['finishReason']) ? (string) $cand['finishReason'] : '';
+		$text = '';
+		foreach (isset($cand['content']['parts']) ? (array) $cand['content']['parts'] : [] as $part) {
+			if (isset($part['text']) && empty($part['thought'])) {
+				$text .= $part['text'];
+			}
+		}
+		$text = trim($text);
+		if ($text === '') {
+			if (!empty($r['promptFeedback']['blockReason']) || in_array($finish, ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'RECITATION', 'SPII'], true)) {
+				return new WP_Error('refused', __('Gemini declined to write this one.', 'y4apk'));
+			}
+			return new WP_Error('api', $finish === 'MAX_TOKENS' ? __('The answer was cut off before it was done.', 'y4apk') : __('Gemini sent back an empty answer.', 'y4apk'));
+		}
+		return $text;
+	}
+
+	/** OpenAI, and Groq through its OpenAI-compatible endpoint. */
 	private static function chat_compatible($system, $user, $provider, $model, $max) {
 		$body = [
 			'model'    => $model,
 			'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
 		];
-		$body[$provider === 'gemini' ? 'max_tokens' : 'max_completion_tokens'] = $max;
+		$body['max_completion_tokens'] = $max;
 		// Reasoning models think first; a little is plenty for a short article.
 		if (($provider === 'openai' && preg_match('/^(gpt-5|o\d)/', $model))
-			|| ($provider === 'gemini' && strpos($model, 'flash-lite') === false)
 			|| ($provider === 'groq' && strpos($model, 'gpt-oss') !== false)) {
 			$body['reasoning_effort'] = 'low';
 		}
@@ -1655,7 +1710,7 @@ class Y4APK_Writer {
 			'groq'   => __('Automatic: gpt-oss 120B, else Llama 3.3 70B', 'y4apk'),
 			'openai' => __('Automatic: the newest “mini”', 'y4apk'),
 		];
-		$placeholder = ['gemini' => 'AIza…', 'groq' => 'gsk_…', 'openai' => 'sk-…', 'claude' => 'sk-ant-…'];
+		$placeholder = ['gemini' => 'AQ.… / AIza…', 'groq' => 'gsk_…', 'openai' => 'sk-…', 'claude' => 'sk-ant-…'];
 		?>
 		<div class="au-settings aw-settings">
 			<form class="au-card au-pad" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="grid-column:1/-1">
