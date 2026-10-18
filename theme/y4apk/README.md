@@ -400,11 +400,21 @@ the account cannot use pauses the queue with the reason, until *Resume*.
   "(…)" yet or is the one Write with AI wrote; one you wrote keeps its words,
   and only its version (and a MOD put in here) follows. The version is Google
   Play's latest while the post has no file (no download link, or "#"); with a
-  file it stays the file's. When the full Play name makes it longer than 60
-  characters, the **short name** is used: the name before " - " / " – " / " | ",
-  or before ": " when a tagline of 3+ words follows ("ActionDirector - Video
-  Editing" → "ActionDirector", "Spotify: Music and Podcasts" → "Spotify", but
-  "Euro Truck Simulator: Europe" stays).
+  file it stays the file's — and while there is no file, the download row
+  ("v6.0.3.apk") and App Version (the page's Version box) say the same latest
+  version as the title (2.26.2; they kept the old file's before).
+- **One name everywhere** (2.26.2, on by default): the post title *is* Google's
+  title below ("Mint MOD APK v6.0.3 (Premium Unlocked) Download"), and the
+  article's bold name, its closing heading and the icon's alt text say the
+  same short name — as the permalink and the focus keyword — so Rank Math
+  finds "Mint MOD" in the title, at the start of the text, in a heading and in
+  an image's alt text. The App Name box keeps the full Play name. Off: the
+  title from *Settings ▸ Title* with the full name. The **short name** is the
+  name before " - " / " – " / " | ", or before ": " when a tagline of 3+ words
+  follows ("ActionDirector - Video Editing" → "ActionDirector", "Mint:
+  Business & Stock News" → "Mint", but "Euro Truck Simulator: Europe" stays).
+  Names are read as text: the importer stores "&" as "&amp;", which
+  2.26.0–2.26.1 escaped again ("&amp;amp;" in the article).
 - **Rank Math SEO title** (2.26, `rank_math_title`), what Google shows: *Settings
   ▸ Rank Math SEO title* (`{name} MOD APK v{version} ({mod}) Download`) in at
   most 60 characters — the full name, else the short one, else without
@@ -458,6 +468,14 @@ the account cannot use pauses the queue with the reason, until *Resume*.
 - **Rank Math focus keywords**, when there are none (or 2.25's): the one in
   the permalink first — "ActionDirector MOD, ActionDirector MOD APK,
   ActionDirector, ActionDirector - Video Editing" (`rank_math_focus_keyword`).
+- **Rank Math SEO description** (2.26.2, `rank_math_description`), where it has
+  none or one written here: the article's first paragraph, "Mint MOD APK
+  (Premium Unlocked) is a comprehensive …", at most 160 characters.
+- **Posts written by 2.26.0–2.26.1** are put right once after updating, 200 per
+  admin page: "&amp;amp;" → "&amp;", the latest version in the download row and
+  App Version of posts still waiting for their file, and one name everywhere
+  (title = Google's title where both were written here, bold name, heading,
+  icon alt text, SEO description). Nothing is asked of the AI for it.
 - **A link to the post itself** (2.26, *Link the app's name in the second
   paragraph to the post's own permalink*): the AI is asked to name the app
   once more in the second paragraph, and that name links to the post's

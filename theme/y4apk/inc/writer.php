@@ -55,6 +55,8 @@ class Y4APK_Writer {
 	const MOD_FOUND = '_y4apk_mod_found'; // … when it was found by the AI (not Settings')
 	const SEO_AUTO  = '_y4apk_seo_title'; // the Rank Math SEO title written in by Write with AI
 	const SEO_MAX   = 60;                 // characters Google shows of a title
+	const DB        = 'y4apk_writer_db';  // the version posts written here were last brought up to
+	const DESC_AUTO = '_y4apk_seo_desc';  // the Rank Math SEO description written in by Write with AI
 
 	public static function init() {
 		add_filter('cron_schedules', [__CLASS__, 'schedules']);
@@ -63,6 +65,7 @@ class Y4APK_Writer {
 			return;
 		}
 		add_action('admin_init', [__CLASS__, 'schedule']);
+		add_action('admin_init', [__CLASS__, 'migrate']);
 		add_action('admin_menu', [__CLASS__, 'register_page'], 105);
 		add_action('admin_enqueue_scripts', [__CLASS__, 'scripts']);
 		add_action('admin_post_y4apk_writer_settings', [__CLASS__, 'handle_settings']);
@@ -118,6 +121,7 @@ class Y4APK_Writer {
 			'seo_title'    => '{name} MOD APK v{version} ({mod}) Download',
 			'seo_on'       => 1,
 			'slug_on'      => 1,
+			'match'        => 1, // the post title is Google's title; the article and icon use the same (short) name
 			'link_self'    => 1,
 			'facts'        => 1,
 			'link_name'    => 1,
@@ -185,6 +189,7 @@ class Y4APK_Writer {
 			'seo_title'    => trim(sanitize_text_field(isset($in['seo_title']) ? $in['seo_title'] : '')),
 			'seo_on'       => empty($in['seo_on']) ? 0 : 1,
 			'slug_on'      => empty($in['slug_on']) ? 0 : 1,
+			'match'        => empty($in['match']) ? 0 : 1,
 			'link_self'    => empty($in['link_self']) ? 0 : 1,
 			'facts'        => empty($in['facts']) ? 0 : 1,
 			'link_name'    => empty($in['link_name']) ? 0 : 1,
@@ -604,12 +609,12 @@ class Y4APK_Writer {
 
 	/** The MOD in the post's words: App MOD Feature, else the download's MOD Info, else the title's "(…)". */
 	public static function mod($post_id) {
-		$mod = trim((string) get_post_meta($post_id, 'wp_mods', true));
+		$mod = self::plain(get_post_meta($post_id, 'wp_mods', true));
 		if ($mod === '') {
 			list(, $link) = Y4APK_App_Updates::download($post_id);
-			$mod = is_array($link) && isset($link['download_mod_info']) ? trim((string) $link['download_mod_info']) : '';
+			$mod = is_array($link) && isset($link['download_mod_info']) ? self::plain($link['download_mod_info']) : '';
 		}
-		if ($mod === '' && preg_match('/\(([^()]{2,80})\)/', wp_strip_all_tags(get_post_field('post_title', $post_id)), $m)) {
+		if ($mod === '' && preg_match('/\(([^()]{2,80})\)/', self::plain(get_post_field('post_title', $post_id, 'raw')), $m)) {
 			$mod = trim($m[1]);
 		}
 		return trim($mod, " []()");
@@ -629,8 +634,8 @@ class Y4APK_Writer {
 
 	/** What the article is about, and where its links go. */
 	public static function context($post_id, $play = null) {
-		$title = wp_strip_all_tags(get_post_field('post_title', $post_id));
-		$name = trim(wp_strip_all_tags((string) get_post_meta($post_id, 'wp_title_GP', true)));
+		$title = self::plain(get_post_field('post_title', $post_id, 'raw'));
+		$name = self::plain(get_post_meta($post_id, 'wp_title_GP', true)); // "Mint: Business &amp; Stock News" → "… & …", escaped once when written
 		$name = $name !== '' ? $name : Y4APK_App_Updates::name_from_title($title);
 		$package = Y4APK_App_Updates::package_from(get_post_meta($post_id, 'wp_GP_ID', true));
 		if ($play === null) {
@@ -639,28 +644,163 @@ class Y4APK_Writer {
 		$on_play = $play['status'] === 'ok';
 		list(, $download) = Y4APK_App_Updates::download($post_id);
 		$top = self::top_category($post_id);
-		$developer = trim((string) get_post_meta($post_id, 'wp_developers_GP', true));
+		$developer = self::plain(get_post_meta($post_id, 'wp_developers_GP', true));
 		$apk = $package !== '' || ($download && Y4APK_App_Updates::is_apk($download));
 		$mod = self::mod($post_id);
 		$auto = self::auto_mod($post_id);
 		$game = $on_play ? !empty($play['game']) : ($top && stripos($top->slug . ' ' . $top->name, 'game') !== false);
 		$name = $name !== '' ? $name : $title;
+		$short = self::short_name($name);
 		return [
 			'name'         => $name,
-			'short'        => self::short_name($name),
+			'short'        => $short,
+			'show'         => $apk && self::settings()['match'] ? $short : $name, // in the title, the article and the icon
 			// No MOD written by you: the one found for the app, else Settings' for games or apps (see write_now()).
 			'mod'          => $mod !== '' && $auto === '' || !$apk ? $mod : self::default_mod($game),
 			'mod_saved'    => $mod !== '' && $auto === '',
 			'mod_auto'     => $auto, // the MOD Write with AI put in before, to be replaced by a better one
 			'apk'          => $apk,
 			'game'         => $game,
-			'category'     => $top ? $top->name : '',
+			'category'     => $top ? self::plain($top->name) : '',
 			'category_url' => $top ? get_category_link($top) : '',
 			'developer'    => $developer !== '' ? $developer : ($on_play ? $play['developer'] : ''),
 			'play_url'     => $package !== '' ? 'https://play.google.com/store/apps/details?id=' . $package : '',
 			'on_play'      => $on_play,
 			'play'         => $play,
 		];
+	}
+
+	/**
+	 * Puts right what 2.26.0–2.26.1 wrote, once, 200 posts per admin page:
+	 * "&amp;amp;" in articles (a name the importer stored as "&amp;", escaped
+	 * again); the old file's version in the download row and App Version of
+	 * posts whose folder waits for its file, while the title has Google Play's
+	 * latest; and one name everywhere (see match_post()).
+	 */
+	public static function migrate() {
+		if (get_option(self::DB) === '2.26.2' || get_transient('y4apk_writer_migrating')) {
+			return;
+		}
+		set_transient('y4apk_writer_migrating', 1, 5 * MINUTE_IN_SECONDS);
+		global $wpdb;
+		$at = get_option(self::DB . '_at', false);
+		if ($at === false) {
+			$ids = $wpdb->get_col($wpdb->prepare(
+				"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.post_content LIKE %s",
+				self::DONE, '%' . $wpdb->esc_like('&amp;amp;') . '%'
+			));
+			foreach ($ids as $id) {
+				self::set_content((int) $id, str_replace('&amp;amp;', '&amp;', get_post_field('post_content', $id, 'raw')));
+			}
+			$waiting = $wpdb->get_results($wpdb->prepare("SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value <> ''", Y4APK_App_Updates::NO_FILE));
+			foreach ($waiting as $w) {
+				$id = (int) $w->post_id;
+				$latest = Y4APK_App_Updates::number(get_post_meta($id, Y4APK_App_Updates::LATEST, true));
+				list($i, $main) = Y4APK_App_Updates::download($id);
+				$links = get_post_meta($id, 'repeatable_download_link', true);
+				if ($latest === '' || !$main || !is_array($links) || !isset($links[$i]) || html_entity_decode((string) $main['download_url']) !== $w->meta_value) {
+					continue;
+				}
+				$v = self::version_text($latest, isset($main['download_name']) ? $main['download_name'] : '');
+				if ((string) $links[$i]['download_version'] !== $v) {
+					$links[$i]['download_version'] = $v;
+					update_post_meta($id, 'repeatable_download_link', $links);
+				}
+				if ((string) get_post_meta($id, 'wp_version_GP', true) !== $latest) {
+					update_post_meta($id, 'wp_version_GP', $latest);
+				}
+			}
+			$at = 0;
+		}
+		$ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
+			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key IN (%s, %s) AND post_id > %d ORDER BY post_id LIMIT 200", self::DONE, self::BACKUP, (int) $at
+		)));
+		foreach ($ids as $id) {
+			self::match_post($id);
+			$at = $id;
+		}
+		if (count($ids) < 200) {
+			update_option(self::DB, '2.26.2', false);
+			delete_option(self::DB . '_at');
+		} else {
+			update_option(self::DB . '_at', $at, false); // the rest on the next admin page
+		}
+		delete_transient('y4apk_writer_migrating');
+	}
+
+	/** Saves a post's text as it is (no filters), Undo still knowing it. */
+	private static function set_content($id, $new) {
+		global $wpdb;
+		$old = get_post_field('post_content', $id, 'raw');
+		if ($new === $old) {
+			return;
+		}
+		$wpdb->update($wpdb->posts, ['post_content' => $new], ['ID' => $id]);
+		clean_post_cache($id);
+		$b = get_post_meta($id, self::BACKUP, true);
+		if (isset($b['content']['after']) && $b['content']['after'] === $old) {
+			$b['content']['after'] = $new;
+			update_post_meta($id, self::BACKUP, wp_slash($b));
+		}
+	}
+
+	/**
+	 * A post written by 2.26.0–2.26.1 with one name everywhere, as now: the
+	 * title is Google's title ("Mint MOD APK v6.0.3 (Premium Unlocked) Download",
+	 * where both were written here), the article's bold name, closing heading
+	 * and icon say "Mint", and Rank Math gets its description.
+	 */
+	private static function match_post($id) {
+		global $wpdb;
+		if (!self::settings()['match']) {
+			return;
+		}
+		$name = self::plain(get_post_meta($id, 'wp_title_GP', true));
+		if ($name === '') {
+			return;
+		}
+		$short = self::short_name($name);
+		if ($short !== $name && get_post_meta($id, self::DONE, true)) {
+			$c = get_post_field('post_content', $id, 'raw');
+			$full = preg_quote(self::text($name), '~');
+			$c = preg_replace('~(<strong>(?:<a [^>]*>)?)' . $full . '((?:</a>)? MOD APK)~u', '${1}' . self::text($short) . '$2', $c, 1);
+			$c = preg_replace('~(<h2 class="wp-block-heading">)' . $full . '( MOD APK)~u', '${1}' . self::text($short) . '$2', $c, 1);
+			self::set_content($id, $c);
+			$thumb = (int) get_post_thumbnail_id($id);
+			if ($thumb && get_post_meta($id, self::ICON, true)) {
+				self::icon_text($thumb, ['show' => $short, 'mod' => self::mod($id)]);
+			}
+		}
+		$b = get_post_meta($id, self::BACKUP, true);
+		$title = (string) get_post_field('post_title', $id, 'raw');
+		$seo = (string) get_post_meta($id, 'rank_math_title', true);
+		if (isset($b['title']['after']) && $b['title']['after'] === $title && $seo !== '' && $seo === (string) get_post_meta($id, self::SEO_AUTO, true)) {
+			$stored = trim(wp_strip_all_tags((string) get_post_meta($id, 'wp_title_GP', true))); // 2.26.0 wrote "&amp;" as it was stored
+			foreach (array_unique([$name, $stored]) as $long) {
+				if ($short !== $long && strpos($seo, $long . ' ') === 0) {
+					$seo = $short . substr($seo, strlen($long));
+					break;
+				}
+			}
+			if ($seo !== (string) get_post_meta($id, 'rank_math_title', true)) {
+				update_post_meta($id, 'rank_math_title', wp_slash($seo));
+				update_post_meta($id, self::SEO_AUTO, wp_slash($seo));
+			}
+			if ($title !== $seo) {
+				$wpdb->update($wpdb->posts, ['post_title' => $seo], ['ID' => $id]);
+				clean_post_cache($id);
+				$b['title']['after'] = $seo;
+				update_post_meta($id, self::BACKUP, wp_slash($b));
+			}
+		}
+		if (get_post_meta($id, self::DONE, true) && Y4APK_App_Updates::package_from(get_post_meta($id, 'wp_GP_ID', true)) !== '') {
+			self::update_description($id);
+		}
+	}
+
+	/** Text as it reads: no tags, "&amp;" → "&". */
+	public static function plain($s) {
+		return trim(html_entity_decode(wp_strip_all_tags((string) $s), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 	}
 
 	/** Settings' MOD for when none is found: games "Unlimited Money", apps "Premium Unlocked". */
@@ -747,7 +887,7 @@ class Y4APK_Writer {
 		}
 		$system = 'You write short articles for an Android games and apps website. Reply with the article only, as plain text: '
 			. 'two paragraphs separated by one blank line. No title, no headings, no lists, no markdown, no emojis, no links. '
-			. 'Begin the first paragraph with the exact words "' . $ctx['name'] . ' is".'
+			. 'Begin the first paragraph with the exact words "' . $ctx['show'] . ' is".'
 			. ($o['link_self'] && $ctx['short'] !== '' ? ' Mention ' . $ctx['short'] . ' once more in the second paragraph.' : '');
 		if ($ask_mod) {
 			$system .= ' After the article, add one more line: "MOD: " followed by the MOD feature that MOD APK download sites list for this '
@@ -834,7 +974,7 @@ class Y4APK_Writer {
 		}
 		$paras = array_slice($paras, 0, 6);
 
-		$name = self::text($ctx['name']);
+		$name = self::text($ctx['show']);
 		if ($o['link_name'] && $ctx['play_url'] !== '') {
 			$name = '<a href="' . esc_url($ctx['play_url']) . '">' . $name . '</a>';
 		}
@@ -845,10 +985,17 @@ class Y4APK_Writer {
 		foreach ($paras as $i => $p) {
 			$words += count(preg_split('/\s+/u', $p, -1, PREG_SPLIT_NO_EMPTY));
 			$html = self::text($p);
-			$n = mb_strlen($ctx['name']);
-			if ($i === 0 && mb_strtolower(mb_substr($p, 0, $n)) === mb_strtolower($ctx['name']) && preg_match('/^\s+\S/u', mb_substr($p, $n))) {
+			$lead = 0;
+			foreach ($i === 0 ? array_unique([$ctx['name'], $ctx['show']]) : [] as $start) {
+				$n = mb_strlen($start);
+				if ($n && mb_strtolower(mb_substr($p, 0, $n)) === mb_strtolower($start) && preg_match('/^\s+\S/u', mb_substr($p, $n))) {
+					$lead = $n;
+					break;
+				}
+			}
+			if ($lead) {
 				// "OTR 2 is an open-world …" → "<strong>OTR 2 MOD APK [Unlimited Money]</strong> – is an open-world …"
-				$rest = self::text(ltrim(mb_substr($p, $n)));
+				$rest = self::text(ltrim(mb_substr($p, $lead)));
 				$html = $ctx['apk'] ? '<strong>' . $name . ' ' . self::text(self::label($ctx)) . '</strong> – ' . $rest : '<strong>' . $name . '</strong> ' . $rest;
 			} elseif ($i > 0) {
 				// The post's own address on its name ("ActionDirector"), else on a word of the last paragraph.
@@ -874,7 +1021,7 @@ class Y4APK_Writer {
 			if ($ctx['mod'] === '') {
 				$h = preg_replace('/\s*[(\[]\s*\{mod\}\s*[)\]]/', '', $h);
 			}
-			$h = trim(preg_replace('/\s+/u', ' ', self::fill($h, $ctx)));
+			$h = trim(preg_replace('/\s+/u', ' ', self::fill($h, ['name' => $ctx['show']] + $ctx)));
 			$blocks[] = "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">" . self::text($h) . "</h2>\n<!-- /wp:heading -->";
 		}
 		return ['html' => implode("\n\n", $blocks), 'words' => $words];
@@ -992,6 +1139,9 @@ class Y4APK_Writer {
 				return self::result(false, $saved->get_error_message());
 			}
 			array_unshift($done, sprintf(_n('%s word', '%s words', $article['words'], 'y4apk'), number_format_i18n($article['words'])));
+			if ($ctx['apk'] && ($d = self::update_description($post_id)) !== '') {
+				$done[] = $d;
+			}
 		}
 		if ($parts & self::CATEGORY) {
 			$done[] = $ctx['on_play'] ? self::update_category($post_id, $ctx) : __('category left as it is (no Google Play app)', 'y4apk');
@@ -1027,6 +1177,16 @@ class Y4APK_Writer {
 	}
 
 	/** The app's icon from Google Play as the featured image: the attachment ID, 0 when it already is, or a WP_Error. */
+	/** The icon's title "Mint MOD", and "Mint MOD APK (Premium Unlocked)" as alt text (Rank Math looks for the focus keyword there), caption and description. */
+	private static function icon_text($att, $ctx) {
+		$alt = $ctx['show'] . ' MOD APK' . ($ctx['mod'] !== '' ? ' (' . $ctx['mod'] . ')' : '');
+		if (get_post_meta($att, '_wp_attachment_image_alt', true) === $alt && get_post_field('post_title', $att, 'raw') === $ctx['show'] . ' MOD') {
+			return;
+		}
+		wp_update_post(['ID' => $att, 'post_title' => wp_slash($ctx['show'] . ' MOD'), 'post_excerpt' => wp_slash($alt), 'post_content' => wp_slash($alt)]);
+		update_post_meta($att, '_wp_attachment_image_alt', wp_slash($alt));
+	}
+
 	private static function update_icon($post_id, $ctx) {
 		$src = isset($ctx['play']['icon']) ? $ctx['play']['icon'] : '';
 		if ($src === '') {
@@ -1034,6 +1194,7 @@ class Y4APK_Writer {
 		}
 		$thumb = (int) get_post_thumbnail_id($post_id);
 		if ($thumb && $src === get_post_meta($post_id, self::ICON, true)) {
+			self::icon_text($thumb, $ctx); // the same icon: its words follow the name and MOD
 			return 0;
 		}
 		$r = wp_remote_get($src . '=s512-rw', ['timeout' => 25, 'user-agent' => Y4APK_App_Updates::UA]);
@@ -1046,24 +1207,17 @@ class Y4APK_Writer {
 		if (!$size || !isset($types[$size['mime']])) {
 			return new WP_Error('icon', __('not an image', 'y4apk'));
 		}
-		$alt = $ctx['name'] . ' MOD APK' . ($ctx['mod'] !== '' ? ' (' . $ctx['mod'] . ')' : '');
-		$file = wp_upload_bits(sanitize_file_name($ctx['name'] . '-MOD.' . $types[$size['mime']]), null, $body);
+		$file = wp_upload_bits(sanitize_file_name($ctx['show'] . '-MOD.' . $types[$size['mime']]), null, $body);
 		if (!empty($file['error'])) {
 			return new WP_Error('icon', $file['error']);
 		}
-		$att = wp_insert_attachment(wp_slash([
-			'post_mime_type' => $size['mime'],
-			'post_title'     => $ctx['name'] . ' MOD',
-			'post_excerpt'   => $alt, // caption
-			'post_content'   => $alt, // description
-			'post_status'    => 'inherit',
-		]), $file['file'], $post_id, true);
+		$att = wp_insert_attachment(['post_mime_type' => $size['mime'], 'post_title' => 'icon', 'post_status' => 'inherit'], $file['file'], $post_id, true);
 		if (is_wp_error($att)) {
 			return $att;
 		}
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		wp_update_attachment_metadata($att, wp_generate_attachment_metadata($att, $file['file']));
-		update_post_meta($att, '_wp_attachment_image_alt', wp_slash($alt));
+		self::icon_text($att, $ctx);
 		set_post_thumbnail($post_id, $att);
 		self::remember($post_id, 'thumb', $thumb, $att);
 		update_post_meta($post_id, self::ICON, $src);
@@ -1155,6 +1309,41 @@ class Y4APK_Writer {
 		return $ctx['apk'] ? sanitize_title($ctx['short'] . ' MOD') : sanitize_title($ctx['short']);
 	}
 
+	/** "Mint MOD APK (Premium Unlocked) is a comprehensive …", at most 160 characters: the article's first paragraph, as Google shows a description. */
+	public static function description_from($html) {
+		if (!preg_match('~<p>(.*?)</p>~s', (string) $html, $m)) {
+			return '';
+		}
+		$t = trim(preg_replace('/\s+/u', ' ', self::plain($m[1])));
+		$t = preg_replace('/^(.+? MOD APK) \[([^\]]+)\] – /u', '$1 ($2) ', $t, 1, $hits);
+		if (!$hits) {
+			$t = preg_replace('/^(.+? MOD APK) – /u', '$1 ', $t, 1);
+		}
+		if (mb_strlen($t) > 160) {
+			$t = preg_replace('/[\s,;:–-]+\S*$/u', '', mb_substr($t, 0, 159)) . '…';
+		}
+		return $t;
+	}
+
+	/** Rank Math's SEO description from the article, where it has none (or one written here): '' or what was done. */
+	private static function update_description($post_id) {
+		if (!self::settings()['seo_on']) {
+			return '';
+		}
+		$now = (string) get_post_meta($post_id, 'rank_math_description', true);
+		if ($now !== '' && $now !== (string) get_post_meta($post_id, self::DESC_AUTO, true)) {
+			return ''; // yours
+		}
+		$d = self::description_from(get_post_field('post_content', $post_id, 'raw'));
+		if ($d === '' || $d === $now) {
+			return '';
+		}
+		update_post_meta($post_id, 'rank_math_description', wp_slash($d));
+		update_post_meta($post_id, self::DESC_AUTO, wp_slash($d));
+		self::remember($post_id, 'desc', $now, $d);
+		return __('SEO description', 'y4apk');
+	}
+
 	/** The meta Post details may change, for Undo. */
 	private static function details_meta($post_id) {
 		$keys = ['wp_mods', 'price', 'wp_title_GP', 'wp_version_GP', 'rank_math_focus_keyword', 'rank_math_title', 'rank_math_facebook_title', 'rank_math_twitter_title',
@@ -1216,7 +1405,9 @@ class Y4APK_Writer {
 		$links = is_array($links) ? $links : [];
 		$links_before = $links;
 		list($i, $main) = Y4APK_App_Updates::download($post_id);
-		$has_file = $main && !in_array(trim(html_entity_decode((string) (isset($main['download_url']) ? $main['download_url'] : ''))), ['', '#'], true);
+		$url = $main ? trim(html_entity_decode((string) (isset($main['download_url']) ? $main['download_url'] : ''))) : '';
+		$waiting = $url !== '' && $url === (string) get_post_meta($post_id, Y4APK_App_Updates::NO_FILE, true); // a folder made here, still without its file
+		$has_file = $main && !in_array($url, ['', '#'], true) && !$waiting;
 		if ($ctx['apk']) {
 			if ($main === null) {
 				$i = $links ? max(array_keys($links)) + 1 : 0;
@@ -1233,9 +1424,11 @@ class Y4APK_Writer {
 			if (!$has_file) {
 				$row = &$links[$i];
 				$row['download_name'] = !empty($row['download_name']) ? $row['download_name'] : 'MOD';
-				if (empty($row['download_version'])) {
-					$v = (string) get_post_meta($post_id, 'wp_version_GP', true);
-					$row['download_version'] = self::version_text($v !== '' ? $v : $latest, $row['download_name']);
+				// The file to come is Google Play's latest: its version, as in the title (not the old file's).
+				if ($latest !== '') {
+					$row['download_version'] = self::version_text($latest, $row['download_name']);
+				} elseif (empty($row['download_version'])) {
+					$row['download_version'] = self::version_text((string) get_post_meta($post_id, 'wp_version_GP', true), $row['download_name']);
 				}
 				if (empty($row['download_mod_info']) && $mod !== '') {
 					$row['download_mod_info'] = $mod;
@@ -1244,7 +1437,7 @@ class Y4APK_Writer {
 					$size = (string) get_post_meta($post_id, 'wp_sizes_GP', true);
 					$row['download_size'] = $size !== '' ? $size : '—'; // the Download Links box keeps a row's link only with a size
 				}
-				if (class_exists('Y4APK_R2')) {
+				if (!$waiting && class_exists('Y4APK_R2')) {
 					$made = Y4APK_R2::make_folder($post_id, strtoupper($row['download_name']) === 'OBB' ? 'OBB' : 'MOD', self::file_ext($row['download_name']));
 					if (is_wp_error($made)) {
 						$done[] = sprintf(__('no download folder (%s)', 'y4apk'), $made->get_error_message());
@@ -1260,24 +1453,28 @@ class Y4APK_Writer {
 				update_post_meta($post_id, 'repeatable_download_link', $links);
 				self::remember($post_id, 'links', $links_before, get_post_meta($post_id, 'repeatable_download_link', true));
 			}
-			if (trim((string) get_post_meta($post_id, 'wp_version_GP', true)) === '') {
+			// App Version (the page's Version box): the latest too while the file is to come.
+			$n = !$has_file && $latest !== '' ? $latest : '';
+			if ($n === '' && trim((string) get_post_meta($post_id, 'wp_version_GP', true)) === '') {
 				$n = Y4APK_App_Updates::number(Y4APK_App_Updates::current_version($post_id));
-				if ($n !== '') {
-					update_post_meta($post_id, 'wp_version_GP', $n);
-				}
+			}
+			if ($n !== '' && (string) get_post_meta($post_id, 'wp_version_GP', true) !== $n) {
+				update_post_meta($post_id, 'wp_version_GP', $n);
 			}
 		}
 
-		// The title: Settings ▸ Title when it has no "(MOD)" yet or is the one written here before (with the
-		// short name when the full one makes it long); else the MOD found and, with no file yet, the latest version.
+		// The title: Settings ▸ Title when it has no "(MOD)" yet or is the one written here before; else the
+		// MOD found and, with no file yet, the latest version.
 		$title = get_post_field('post_title', $post_id, 'raw');
 		$b = get_post_meta($post_id, self::BACKUP, true);
 		$ours = is_array($b) && isset($b['title']['after']) && $b['title']['after'] === $title;
 		$version = !$has_file && $latest !== '' ? $latest : Y4APK_App_Updates::number(Y4APK_App_Updates::current_version($post_id));
-		$names = [$name, $ctx['short']];
+		// One name everywhere ("Mint", as in the permalink and the focus keyword), else the full one when it fits.
+		$names = $o['match'] ? [$ctx['short']] : [$name, $ctx['short']];
 		$new = $title;
 		if ($ctx['apk'] && (strpos($title, '(') === false || $ours)) {
-			$new = self::fit_title($o['title'], $names, $version, $mod);
+			$new = $o['match'] ? self::fit_title($o['seo_title'], $names, $version, $mod) // the same as Google's title
+				: self::title_for($o['title'], $name, $version, $mod);
 		} elseif ($ctx['apk']) {
 			if ($old_mod !== '') {
 				$new = str_replace(['(' . $old_mod . ')', '[' . $old_mod . ']'], ['(' . $mod . ')', '[' . $mod . ']'], $new);
@@ -1449,6 +1646,16 @@ class Y4APK_Writer {
 				$back[] = __('title', 'y4apk');
 			} else {
 				$kept[] = __('title', 'y4apk');
+			}
+		}
+		if (isset($b['desc'])) {
+			if ((string) get_post_meta($post_id, 'rank_math_description', true) === (string) $b['desc']['after']) {
+				foreach (['rank_math_description', self::DESC_AUTO] as $key) {
+					$b['desc']['before'] === '' ? delete_post_meta($post_id, $key) : update_post_meta($post_id, $key, wp_slash($b['desc']['before']));
+				}
+				$back[] = __('SEO description', 'y4apk');
+			} else {
+				$kept[] = __('SEO description', 'y4apk');
 			}
 		}
 		if (isset($b['slug'])) {
@@ -2435,11 +2642,12 @@ class Y4APK_Writer {
 						<h2 style="margin-top:16px"><?php esc_html_e('Post details', 'y4apk'); ?></h2>
 						<label class="au-label" for="aw-title"><?php esc_html_e('Title (for titles with no “(MOD)” yet, or written here before)', 'y4apk'); ?></label>
 						<input type="text" id="aw-title" name="title" value="<?php echo esc_attr($o['title']); ?>">
-						<p class="description"><?php esc_html_e('{name} (the short name when the full one makes it longer than 60 characters) · {version}: Google Play’s latest while the post has no file, else the file’s · {mod}', 'y4apk'); ?></p>
+						<p class="description"><?php esc_html_e('{name} · {version}: Google Play’s latest while the post has no file, else the file’s · {mod}. Used when “One name everywhere” below is off.', 'y4apk'); ?></p>
 						<label class="au-label" for="aw-seo-title"><?php esc_html_e('Rank Math SEO title (what Google shows)', 'y4apk'); ?></label>
 						<input type="text" id="aw-seo-title" name="seo_title" value="<?php echo esc_attr($o['seo_title']); ?>">
 						<label><input type="checkbox" name="seo_on" value="1" <?php checked($o['seo_on']); ?>> <?php echo esc_html(sprintf(__('Write it, at most %d characters: a long name is shortened (“ActionDirector - Video Editing” → “ActionDirector”), then “Download” left out', 'y4apk'), self::SEO_MAX)); ?></label>
 						<p class="description"><?php esc_html_e('Only where Rank Math has the default title (%title% …) or one written here; one you typed stays.', 'y4apk'); ?></p>
+						<label><input type="checkbox" name="match" value="1" <?php checked($o['match']); ?>> <?php esc_html_e('One name everywhere: the post title is this SEO title (“Mint MOD APK v6.0.3 (Premium Unlocked) Download”), and the article, its heading and the icon’s alt text say “Mint” too — as the permalink and the focus keyword, so Rank Math finds it everywhere', 'y4apk'); ?></label>
 						<label><input type="checkbox" name="slug_on" value="1" <?php checked($o['slug_on']); ?>> <?php esc_html_e('Permalink from the short name: /actiondirector-mod/ (Rank Math’s focus keyword “ActionDirector MOD”; the old address redirects to it)', 'y4apk'); ?></label>
 						<h2 style="margin-top:16px"><?php esc_html_e('MOD', 'y4apk'); ?></h2>
 						<label><input type="checkbox" name="mod_lookup" value="1" <?php checked($o['mod_lookup']); ?>> <?php esc_html_e('Find the MOD that MOD APK sites list for each app (“Premium Unlocked”, “Unlimited Money”, “Menu, God Mode” …), with the article, in the same request', 'y4apk'); ?></label>
