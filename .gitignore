@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# foss-mirror tool (tools/foss-mirror)
+tools/foss-mirror/config.ini
+tools/foss-mirror/work/
+tools/foss-mirror/.venv/
+__pycache__/
+.pytest_cache/

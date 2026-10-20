@@ -1,0 +1,79 @@
+# Mirror open-source (FOSS) APKs from F-Droid to Cloudflare R2.
+# Manual only: GitHub > Actions > "FOSS mirror (F-Droid -> R2)" > Run workflow.
+name: FOSS mirror (F-Droid -> R2)
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max apps to process in this run"
+        type: number
+        default: 20
+      dry_run:
+        description: "Dry run (only show what would be uploaded)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foss-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav
+          sudo systemctl stop clamav-freshclam || true
+          # virus definitions; retry once (the ClamAV CDN sometimes rate-limits)
+          sudo freshclam || (sleep 60 && sudo freshclam)
+          clamscan --version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/foss-mirror/requirements.txt
+
+      - name: Install Python packages
+        run: pip install -r tools/foss-mirror/requirements.txt
+
+      - name: Run foss-mirror
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+          LIMIT: ${{ inputs.limit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if ! [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::limit must be a whole number of 1 or more (got '$LIMIT')"
+            exit 2
+          fi
+          args=(run --limit "$LIMIT" --workers 2)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ -n "$VT_API_KEY" ]; then args+=(--scan clamav+virustotal); else args+=(--scan clamav); fi
+          python tools/foss-mirror/foss_mirror.py "${args[@]}"
+
+      - name: Upload log and catalog
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foss-mirror-${{ github.run_number }}
+          path: |
+            tools/foss-mirror/work/logs/
+            tools/foss-mirror/work/catalog.json
+            tools/foss-mirror/work/catalog.csv
+          if-no-files-found: ignore
+          retention-days: 14

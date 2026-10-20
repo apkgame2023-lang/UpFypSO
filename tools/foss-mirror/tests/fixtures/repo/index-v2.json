@@ -1,0 +1,550 @@
+{
+ "repo": {
+  "name": {
+   "en-US": "Synthetic test repo"
+  },
+  "address": "https://repo.example.invalid/fdroid/repo",
+  "timestamp": 1700000000000,
+  "mirrors": [
+   {
+    "isPrimary": true,
+    "url": "https://repo.example.invalid/fdroid/repo"
+   },
+   {
+    "url": "http://abcdefabcdef.onion/fdroid/repo"
+   },
+   {
+    "url": "http://plain-http.example.invalid/fdroid/repo"
+   },
+   {
+    "url": "https://mirror.example.invalid/fdroid/repo"
+   }
+  ],
+  "antiFeatures": {},
+  "categories": {}
+ },
+ "packages": {
+  "org.example.notes": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Writing"
+    ],
+    "name": {
+     "en-US": "Notes"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "GPL-3.0-only",
+    "authorName": "Alice"
+   },
+   "versions": {
+    "8f3c6232e2ea329f3e5a7320fb8f4c5856cb88bf0dfebcbd7cd256ba307abf0e": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.notes_3.apk",
+      "sha256": "8f3c6232e2ea329f3e5a7320fb8f4c5856cb88bf0dfebcbd7cd256ba307abf0e",
+      "size": 17
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 3,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     },
+     "src": {
+      "name": "/org.example.notes_3_src.tar.gz",
+      "sha256": "52efa0ffab861961b033bbfef7794e39fd2f467885f2bef2bf24592516b50d45",
+      "size": 46
+     }
+    },
+    "b69ce1a8b54bb3a1a22b36ce30b793e953fa6737f9076f826ffb7e99b47b0928": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.notes_4.apk",
+      "sha256": "b69ce1a8b54bb3a1a22b36ce30b793e953fa6737f9076f826ffb7e99b47b0928",
+      "size": 22
+     },
+     "manifest": {
+      "versionName": "1.1-beta",
+      "versionCode": 4,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     },
+     "releaseChannels": [
+      "Beta"
+     ]
+    }
+   }
+  },
+  "org.example.notes2": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Writing"
+    ],
+    "name": {
+     "en-US": "Notes"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "Apache-2.0"
+   },
+   "versions": {
+    "e174693198cdff39d2a9bf03bf6ee88f68133dedf885dc00d6613aa2c1e7bc86": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.notes2_1.apk",
+      "sha256": "e174693198cdff39d2a9bf03bf6ee88f68133dedf885dc00d6613aa2c1e7bc86",
+      "size": 18
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.game": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Games"
+    ],
+    "name": {
+     "de": "Superspiel",
+     "en": "Super Game"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "GPL-3.0-only OR Apache-2.0"
+   },
+   "versions": {
+    "289f18b47e9c8411e973c335fbb723171a6012982eee2aedf403c03b72a79874": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.game_10_arm64.apk",
+      "sha256": "289f18b47e9c8411e973c335fbb723171a6012982eee2aedf403c03b72a79874",
+      "size": 20
+     },
+     "manifest": {
+      "nativecode": [
+       "arm64-v8a"
+      ],
+      "versionName": "2.0",
+      "versionCode": 10,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    },
+    "71a057b77ab44172bfe7c087eeaf9c128d42ee639448df3a89ab132e1cb5a5dc": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.game_10_v7.apk",
+      "sha256": "71a057b77ab44172bfe7c087eeaf9c128d42ee639448df3a89ab132e1cb5a5dc",
+      "size": 17
+     },
+     "manifest": {
+      "nativecode": [
+       "armeabi-v7a"
+      ],
+      "versionName": "2.0",
+      "versionCode": 10,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    },
+    "786198bbe57018a298a923ce1ca8849fb27a669905db6006f974b000ce807c16": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.game_10.apk",
+      "sha256": "786198bbe57018a298a923ce1ca8849fb27a669905db6006f974b000ce807c16",
+      "size": 24
+     },
+     "manifest": {
+      "versionName": "2.0",
+      "versionCode": 10,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.thai": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Reading"
+    ],
+    "name": {
+     "th": "แอปไทย"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "MIT"
+   },
+   "versions": {
+    "8578bcd3b666be9ce543670f7be833f85b06fc27f6d452769298bfa2395aece3": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.thai_5.apk",
+      "sha256": "8578bcd3b666be9ce543670f7be833f85b06fc27f6d452769298bfa2395aece3",
+      "size": 14
+     },
+     "manifest": {
+      "versionName": "5.0 (ทดสอบ)",
+      "versionCode": 5,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.digits": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Games"
+    ],
+    "name": {
+     "en-US": "2048 Puzzle"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "MIT"
+   },
+   "versions": {
+    "95349d9d8b3de31a8fed7b9295d52e44f97656f24bd83a79db4bed784f57e80e": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.digits_7.apk",
+      "sha256": "95349d9d8b3de31a8fed7b9295d52e44f97656f24bd83a79db4bed784f57e80e",
+      "size": 16
+     },
+     "manifest": {
+      "versionName": "7.0",
+      "versionCode": 7,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.nonet": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Internet"
+    ],
+    "name": {
+     "en-US": "Net App"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "Apache-2.0"
+   },
+   "versions": {
+    "fb0646ee3a8fbd5fd0960afeefd91f92336cf7e67269469e4d17d99a26c8779f": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.nonet_2.apk",
+      "sha256": "fb0646ee3a8fbd5fd0960afeefd91f92336cf7e67269469e4d17d99a26c8779f",
+      "size": 15
+     },
+     "manifest": {
+      "versionName": "0.2",
+      "versionCode": 2,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     },
+     "antiFeatures": {
+      "NonFreeNet": {
+       "en-US": "Uses a non-free service"
+      }
+     }
+    }
+   }
+  },
+  "org.example.tracker": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "Internet"
+    ],
+    "name": {
+     "en-US": "Tracky"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "MIT"
+   },
+   "versions": {
+    "e169561958d3dec101c1f5f2e6c96a855b50826f87fe1025b895531fb287b34b": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.tracker_1.apk",
+      "sha256": "e169561958d3dec101c1f5f2e6c96a855b50826f87fe1025b895531fb287b34b",
+      "size": 17
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     },
+     "antiFeatures": {
+      "Tracking": {}
+     }
+    }
+   }
+  },
+  "org.example.proprietary": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "System"
+    ],
+    "name": {
+     "en-US": "Closed Bits"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "MIT AND Proprietary"
+   },
+   "versions": {
+    "ee0f203e1110959c9774400d968cc83b653cdeab3c98a05975e5d468f58f2ee5": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.proprietary_1.apk",
+      "sha256": "ee0f203e1110959c9774400d968cc83b653cdeab3c98a05975e5d468f58f2ee5",
+      "size": 21
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.nolicense": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "System"
+    ],
+    "name": {
+     "en-US": "No Licence"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org"
+   },
+   "versions": {
+    "0616bd13c1d80c6572c13d47516695dc7f8a1391533ac9837db37322bb22fe2d": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.nolicense_1.apk",
+      "sha256": "0616bd13c1d80c6572c13d47516695dc7f8a1391533ac9837db37322bb22fe2d",
+      "size": 19
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.badhash": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "System"
+    ],
+    "name": {
+     "en-US": "Bad Hash"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "GPL-2.0-or-later"
+   },
+   "versions": {
+    "0000000000000000000000000000000000000000000000000000000000000000": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.badhash_1.apk",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 17
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.virus": {
+   "metadata": {
+    "added": 1700000000000,
+    "lastUpdated": 1700000000000,
+    "categories": [
+     "System"
+    ],
+    "name": {
+     "en-US": "Virus Test"
+    },
+    "summary": {
+     "en-US": "Test app"
+    },
+    "description": {
+     "en-US": "Test app."
+    },
+    "sourceCode": "https://example.org/src",
+    "webSite": "https://example.org",
+    "license": "GPL-3.0-or-later"
+   },
+   "versions": {
+    "db999a65628836a4c695327e2ea0e00af55b31611acf49cf98079105d40f42d5": {
+     "added": 1700000000000,
+     "file": {
+      "name": "/org.example.virus_1.apk",
+      "sha256": "db999a65628836a4c695327e2ea0e00af55b31611acf49cf98079105d40f42d5",
+      "size": 30
+     },
+     "manifest": {
+      "versionName": "1.0",
+      "versionCode": 1,
+      "usesSdk": {
+       "minSdkVersion": 21,
+       "targetSdkVersion": 34
+      }
+     }
+    }
+   }
+  },
+  "org.example.otazip": {
+   "metadata": {
+    "license": "Apache-2.0",
+    "name": {
+     "en-US": "OTA zip"
+    }
+   },
+   "versions": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+     "added": 1,
+     "file": {
+      "name": "/org.example.otazip.zip",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 5
+     },
+     "manifest": {
+      "versionCode": 1,
+      "versionName": "1"
+     }
+    }
+   }
+  }
+ }
+}
