@@ -331,7 +331,7 @@ download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
 
-## Write with AI (2.23–2.28)
+## Write with AI (2.23–2.29)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen
 in Settings, each with its own key (or a `wp-config.php` constant):
@@ -392,6 +392,22 @@ How each is asked:
   refusal` is reported as declined and the post leaves the queue.
 - Called with `wp_remote_request()`, as WordPress code does: the theme runs on
   PHP 7.4 hosting with no Composer, so no SDK is bundled.
+
+**One AI at its limit, the next one goes on** (2.29). Each AI waits on its
+own (`y4apk_writer_wait_<ai>`): when Gemini's day is used up, Gemini is not
+asked for an hour and the post is written by the next AI with a key — the
+chosen one first, then the other free ones (Gemini, Groq), then, only with
+*… and then the paid ones*, ChatGPT and Claude — and the chosen one is asked
+again as soon as its wait is over. The result says so ("by Groq (Gemini is at
+its limit)"), the post remembers which AI wrote it, the header shows who
+writes now, and Settings shows the turn ("Gemini (at its limit, back in 30
+minutes) → Groq"). A stand-in that refuses its key or has no credit is
+skipped for the day; the chosen AI's own key trouble still pauses the queue.
+The queue waits only when every AI in turn does (the soonest wait). *Run a
+round now*, *Resume* and a new key saved ask them again at once. Before 2.29
+the wait was the queue's, for every AI: with Gemini's day used up nothing was
+written, even with a Groq key (or Groq chosen); the update turns such a wait
+into Gemini's own.
 
 **Limits.** A 429 or a 5xx (Claude's 529 *overloaded* included) is the AI's
 limit or load, not the post's doing: the post keeps its place in the queue and

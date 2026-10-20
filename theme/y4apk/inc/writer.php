@@ -124,6 +124,8 @@ class Y4APK_Writer {
 			'slug_on'      => 1,
 			'match'        => 1, // the post title is Google's title; the article and icon use the same (short) name
 			'link_self'    => 1,
+			'fallback'     => 1, // an AI at its limit: go on with the next one that has a key (free ones)
+			'fallback_paid' => 0, // … and the paid ones too
 			'facts'        => 1,
 			'link_name'    => 1,
 			'link_type'    => 1,
@@ -192,6 +194,8 @@ class Y4APK_Writer {
 			'slug_on'      => empty($in['slug_on']) ? 0 : 1,
 			'match'        => empty($in['match']) ? 0 : 1,
 			'link_self'    => empty($in['link_self']) ? 0 : 1,
+			'fallback'     => empty($in['fallback']) ? 0 : 1,
+			'fallback_paid' => empty($in['fallback_paid']) ? 0 : 1,
 			'facts'        => empty($in['facts']) ? 0 : 1,
 			'link_name'    => empty($in['link_name']) ? 0 : 1,
 			'link_type'    => empty($in['link_type']) ? 0 : 1,
@@ -205,6 +209,7 @@ class Y4APK_Writer {
 			$o['keys'][$p] = !empty($in['forget'][$p]) ? '' : ($new !== '' ? $new : $old); // left empty: keep the saved one
 			if ($new !== '' || !empty($in['forget'][$p])) {
 				delete_transient('y4apk_writer_models_' . $p);
+				delete_transient(self::WAIT . '_' . $p); // a new key (one with billing, say): asked again at once
 			}
 			$model = isset($in['models'][$p]) ? preg_replace('/[^A-Za-z0-9._:\/\-]/', '', (string) $in['models'][$p]) : '';
 			$o['models'][$p] = $model !== '' ? $model : $now['models'][$p];
@@ -215,6 +220,7 @@ class Y4APK_Writer {
 			}
 		}
 		self::save_settings($o);
+		delete_transient(self::WAIT); // another AI chosen, or a new key: the queue goes on at once (each AI keeps its own wait)
 		wp_safe_redirect(self::url('settings', ['saved' => 1]));
 		exit;
 	}
@@ -594,9 +600,94 @@ class Y4APK_Writer {
 	}
 
 	/** The queue waits until the AI's limit lets it go on. */
+	/** The queue waits: every AI it may use is at its limit. */
 	private static function wait($seconds, $why) {
 		$seconds = max(20, (int) $seconds);
 		set_transient(self::WAIT, ['until' => time() + $seconds, 'why' => (string) $why], $seconds);
+	}
+
+	/** One AI at its limit (or, after it, refusing its key): not asked until then. */
+	private static function wait_for($provider, $seconds, $why) {
+		$seconds = max(20, (int) $seconds);
+		set_transient(self::WAIT . '_' . $provider, ['until' => time() + $seconds, 'why' => (string) $why], $seconds);
+	}
+
+	/** The queue's wait and every AI's own. */
+	private static function clear_waits() {
+		delete_transient(self::WAIT);
+		foreach (array_keys(self::providers()) as $p) {
+			delete_transient(self::WAIT . '_' . $p);
+		}
+	}
+
+	public static function provider_wait($provider) {
+		$w = get_transient(self::WAIT . '_' . $provider);
+		return is_array($w) && $w['until'] > time() ? $w : null;
+	}
+
+	/** The AIs that write, in turn: the chosen one, then (Settings) the other free ones with a key, then the paid ones. */
+	public static function order() {
+		$o = self::settings();
+		$list = [$o['provider']];
+		if ($o['fallback']) {
+			foreach ([true, false] as $free) {
+				foreach (self::providers() as $p => $info) {
+					if ($p !== $o['provider'] && $o['keys'][$p] !== '' && $info['free'] === $free && ($free || $o['fallback_paid'])) {
+						$list[] = $p;
+					}
+				}
+			}
+		}
+		return $list;
+	}
+
+	/** The AI that writes next ('' when every one is at its limit). */
+	public static function current() {
+		foreach (self::order() as $p) {
+			if (!self::provider_wait($p)) {
+				return $p;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Asks the AIs in turn (order()): one at its limit waits on its own and the
+	 * next one answers, so the queue goes on with Groq while Gemini's day is
+	 * used up. $make($provider) gives [system, user]. [answer, provider, model],
+	 * or a WP_Error — 'busy' (wait: the soonest) only when every one waits.
+	 */
+	private static function ask($make, $max = 4000, $search = false) {
+		$chosen = self::settings()['provider'];
+		$why = [];
+		foreach (self::order() as $p) {
+			if ($w = self::provider_wait($p)) {
+				$why[] = self::provider_name($p) . ': ' . $w['why'];
+				continue;
+			}
+			$model = self::model($p);
+			list($system, $user) = $make($p);
+			$answer = self::chat($system, $user, $p, $model, $max, $search);
+			if (!is_wp_error($answer)) {
+				return [$answer, $p, $model];
+			}
+			$code = $answer->get_error_code();
+			if ($code === 'busy') {
+				$data = $answer->get_error_data();
+				self::wait_for($p, isset($data['wait']) ? $data['wait'] : 60, $answer->get_error_message());
+			} elseif ($p !== $chosen && in_array($code, ['key', 'credit', 'model'], true)) {
+				self::wait_for($p, DAY_IN_SECONDS, $answer->get_error_message()); // a stand-in that cannot write: not asked today
+			} else {
+				return $answer; // the chosen AI's key, or this post's own trouble
+			}
+			$why[] = self::provider_name($p) . ': ' . $answer->get_error_message();
+		}
+		$soonest = 0;
+		foreach (self::order() as $p) {
+			$w = self::provider_wait($p);
+			$soonest = $w && (!$soonest || $w['until'] < $soonest) ? $w['until'] : $soonest;
+		}
+		return new WP_Error('busy', implode(' · ', array_unique($why)), ['wait' => max(20, $soonest - time())]);
 	}
 
 	public static function waiting() {
@@ -681,7 +772,17 @@ class Y4APK_Writer {
 	 */
 	public static function migrate() {
 		$from = (string) get_option(self::DB, '');
-		if ($from === '2.26.3' || get_transient('y4apk_writer_migrating')) {
+		if ($from === '2.29.0' || get_transient('y4apk_writer_migrating')) {
+			return;
+		}
+		if ($from === '2.26.3') {
+			// 2.29: the queue's wait was every AI's; now each AI waits on its own and the next one goes on.
+			$w = self::waiting();
+			if ($w) {
+				self::wait_for(self::settings()['provider'], $w['until'] - time(), $w['why']);
+				delete_transient(self::WAIT);
+			}
+			update_option(self::DB, '2.29.0', false);
 			return;
 		}
 		$old = version_compare($from !== '' ? $from : '0', '2.26.2', '<'); // before 2.26.2: all of it; 2.26.2: the versions only
@@ -727,7 +828,7 @@ class Y4APK_Writer {
 			$at = $id;
 		}
 		if (count($ids) < 200) {
-			update_option(self::DB, '2.26.3', false);
+			update_option(self::DB, '2.26.3', false); // the next admin page: 2.29's step
 			delete_option(self::DB . '_at');
 		} else {
 			update_option(self::DB . '_at', $at, false); // the rest on the next admin page
@@ -901,8 +1002,9 @@ class Y4APK_Writer {
 	}
 
 	/** [system message, the message as you would type it in ChatGPT]. */
-	public static function prompt($ctx, $ask_mod = false) {
+	public static function prompt($ctx, $ask_mod = false, $provider = null) {
 		$o = self::settings();
+		$provider = $provider ? $provider : $o['provider'];
 		$user = self::fill($ctx['apk'] ? $o['prompt'] : $o['prompt_other'], $ctx);
 		if ($o['facts'] && $ctx['on_play']) {
 			$p = $ctx['play'];
@@ -921,7 +1023,7 @@ class Y4APK_Writer {
 		if ($ask_mod) {
 			$system .= ' After the article, add one more line: "MOD: " followed by the MOD feature that MOD APK download sites list for this '
 				. ($ctx['game'] ? 'game' : 'app') . ', as they write it in their titles (for example "Premium Unlocked", "Unlimited Money" or "Menu, God Mode")'
-				. (self::searches($o['provider']) ? ', found with a web search' : ', from what you know') . '; write "MOD: unknown" if you cannot tell.';
+				. (self::searches($provider) ? ', found with a web search' : ', from what you know') . '; write "MOD: unknown" if you cannot tell.';
 		}
 		return [$system, $user];
 	}
@@ -950,17 +1052,17 @@ class Y4APK_Writer {
 
 	/** The MOD that MOD APK sites list for the app, asked on its own (when no article is written): '' when not found, or a WP_Error when the AI is busy. */
 	public static function lookup_mod($ctx) {
-		$o = self::settings();
-		$provider = $o['provider'];
-		$user = sprintf('Which MOD feature do MOD APK download sites list for the Android %1$s "%2$s"%3$s%4$s? %5$sReply with only the feature as such sites write it in their titles, for example "Premium Unlocked", "Unlimited Money" or "Menu, God Mode". If you cannot tell, reply "unknown".',
-			$ctx['game'] ? 'game' : 'app', $ctx['name'],
-			$ctx['play_url'] !== '' ? ' (' . preg_replace('~^.*id=~', '', $ctx['play_url']) . ')' : '',
-			$ctx['developer'] !== '' ? ' by ' . $ctx['developer'] : '',
-			self::searches($provider) ? 'Search the web for it. ' : '');
-		$answer = self::chat('You answer with one short label only.', $user, $provider, self::model($provider), 1000, true);
-		if (is_wp_error($answer)) {
-			return $answer->get_error_code() === 'busy' ? $answer : '';
+		$asked = self::ask(function ($provider) use ($ctx) {
+			return ['You answer with one short label only.', sprintf('Which MOD feature do MOD APK download sites list for the Android %1$s "%2$s"%3$s%4$s? %5$sReply with only the feature as such sites write it in their titles, for example "Premium Unlocked", "Unlimited Money" or "Menu, God Mode". If you cannot tell, reply "unknown".',
+				$ctx['game'] ? 'game' : 'app', $ctx['name'],
+				$ctx['play_url'] !== '' ? ' (' . preg_replace('~^.*id=~', '', $ctx['play_url']) . ')' : '',
+				$ctx['developer'] !== '' ? ' by ' . $ctx['developer'] : '',
+				self::searches($provider) ? 'Search the web for it. ' : '')];
+		}, 1000, true);
+		if (is_wp_error($asked)) {
+			return $asked->get_error_code() === 'busy' ? $asked : '';
 		}
+		$answer = $asked[0];
 		list($rest, $mod) = self::take_mod($answer);
 		return $mod !== '' ? $mod : self::clean_mod(strtok(trim($answer), "\n"));
 	}
@@ -1147,11 +1249,14 @@ class Y4APK_Writer {
 		$found = '';
 		$answer = null;
 		if ($parts & self::ARTICLE) {
-			list($system, $user) = self::prompt($ctx, $ask_mod);
-			$answer = self::chat($system, $user, $provider, $model, 4000, $ask_mod);
-			if (is_wp_error($answer)) {
-				$data = $answer->get_error_data();
-				return self::result(false, $answer->get_error_message(), $answer->get_error_code() === 'busy', $answer->get_error_code(), isset($data['wait']) ? $data['wait'] : 0);
+			$asked = self::ask(function ($p) use ($ctx, $ask_mod) { return self::prompt($ctx, $ask_mod, $p); }, 4000, $ask_mod);
+			if (is_wp_error($asked)) {
+				$data = $asked->get_error_data();
+				return self::result(false, $asked->get_error_message(), $asked->get_error_code() === 'busy', $asked->get_error_code(), isset($data['wait']) ? $data['wait'] : 0);
+			}
+			list($answer, $provider, $model) = $asked;
+			if ($provider !== $o['provider']) {
+				$done[] = sprintf(__('by %1$s (%2$s is at its limit)', 'y4apk'), self::provider_name($provider), self::provider_name($o['provider']));
 			}
 			list($answer, $found) = self::take_mod($answer);
 		} elseif ($ask_mod) {
@@ -2034,6 +2139,7 @@ class Y4APK_Writer {
 			self::save_settings(['paused' => __('Paused by you.', 'y4apk')]);
 		} elseif ($do === 'resume') {
 			self::save_settings(['paused' => '']);
+			self::clear_waits();
 		} elseif ($do === 'clear') {
 			update_option(self::QUEUE, [], false);
 		} elseif ($do === 'speed') {
@@ -2042,7 +2148,7 @@ class Y4APK_Writer {
 			$paused = self::settings()['paused'];
 			if ($paused === '') {
 				delete_transient('y4apk_writer_lock');
-				delete_transient(self::WAIT);
+				self::clear_waits(); // "now": every AI is asked again
 				self::tick();
 			}
 		}
@@ -2096,13 +2202,16 @@ class Y4APK_Writer {
 		$ctx = self::context($id);
 		$o = self::settings();
 		$ask_mod = $ctx['apk'] && !$ctx['mod_saved'] && $o['mod_lookup'];
-		list($system, $user) = self::prompt($ctx, $ask_mod);
-		$provider = $o['provider'];
-		$model = self::model($provider);
-		$answer = self::chat($system, $user, $provider, $model, 4000, $ask_mod);
-		if (is_wp_error($answer)) {
-			wp_send_json_error(['message' => $answer->get_error_message(), 'prompt' => $user]);
+		$user = '';
+		$asked = self::ask(function ($p) use ($ctx, $ask_mod, &$user) {
+			$prompt = self::prompt($ctx, $ask_mod, $p);
+			$user = $prompt[1];
+			return $prompt;
+		}, 4000, $ask_mod);
+		if (is_wp_error($asked)) {
+			wp_send_json_error(['message' => $asked->get_error_message(), 'prompt' => $user]);
 		}
+		list($answer, $provider, $model) = $asked;
 		list($answer, $found) = self::take_mod($answer);
 		if ($ask_mod) {
 			$ctx['mod'] = $found !== '' ? $found : self::default_mod($ctx['game']);
@@ -2293,6 +2402,8 @@ class Y4APK_Writer {
 			.aw-row.is-busy { border-color: var(--au-blue); box-shadow: 0 0 0 1px var(--au-blue); }
 			.aw-row.is-good { border-color: #b8e6bf; }
 			.aw-row.is-bad { border-color: #f4c6c7; }
+			.aw-fallback { margin: 14px 0 4px; display: grid; gap: 6px; }
+			.aw-fallback .description { margin: 2px 0 0; }
 			.au-chip.aw-gone { background: #fdeeee; border-color: #f4c6c7; color: #b32d2e; }
 			a.au-chip { text-decoration: none; color: var(--au-blue); }
 			.aw-status { font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
@@ -2375,8 +2486,10 @@ class Y4APK_Writer {
 						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot is-red"></span><?php esc_html_e('Not connected: choose an AI and add its API key', 'y4apk'); ?></a>
 					<?php elseif ($o['paused'] !== '' && $queue) : ?>
 						<a class="au-pill" href="<?php echo esc_url(self::url('queue')); ?>"><span class="au-dot is-amber"></span><?php esc_html_e('Queue paused', 'y4apk'); ?></a>
-					<?php elseif (self::waiting() && $queue) : ?>
-						<a class="au-pill" href="<?php echo esc_url(self::url('queue')); ?>"><span class="au-dot is-amber"></span><?php echo esc_html(sprintf(__('Waiting for %s’s limit', 'y4apk'), self::provider_name($o['provider']))); ?></a>
+					<?php elseif (($now = self::current()) === '' && $queue) : ?>
+						<a class="au-pill" href="<?php echo esc_url(self::url('queue')); ?>"><span class="au-dot is-amber"></span><?php echo esc_html(sprintf(__('Waiting for %s’s limit', 'y4apk'), implode(' / ', array_map([__CLASS__, 'provider_name'], self::order())))); ?></a>
+					<?php elseif ($now !== '' && $now !== $o['provider']) : ?>
+						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot is-amber"></span><?php echo esc_html(sprintf(__('%1$s · %2$s (%3$s is at its limit)', 'y4apk'), self::provider_name($now), self::model($now), self::provider_name($o['provider']))); ?></a>
 					<?php else : ?>
 						<a class="au-pill" href="<?php echo esc_url(self::url('settings')); ?>"><span class="au-dot"></span><?php echo esc_html(self::provider_name($o['provider']) . ' · ' . ($model !== '' ? $model : __('key saved', 'y4apk'))); ?></a>
 					<?php endif; ?>
@@ -2670,6 +2783,19 @@ class Y4APK_Writer {
 							<span class="aw-provider-state"><?php echo $o['keys'][$p] !== '' ? '✓ ' . esc_html__('Key saved', 'y4apk') : esc_html__('No key yet', 'y4apk'); ?></span>
 						</label>
 					<?php endforeach; ?>
+				</div>
+
+				<div class="aw-fallback">
+					<label><input type="checkbox" name="fallback" value="1" <?php checked($o['fallback']); ?>> <?php esc_html_e('When this AI reaches its limit (Gemini’s day used up …), go on with the other free AIs that have a key — Gemini, Groq — and back to this one when it takes requests again', 'y4apk'); ?></label>
+					<label><input type="checkbox" name="fallback_paid" value="1" <?php checked($o['fallback_paid']); ?>> <?php esc_html_e('… and then the paid ones with a key (ChatGPT, Claude): they cost money', 'y4apk'); ?></label>
+					<?php
+					$turns = [];
+					foreach (self::order() as $p) {
+						$w = self::provider_wait($p);
+						$turns[] = self::provider_name($p) . ($w ? ' (' . sprintf(__('at its limit, back in %s', 'y4apk'), human_time_diff(time(), $w['until'])) . ')' : '');
+					}
+					?>
+					<p class="description"><?php echo esc_html(sprintf(__('In turn now: %s', 'y4apk'), implode(' → ', $turns))); ?></p>
 				</div>
 
 				<?php foreach ($all as $p => $info) :
