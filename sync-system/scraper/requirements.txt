@@ -1,0 +1,4 @@
+selenium>=4.11,<5
+beautifulsoup4>=4.12,<5
+PyMySQL>=1.1,<2
+python-dotenv>=1.0,<2

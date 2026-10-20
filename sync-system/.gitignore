@@ -1,0 +1,6 @@
+# Firebase service account keys are secrets
+service-account*.json
+*-firebase-adminsdk-*.json
+__pycache__/
+.venv/
+venv/

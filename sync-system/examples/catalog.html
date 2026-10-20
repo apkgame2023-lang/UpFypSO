@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sample app catalog</title>
+</head>
+<body>
+  <!-- A catalog page for trying app_scraper.py with its default selectors:
+       python -m http.server 8000 --directory sync-system/examples
+       python sync-system/scraper/app_scraper.py --url http://localhost:8000/catalog.html --next "a[rel=next]" -->
+  <ul id="catalog">
+    <li class="app-item">
+      <a href="/apps/notes-plus"><span class="app-name">Notes Plus</span></a>
+      <span class="app-version">Version: 3.4.1</span>
+    </li>
+    <li class="app-item">
+      <a href="apps/weather-now?ref=list#top"><span class="app-name">Weather Now</span></a>
+      <span class="app-version">v12.0</span>
+    </li>
+    <li class="app-item">
+      <a href="https://example.com/apps/photo-lab"><span class="app-name">Photo Lab</span></a>
+      <span class="app-version">5.2.0-beta.2</span>
+    </li>
+    <li class="app-item">
+      <span class="app-name">An item without a link is skipped</span>
+      <span class="app-version">1.0</span>
+    </li>
+  </ul>
+  <a rel="next" href="catalog-2.html">Next page</a>
+
+  <script>
+    // Added after the page has loaded, as many catalogs do: only a real browser sees it.
+    setTimeout(function () {
+      var li = document.createElement('li');
+      li.className = 'app-item';
+      li.innerHTML = '<a href="/apps/task-flow"><span class="app-name">Task Flow</span></a>'
+        + '<span class="app-version">Ver. 2.0.7</span>';
+      document.getElementById('catalog').appendChild(li);
+    }, 500);
+  </script>
+</body>
+</html>
