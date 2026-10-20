@@ -1,8 +1,8 @@
 {
   "name": "app-sync-node",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Version monitor (FCM push on app updates) and API key failover for the app sync system",
+  "description": "Drives the Y4APK theme's Catalog sync and push on a schedule, and fails over between API keys",
   "main": "api_rotator.js",
   "license": "MIT",
   "engines": {
@@ -11,10 +11,7 @@
   "scripts": {
     "monitor": "node version_monitor.js",
     "monitor:once": "node version_monitor.js --once",
+    "status": "node version_monitor.js --status",
     "test": "node --test"
-  },
-  "dependencies": {
-    "firebase-admin": "^14.5.0",
-    "mysql2": "^3.24.6"
   }
 }

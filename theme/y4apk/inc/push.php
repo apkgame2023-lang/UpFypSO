@@ -349,9 +349,14 @@ class Y4APK_Push {
 		if (!$post || $post->post_type !== 'post' || $post->post_status !== 'publish' || wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
 			return;
 		}
+		self::check($post_id);
+	}
+
+	/** The published post's APK version went above what its followers heard of: queue the message. True when queued. */
+	public static function check($post_id) {
 		$n = Y4APK_App_Updates::number(Y4APK_App_Updates::current_version($post_id));
 		if ($n === '') {
-			return;
+			return false;
 		}
 		// A download folder still waiting for its file (Write with AI put Google Play's newer version in):
 		// nothing to download yet, so no "updated" message until the file is there.
@@ -359,17 +364,51 @@ class Y4APK_Push {
 		if ($waiting !== '') {
 			list(, $link) = Y4APK_App_Updates::download($post_id);
 			if ($link && html_entity_decode((string) $link['download_url']) === $waiting) {
-				return;
+				return false;
 			}
 		}
 		$known = (string) get_post_meta($post_id, self::VERSION_META, true);
 		if ($known !== '' && !version_compare($n, $known, '>')) {
-			return;
+			return false;
 		}
 		update_post_meta($post_id, self::VERSION_META, $n);
-		if ($known !== '') {
-			self::queue($post_id, $n);
+		if ($known === '') {
+			return false; // the first version heard of: what followers have now, not news
 		}
+		self::queue($post_id, $n);
+		return true;
+	}
+
+	/**
+	 * Followed posts whose version went up without a save — meta written by
+	 * the REST API after save_post, an import, WP-CLI (2.30, Catalog sync's run,
+	 * every few minutes). A round over every followed post, $limit at a time.
+	 * [post ID => version] of the messages queued.
+	 */
+	public static function catch_up($limit = 200) {
+		global $wpdb;
+		if (!self::enabled() || !self::installed()) {
+			return [];
+		}
+		$cursor = (int) get_option('y4apk_push_cursor', 0);
+		$ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
+			'SELECT DISTINCT f.post_id FROM ' . self::table('follows') . " f JOIN {$wpdb->posts} p ON p.ID = f.post_id
+			 WHERE f.post_id > %d AND p.post_type = 'post' AND p.post_status = 'publish' ORDER BY f.post_id LIMIT %d", $cursor, $limit)));
+		$queued = [];
+		update_meta_cache('post', $ids); // one query for the batch, not one per post
+		foreach ($ids as $id) {
+			if (self::check($id)) {
+				$queued[$id] = (string) get_post_meta($id, self::VERSION_META, true);
+			}
+		}
+		update_option('y4apk_push_cursor', count($ids) < $limit ? 0 : end($ids), false);
+		return $queued;
+	}
+
+	/** Messages still waiting to be sent. */
+	public static function queued() {
+		global $wpdb;
+		return self::installed() ? (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . self::table('queue')) : 0;
 	}
 
 	/** Queue the message for every follower, and send the first batch right away. */

@@ -205,11 +205,12 @@ class Y4APK_Writer {
 		$saved = get_option(self::OPTION, []);
 		foreach (self::providers() as $p => $info) {
 			$old = isset($saved['keys'][$p]) ? (string) $saved['keys'][$p] : ($p === 'openai' && !empty($saved['key']) ? (string) $saved['key'] : '');
-			$new = isset($in['keys'][$p]) ? trim((string) $in['keys'][$p]) : '';
+			$new = isset($in['keys'][$p]) ? implode(', ', Y4APK_Key_Pool::split($in['keys'][$p])) : ''; // one key, or several with commas
 			$o['keys'][$p] = !empty($in['forget'][$p]) ? '' : ($new !== '' ? $new : $old); // left empty: keep the saved one
 			if ($new !== '' || !empty($in['forget'][$p])) {
 				delete_transient('y4apk_writer_models_' . $p);
 				delete_transient(self::WAIT . '_' . $p); // a new key (one with billing, say): asked again at once
+				Y4APK_Key_Pool::clear($p, array_merge(Y4APK_Key_Pool::split($old), Y4APK_Key_Pool::split($new)));
 			}
 			$model = isset($in['models'][$p]) ? preg_replace('/[^A-Za-z0-9._:\/\-]/', '', (string) $in['models'][$p]) : '';
 			$o['models'][$p] = $model !== '' ? $model : $now['models'][$p];
@@ -241,13 +242,42 @@ class Y4APK_Writer {
 	/**
 	 * The service's JSON answer, or a WP_Error coded busy (its limit or load:
 	 * data 'wait' says how long) | key | credit | model | api.
+	 *
+	 * With several keys (2.30, Y4APK_Key_Pool) a key at its limit (429), refused
+	 * or out of credit rests and the next key is asked at once; busy comes back
+	 * only when every key rests, and the queue then goes on with the next AI.
 	 */
 	private static function api($provider, $method, $path, $body = null, $timeout = 90, $headers = []) {
 		$info = self::providers()[$provider];
-		$key = self::settings()['keys'][$provider];
-		if ($key === '') {
+		$keys = Y4APK_Key_Pool::split(self::settings()['keys'][$provider]);
+		if (!$keys) {
 			return new WP_Error('key', sprintf(__('Add your %s API key in Settings first.', 'y4apk'), $info['name']));
 		}
+		if (count($keys) === 1) {
+			return self::api_key($provider, $keys[0], $method, $path, $body, $timeout, $headers);
+		}
+		foreach (Y4APK_Key_Pool::order($provider, $keys) as $key) {
+			$r = self::api_key($provider, $key, $method, $path, $body, $timeout, $headers);
+			if (!is_wp_error($r)) {
+				Y4APK_Key_Pool::used($provider, $key);
+				return $r;
+			}
+			$code = $r->get_error_code();
+			$data = (array) $r->get_error_data();
+			if ($code === 'busy' && isset($data['status']) && (int) $data['status'] === 429) {
+				Y4APK_Key_Pool::rest($provider, $key, isset($data['wait']) ? $data['wait'] : 60, $r->get_error_message(), 'busy');
+			} elseif ($code === 'key' || $code === 'credit') {
+				Y4APK_Key_Pool::rest($provider, $key, DAY_IN_SECONDS, $r->get_error_message(), $code);
+			} else {
+				return $r; // the service's load (5xx, unreachable), the model or this request: not the key's doing
+			}
+		}
+		return Y4APK_Key_Pool::exhausted($provider, $keys, $info['name']);
+	}
+
+	/** One request with one key: api()'s answer or WP_Error. */
+	private static function api_key($provider, $key, $method, $path, $body, $timeout, $headers) {
+		$info = self::providers()[$provider];
 		if ($provider === 'claude') {
 			$headers = array_merge(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'], $headers);
 		} elseif ($provider === 'gemini') {
@@ -1554,8 +1584,7 @@ class Y4APK_Writer {
 		if ($ctx['on_play']) {
 			Y4APK_App_Updates::apply_info($post_id, $ctx['play']); // publisher, age rating, Android, rating, as Settings there allow
 			if ($latest !== '') {
-				update_post_meta($post_id, Y4APK_App_Updates::LATEST, $latest);
-				update_post_meta($post_id, Y4APK_App_Updates::SOURCE, 'play');
+				Y4APK_App_Updates::store_latest($post_id, $latest, 'play');
 				update_post_meta($post_id, Y4APK_App_Updates::CHECKED, time());
 			}
 		}
@@ -2443,6 +2472,7 @@ class Y4APK_Writer {
 			.aw-badge.is-free { background: #e7f7ec; color: #007017; }
 			.aw-provider-note { font-size: 12.5px; color: var(--au-muted); line-height: 1.5; }
 			.aw-provider-state { font-size: 12px; color: #50575e; margin-top: auto; }
+			.aw-keys { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: #50575e; } .aw-keys li { margin: 2px 0; }
 			.aw-panel { border: 1px solid var(--au-line); border-radius: 10px; padding: 14px 18px; background: var(--au-soft); }
 			.aw-panel .aw-steps { margin-bottom: 10px; }
 			.aw-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px 18px; }
@@ -2780,7 +2810,9 @@ class Y4APK_Writer {
 								<span class="aw-badge<?php echo $info['free'] ? ' is-free' : ''; ?>"><?php echo $info['free'] ? esc_html__('Free tier', 'y4apk') : esc_html__('Paid', 'y4apk'); ?></span>
 							</span>
 							<span class="aw-provider-note"><?php echo esc_html($notes[$p]); ?></span>
-							<span class="aw-provider-state"><?php echo $o['keys'][$p] !== '' ? '✓ ' . esc_html__('Key saved', 'y4apk') : esc_html__('No key yet', 'y4apk'); ?></span>
+							<?php $n = count(Y4APK_Key_Pool::split($o['keys'][$p])); ?>
+							<span class="aw-provider-state"><?php echo $n > 1 ? '✓ ' . esc_html(sprintf(__('%d keys saved', 'y4apk'), $n))
+								: ($n ? '✓ ' . esc_html__('Key saved', 'y4apk') : esc_html__('No key yet', 'y4apk')); ?></span>
 						</label>
 					<?php endforeach; ?>
 				</div>
@@ -2814,12 +2846,21 @@ class Y4APK_Writer {
 						<div class="aw-fields">
 							<div>
 								<label class="au-label" for="aw-key-<?php echo esc_attr($p); ?>"><?php echo esc_html(sprintf(__('%s API key', 'y4apk'), $info['name'])); ?></label>
+								<?php $pool = Y4APK_Key_Pool::split($key); ?>
 								<?php if (defined($info['const']) && constant($info['const'])) : ?>
 									<p class="description"><?php echo esc_html(sprintf(__('Set in wp-config.php (%s).', 'y4apk'), $info['const'])); ?></p>
 								<?php else : ?>
 									<input type="password" id="aw-key-<?php echo esc_attr($p); ?>" name="keys[<?php echo esc_attr($p); ?>]" autocomplete="off"
-										placeholder="<?php echo esc_attr($key !== '' ? '•••• ' . substr($key, -4) . ' — ' . __('saved; leave empty to keep it', 'y4apk') : $placeholder[$p]); ?>">
-									<?php if ($key !== '') : ?><label><input type="checkbox" name="forget[<?php echo esc_attr($p); ?>]" value="1"> <?php esc_html_e('Remove the saved key', 'y4apk'); ?></label><?php endif; ?>
+										placeholder="<?php echo esc_attr(count($pool) > 1
+											? sprintf(__('%d keys saved; leave empty to keep them', 'y4apk'), count($pool))
+											: ($key !== '' ? '•••• ' . substr($key, -4) . ' — ' . __('saved; leave empty to keep it', 'y4apk') : $placeholder[$p])); ?>">
+									<?php if ($key !== '') : ?><label><input type="checkbox" name="forget[<?php echo esc_attr($p); ?>]" value="1"> <?php echo esc_html(count($pool) > 1 ? __('Remove the saved keys', 'y4apk') : __('Remove the saved key', 'y4apk')); ?></label><?php endif; ?>
+								<?php endif; ?>
+								<p class="description"><?php esc_html_e('Several keys? Separate them with commas: when one reaches its limit (or is refused), the next one is used, and it comes back by itself. Limits belong to the account or project — two keys of one Google Cloud project share one limit — so use keys of separate projects or accounts you may use together; extra free accounts to get past a free tier are against Google’s and Groq’s terms.', 'y4apk'); ?></p>
+								<?php if (count($pool) > 1) : ?>
+									<ul class="aw-keys"><?php foreach (Y4APK_Key_Pool::describe($p, $pool) as $k) : ?>
+										<li><code><?php echo esc_html($k['key']); ?></code> <?php echo esc_html($k['state']); ?></li>
+									<?php endforeach; ?></ul>
 								<?php endif; ?>
 							</div>
 							<div>

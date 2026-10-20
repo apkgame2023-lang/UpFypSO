@@ -409,6 +409,23 @@ the wait was the queue's, for every AI: with Gemini's day used up nothing was
 written, even with a Groq key (or Groq chosen); the update turns such a wait
 into Gemini's own.
 
+**Several keys for one AI** (2.30, `inc/key-pool.php`). An AI's key box (or
+its `wp-config.php` constant) takes more than one key, with commas between
+them. The key in use stays in use until the AI pushes back: a 429 rests that
+key for its `retry-after` (Gemini's "retry in Ns", an hour for a daily limit)
+and the next key is asked at once; a key the AI refuses, or one with no credit
+left, is set aside for a day. A key comes back by itself when its rest is
+over, and saving keys clears the rests. Only when every key rests does the AI
+itself wait, and the turn goes on to the next AI as above; when every key was
+refused, the queue pauses as it does for one bad key. Settings lists each key
+(masked) with its state — in use, ready, at its limit, set aside. One key
+behaves exactly as before. These are the rules of
+`sync-system/node/api_rotator.js`, in PHP so they run on the site. Limits
+belong to the account or project, not the key — two keys of one Google Cloud
+project share one Gemini limit — so pool keys of separate projects or accounts
+you may use together; extra free accounts made to get past a free tier are
+against Google's and Groq's terms.
+
 **Limits.** A 429 or a 5xx (Claude's 529 *overloaded* included) is the AI's
 limit or load, not the post's doing: the post keeps its place in the queue and
 the rounds wait (`y4apk_writer_wait`) for `retry-after`, else Gemini's "retry
@@ -605,6 +622,65 @@ same) — and its **screenshots** (the first 5, `[1][2][78][0][*][3][2]` +
 
 A post is written by one request at a time (a row in `wp_options`, `INSERT
 IGNORE`), so a double click or a link opened twice does not pay for it twice.
+
+## Catalog sync (2.30)
+
+`inc/sync.php` is where the workers in [`sync-system/`](../../sync-system) —
+which run on another machine, not on the hosting — meet the theme:
+
+```
+ app catalogs ──► app_scraper.py ──► POST /wp-json/y4apk/v1/sync/items ─┐   (or straight into
+ (Selenium,        Name, Version,                                       │    wp_y4apk_sync_items)
+  BeautifulSoup)   Link, Google Play ID                                 ▼
+                                                   {prefix}y4apk_sync_items ──► matched to posts
+ version_monitor.js ──► POST /wp-json/y4apk/v1/sync/run (every 5 min) ──┤     App updates ▸ Need a new file
+                    └─► wp-cron.php                                     ├──► new drafts ──► Write with AI
+                                                                        └──► Y4APK_Push::catch_up ──► Web Push
+```
+
+- **Items.** Each catalog item is stored once per link (SHA-256), with its
+  name, version, Google Play ID (read off the page with the scraper's
+  `--package`, else from the link: a Play link's `id=`, an `?id=`/`?package=`
+  parameter, or a path part such as `/com.supercell.clashofclans/`) and the
+  catalog's host. A new item, or one whose version or ID changed, waits to be
+  matched; the others only get their *last seen* time.
+- **Matching.** By Google Play ID (any post but trashed ones), else by App Name
+  — the exact name, or its short form ("ActionDirector" for "ActionDirector -
+  Video Editing") when only one post has it, at least 6 letters.
+- **Versions.** The catalog's listing is kept with the post (`_y4apk_sync`). Its
+  version becomes the post's latest (`_y4apk_latest_version`, source
+  `catalog`) when it is newer than the stored one — for a match by Google Play
+  ID, or by name only for posts App updates cannot check (no Google Play ID).
+  It shows in *Need a new file* as "Latest · example.com", with a link to the
+  catalog page, and the Google Play check keeps a catalog version from the
+  last 7 days that is newer than Play's (`Y4APK_App_Updates::store_latest()`).
+  Followers are not told until the new file is up, as for any update.
+- **New posts** (off by default). An item no post has becomes a draft made by
+  *Add from Google Play* — by Google Play ID, else by looking its exact name up
+  on Google Play (6 searches a run) — and goes into Write with AI's queue with
+  every part; it is published once its article is written, if ticked, else
+  stays a draft. At most 5 a run and *per day* (10 by default), made by the
+  chosen author (else the first administrator). The post remembers the
+  catalog link (`_y4apk_sync_from`). Items whose app Google Play does not have
+  are listed as *not found* or *gone* and not tried again until the catalog
+  changes them.
+- **A run** (`POST /sync/run`; also WP-Cron every 15 minutes) matches what
+  waits, makes new posts, sends what the push queue holds, then runs
+  `Y4APK_Push::catch_up()`: every followed post, 200 at a time, gets the same
+  check as a save (`Y4APK_Push::check()`, split out of `saved()`), so a version
+  that went up without `save_post` — post meta written by the REST API after
+  the save, an import, WP-CLI — is still announced, once. version_monitor.js
+  calls it every 5 minutes and then opens `wp-cron.php`, so Write with AI's
+  queue and App updates' checks run on time behind a page cache too.
+- **Signing in.** The sync key, sent as `X-Y4APK-Sync-Key` — App updates ▸
+  Settings ▸ *Catalog sync* shows it and makes a new one (or set
+  `Y4APK_SYNC_KEY` in `wp-config.php`); it opens these three routes only. An
+  administrator's Application Password works too. `GET /sync/status` reports
+  the items by state, the last run and the queues.
+
+App updates ▸ Settings ▸ *Catalog sync* has the switches (on, catalog versions,
+new posts, publish, per day, author), the key, the counts by state, the last
+run and the latest items.
 
 ## App analytics (2.16)
 

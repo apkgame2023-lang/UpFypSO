@@ -1,123 +1,118 @@
-# App sync system
+# App sync system for the Y4APK theme
 
-Three parts that share one MySQL database:
+Three workers that run outside WordPress — on a VPS or your own computer, not
+on the PHP hosting — and feed the [Y4APK theme](../theme/y4apk) through its
+**Catalog sync** (`theme/y4apk/inc/sync.php`, theme 2.30+):
 
 ```
- catalog page ──► scraper/app_scraper.py ──► MySQL `apps` ──► node/version_monitor.js ──► Firebase Cloud Messaging
-  (HTML/JS)        Selenium + BeautifulSoup    (schema.sql)     compares versions,          topic "app_<id>"
-                   upsert Name/Version/Link                     logs push_notifications
-
- any HTTP API ◄── node/api_rotator.js: requests with a pool of API keys, failing over on 429 / quota errors
+ app catalogs ──► scraper/app_scraper.py ──► POST /wp-json/y4apk/v1/sync/items ──┐  (or --target db:
+ (HTML / JS)       Selenium + BeautifulSoup                                       │   wp_y4apk_sync_items)
+                   Name, Version, Link, Google Play ID                            ▼
+                                                     WordPress: matched to posts, newer versions
+                                                     in App updates, new drafts for Write with AI
+ node/version_monitor.js ──► POST /wp-json/y4apk/v1/sync/run  (every 5 minutes) ──► push.php Web Push
+                         └─► wp-cron.php                                         ──► Write with AI queue
+ node/api_rotator.js: the key failover rules — in Node for any API, and ported into
+                      the theme's Write with AI (inc/key-pool.php) for the AI keys
 ```
 
 | Part | File | What it does |
 | --- | --- | --- |
-| 1 | `scraper/app_scraper.py` | Renders a catalog page in headless Chrome, extracts each item's Name, Version and Link, and upserts them into `apps`. It follows "next page" links, obeys robots.txt and sends an identifiable User-Agent. |
-| 2 | `node/version_monitor.js` | Runs on a timer (or `--once` from cron). It finds apps whose `latest_version` is higher than `notified_version`, sends an FCM push for each, and records every attempt. |
-| 3 | `node/api_rotator.js` | Sends requests with a pool of API keys. A rate-limited key rests until its Retry-After, an exhausted quota rests longer, a rejected key is retired, and 5xx errors are retried on the same key. |
+| 1 | `scraper/app_scraper.py` | Renders a catalog page in headless Chrome, extracts each item's Name, Version, Link (and Google Play ID with `--package`), follows "next page" links, obeys robots.txt, and sends the items to WordPress. |
+| 2 | `node/version_monitor.js` | Every 5 minutes asks WordPress for a sync run, then opens `wp-cron.php`. The run compares each followed post's version with what its followers were told and sends the theme's own Web Push (`inc/push.php`). |
+| 3 | `node/api_rotator.js` | Sends requests with a pool of API keys and fails over on 429 / quota errors. The monitor uses it as its HTTP client (retries, Retry-After). Its rules also run inside the theme, so Write with AI rotates its AI keys while writing new posts. |
 
-## How the data flows
+## What happens to a catalog item
 
-1. **Scrape.** `app_scraper.py` identifies an item by its normalized link (`link_hash` = SHA-256).
-   A new link inserts a row. A known link updates the name and link and, when the version text
-   changed, moves the old text to `previous_version` and stamps `version_changed_at`. A blank
-   version never overwrites a known one.
-2. **Compare.** `version_monitor.js` reads the rows where `latest_version <> notified_version`:
-   - `notified_version` is `NULL` (an app it has never seen): the version is stored as the baseline and nothing is sent.
-   - The version is higher (`2.10 > 2.9`, `1.0 > 1.0-rc2`): it sends a push to topic `app_<id>`,
-     then sets `notified_version` and adds a row to `push_notifications`.
-   - The same version written differently (`v1.2` / `1.2.0`), a lower version, or text with no
-     number: the new text is adopted with no push.
-   - A failed push is retried on later passes, up to `MONITOR_MAX_ATTEMPTS` per app and version.
-3. **Clients** subscribe to the topics of the apps they follow (`FirebaseMessaging.subscribeToTopic("app_42")`
-   on Android, `messaging.subscribeToTopic` server-side for web tokens).
+1. **The scraper** sends `{name, version, link, package?, source_url}` to
+   `POST /wp-json/y4apk/v1/sync/items` (200 per request), signed in with the
+   sync key. WordPress answers how many items were new, changed, matched.
+2. **WordPress matches it** to a post by Google Play ID (from `--package`, a
+   Play link, `?id=`, or a path part like `/com.example.app/`), else by App
+   Name.
+   - **Matched, newer version:** the post shows in App updates ▸ *Need a new
+     file* as "Latest · catalog-site.com". Followers are not told yet — there
+     is no new file to download.
+   - **No post** (with *Make posts for apps the site has none for* on): a
+     draft made by *Add from Google Play*, written by Write with AI —
+     article, MOD, title, permalink, SEO, icon, screenshots, category — and
+     published once written if ticked. At most 10 a day by default.
+3. **You upload the new file** (App updates or the post editor). The theme
+   tells followers. If the file went up without a post save (the REST API, an
+   import), the monitor's next run catches it with the same rule and sends
+   the push, once.
 
-Delivery is at least once. If the monitor dies between sending a push and updating the
-database, the next pass sends that push again. Only one monitor works per database at a time
-(MySQL `GET_LOCK`), so a cron job next to the daemon is safe.
+The version comparison always happens in WordPress, with the rule `push.php`
+uses for a save in the editor, so an update is never announced twice or by two
+different rules.
 
 ## Setup
 
-Requirements: Python 3.10+, Node.js 22+, MySQL 5.7+ or MariaDB 10.3+, and Chrome or Chromium.
+Requirements: Python 3.10+, Node.js 22+, Chrome or Chromium where the scraper
+runs, and the Y4APK theme 2.30+ on the site.
 
-```bash
-# Database
-mysql -u root -p -e "CREATE DATABASE app_sync CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-  CREATE USER 'app_sync'@'localhost' IDENTIFIED BY 'change-me';
-  GRANT SELECT, INSERT, UPDATE, DELETE ON app_sync.* TO 'app_sync'@'localhost';"
-mysql -u root -p app_sync < sync-system/schema.sql
+1. **On the site:** update the theme, then in wp-admin open **Y4APK ▸ App
+   updates ▸ Settings ▸ Catalog sync**. Copy the sync key; tick *Make posts
+   for apps the site has none for* if you want automatic posts. For the AI
+   writing, add your key(s) in **Write with AI ▸ Settings** — several per AI
+   with commas between them.
+2. **Where the workers run:**
 
-# Configuration
-cp sync-system/.env.example sync-system/.env   # then edit it
+   ```bash
+   cp sync-system/.env.example sync-system/.env   # WP_URL, WP_SYNC_KEY, catalog selectors
 
-# Part 1
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r sync-system/scraper/requirements.txt
+   python3 -m venv .venv && . .venv/bin/activate
+   pip install -r sync-system/scraper/requirements.txt
 
-# Parts 2 and 3
-cd sync-system/node && npm ci
-```
-
-For live pushes, download a service account key from **Firebase console → Project settings →
-Service accounts → Generate new private key**. Save it as `sync-system/service-account.json`
-(git-ignored) and set `PUSH_MODE=live`.
+   cd sync-system/node && npm ci                  # no dependencies; sets up the scripts
+   ```
 
 ## Running
 
 ```bash
-# Try the scraper on the sample catalog (its default selectors match it)
+# Try the scraper on the sample catalog without sending anything
 python -m http.server 8000 --directory sync-system/examples &
-python sync-system/scraper/app_scraper.py --url http://localhost:8000/catalog.html --next "a[rel=next]" --dry-run
+python sync-system/scraper/app_scraper.py --url http://localhost:8000/catalog.html \
+  --next "a[rel=next]" --package "@data-package" --dry-run
 
-# Real catalog, saved to MySQL
+# A real catalog, sent to WordPress
 python sync-system/scraper/app_scraper.py --url https://example.com/apps \
   --item ".card" --name "h3" --version ".meta@data-version" --link "a.download"
 
-# Monitor: forever, or one pass
+# The monitor: forever, one run, or what WordPress has
 node sync-system/node/version_monitor.js
 node sync-system/node/version_monitor.js --once
-
-# Rotator from the command line (keys from API_KEYS)
-node sync-system/node/api_rotator.js https://api.example.com/v1/status
+node sync-system/node/version_monitor.js --status
 ```
 
-In code:
-
-```js
-const { ApiKeyRotator, AllKeysExhaustedError } = require('./api_rotator');
-
-const api = new ApiKeyRotator({
-  keys: process.env.API_KEYS.split(','),
-  auth: { in: 'query', name: 'key' },   // or { in: 'header', name: 'x-api-key' }; default Bearer
-  maxWaitMs: 10_000,                    // wait this long for a resting key before giving up
-});
-api.on('rotate', ({ from, to }) => metrics.increment('api_key_rotation', { from, to }));
-
-try {
-  const { data } = await api.request('https://api.example.com/v1/items', { method: 'POST', json: { q: 'x' } });
-} catch (err) {
-  if (err instanceof AllKeysExhaustedError) scheduleRetry(err.retryAt);
-  else throw err;
-}
-```
-
-Only pool keys you are allowed to use together, such as keys from separate paid projects or
-from a fallback provider. Many APIs' terms of service forbid extra keys whose only purpose is
-to get around a per-account quota.
+On the same server as WordPress, the scraper can write into its database
+instead (`--target db` with the `MYSQL_*` settings from `wp-config.php`);
+WordPress matches those items on its next run.
 
 ### Scheduling
 
 ```cron
-# Scrape hourly, then run the monitor once
-7 * * * *  cd /srv/app && .venv/bin/python sync-system/scraper/app_scraper.py && node sync-system/node/version_monitor.js --once
+# Scrape every hour; the monitor every 5 minutes (or run it as a service)
+7 * * * *    cd /srv/sync && .venv/bin/python sync-system/scraper/app_scraper.py
+*/5 * * * *  cd /srv/sync && node sync-system/node/version_monitor.js --once
 ```
 
-Or run the monitor as a service (systemd, pm2 `pm2 start sync-system/node/version_monitor.js`).
-It stops cleanly on SIGINT/SIGTERM once the current pass ends.
+As a service: `pm2 start sync-system/node/version_monitor.js` or a systemd unit.
+It stops cleanly on SIGINT/SIGTERM once the current run ends.
 
-`app_scraper.py` exits with code 0 when it finished, 1 on an error, and 2 when no items were
-found (usually the site's markup changed). `version_monitor.js --once` exits 1 when the pass
-failed or any push failed.
+`app_scraper.py` exits 0 when done, 1 on an error, 2 when no items were found
+(usually the catalog's markup changed). `version_monitor.js --once` exits 1
+when WordPress could not be reached or refused the key.
+
+## About keys and catalogs
+
+- Pool only API keys you are allowed to use together, such as keys of separate
+  paid projects. Limits belong to the account or project, not the key: two
+  Gemini keys of one Google Cloud project share one limit. Extra free accounts
+  made to get past a free tier are against Google's and Groq's terms.
+- The scraper reads robots.txt and stops where it says no, waits between pages
+  (or the site's Crawl-delay), and names itself in `SCRAPER_USER_AGENT`. Put a
+  way to reach you there.
 
 ## Tests
 
@@ -125,6 +120,8 @@ failed or any push failed.
 cd sync-system/node && npm test
 ```
 
-The tests cover key failover (rate limit, quota, retired key, waiting for a key to come back,
-5xx retries, header and query auth) against a local HTTP server. They also cover version
-comparison and the FCM message format.
+The rotator tests cover failover on a rate limit, quota, a rejected key,
+waiting for a key to come back, 5xx retries, and header or query auth. The
+monitor tests cover the sync run and `wp-cron.php` calls, both kinds of
+sign-in, retries, and the errors for a wrong key or an old theme. All of them
+run against a local HTTP server.

@@ -2,45 +2,42 @@
 'use strict';
 
 /**
- * version_monitor.js: part 2 of the app sync system.
+ * version_monitor.js: part 2 of the app sync system, for the Y4APK theme.
  *
- * Every MONITOR_INTERVAL_SECONDS it reads the apps that app_scraper.py keeps
- * in MySQL and compares each app's latest_version with its notified_version,
- * the last version subscribers were told about. For every app whose version
- * went up, it sends a push notification through the Firebase Admin SDK to the
- * FCM topic "<FCM_TOPIC_PREFIX><app id>" (clients subscribe to the apps they
- * follow) and records the attempt in push_notifications.
+ * Every MONITOR_INTERVAL_SECONDS it asks WordPress for one Catalog sync run
+ * (POST /wp-json/y4apk/v1/sync/run, theme/y4apk/inc/sync.php), which:
  *
- *   - An app the monitor has never seen is new, not updated: its version
- *     becomes the baseline, with no notification.
- *   - The same version written differently ("v1.2" / "1.2.0"), a lower version
- *     or text without a number is adopted silently.
- *   - A failed push is retried on later runs, up to MONITOR_MAX_ATTEMPTS times
- *     per app and version.
- *   - Delivery is at least once: if the process dies between the push and the
- *     database update, the next run sends that push again.
+ *   - matches catalog items still waiting to posts and passes newer versions
+ *     on to App updates ▸ Need a new file;
+ *   - turns apps the site has no post for into drafts that Write with AI
+ *     writes (when that is switched on in the theme);
+ *   - compares each followed post's APK version with the last one its
+ *     followers were told about and, when it went up, queues the theme's own
+ *     Web Push (inc/push.php: VAPID, aes128gcm) and sends the queue.
  *
- * PUSH_MODE sets how real the push is:
- *   log      no Firebase at all; the message is only logged
- *   dry-run  Firebase checks the credentials and the message, delivers nothing (default)
- *   live     the message is delivered
+ * The comparison runs inside WordPress with push.php's own rule — the number
+ * in the download's version, PHP's version_compare — the same one a save in
+ * the post editor uses, so an update is never announced twice or by two rules.
  *
- * Only one monitor works at a time per database (MySQL GET_LOCK), so running
- * several copies, or a cron job next to the daemon, is safe.
+ * With MONITOR_WP_CRON=1 (the default) it then opens wp-cron.php, so the
+ * theme's other background steps (Write with AI's queue every 5 minutes, App
+ * updates' checks every 15) run on time even when a page cache keeps
+ * WordPress's own cron from firing.
+ *
+ * Requests go through api_rotator.js (part 3): 429, 5xx and network errors
+ * are retried with backoff, honouring Retry-After.
  *
  * Usage:
- *   node version_monitor.js           run every MONITOR_INTERVAL_SECONDS until stopped
- *   node version_monitor.js --once    one pass, e.g. from cron; exit code 1 if it failed
+ *   node version_monitor.js            a run every MONITOR_INTERVAL_SECONDS until stopped
+ *   node version_monitor.js --once     one run, e.g. from cron; exit code 1 if it failed
+ *   node version_monitor.js --status   what WordPress has: items, last run, queues
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
-const mysql = require('mysql2/promise');
+const { ApiKeyRotator, ApiError, AllKeysExhaustedError } = require('./api_rotator');
 
 const ENV_FILE = path.join(__dirname, '..', '.env');
-const PUSH_MODES = ['log', 'dry-run', 'live'];
-const TOPIC_PATTERN = /^[a-zA-Z0-9\-_.~%]+$/;
-const PUSH_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 const logger = {
   info: (...args) => console.log(new Date().toISOString(), 'INFO ', ...args),
@@ -62,276 +59,152 @@ function envInt(name, fallback, min = 1) {
   return value;
 }
 
-function loadConfig() {
-  if (fs.existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
+function loadConfig(env = process.env) {
+  if (env === process.env && fs.existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
 
-  const missing = ['MYSQL_USER', 'MYSQL_DATABASE'].filter((name) => !process.env[name]);
-  if (missing.length) throw new Error(`Set ${missing.join(', ')} (see .env.example)`);
+  const site = (env.WP_URL || '').trim().replace(/\/+$/, '');
+  const apiRoot = (env.WP_API_ROOT || '').trim() || (site ? `${site}/wp-json` : '');
+  if (!apiRoot) throw new Error('Set WP_URL (your site\'s address) or WP_API_ROOT (see .env.example)');
 
-  const pushMode = (process.env.PUSH_MODE || 'dry-run').trim().toLowerCase();
-  if (!PUSH_MODES.includes(pushMode)) {
-    throw new Error(`PUSH_MODE must be one of ${PUSH_MODES.join(', ')}, not "${pushMode}"`);
-  }
-  const topicPrefix = process.env.FCM_TOPIC_PREFIX ?? 'app_';
-  if (topicPrefix && !TOPIC_PATTERN.test(topicPrefix)) {
-    throw new Error('FCM_TOPIC_PREFIX may only use letters, digits and - _ . ~ %');
+  let auth;
+  if ((env.WP_SYNC_KEY || '').trim()) {
+    auth = { key: env.WP_SYNC_KEY.trim(), header: 'X-Y4APK-Sync-Key', prefix: '' };
+  } else if (env.WP_USER && env.WP_APP_PASSWORD) {
+    const token = Buffer.from(`${env.WP_USER}:${env.WP_APP_PASSWORD}`).toString('base64');
+    auth = { key: token, header: 'Authorization', prefix: 'Basic ' };
+  } else {
+    throw new Error('Set WP_SYNC_KEY (App updates ▸ Settings ▸ Catalog sync), or WP_USER and WP_APP_PASSWORD');
   }
 
   return {
-    db: {
-      host: process.env.MYSQL_HOST || '127.0.0.1',
-      port: envInt('MYSQL_PORT', 3306),
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD || '',
-      database: process.env.MYSQL_DATABASE,
-      charset: 'utf8mb4',
-      timezone: 'Z',
-      connectionLimit: 4,
-      connectTimeout: 10_000,
-    },
+    site,
+    apiRoot,
+    auth,
     intervalMs: envInt('MONITOR_INTERVAL_SECONDS', 300) * 1000,
-    batchSize: envInt('MONITOR_BATCH_SIZE', 200),
-    maxAttempts: envInt('MONITOR_MAX_ATTEMPTS', 3),
-    pushMode,
-    topicPrefix,
-    serviceAccount: process.env.FIREBASE_SERVICE_ACCOUNT || '',
+    timeoutMs: envInt('MONITOR_TIMEOUT_SECONDS', 120) * 1000,
+    wpCron: (env.MONITOR_WP_CRON ?? '1').trim() !== '0' && site !== '',
+    userAgent: (env.MONITOR_USER_AGENT || 'Y4APK-version-monitor/2.0').trim(),
   };
 }
 
-/* ------------------------------------------------------------------ *
- * Versions
- * ------------------------------------------------------------------ */
-
-const PRERELEASE_RANK = { dev: 0, alpha: 1, a: 1, beta: 2, b: 2, pre: 3, preview: 3, rc: 4 };
-
-/**
- * The comparable parts of a version string: "v2.10.0-beta.3 (Android)" →
- * { numbers: [2, 10], pre: { rank: 2, number: 3 } }. Trailing zeros are
- * dropped, so "1.2" and "1.2.0" are equal. null when there is no number.
- */
-function parseVersion(text) {
-  const value = String(text ?? '');
-  const match = /\d+(?:\.\d+)*/.exec(value);
-  if (!match) return null;
-
-  const numbers = match[0].split('.').map(Number);
-  while (numbers.length > 1 && numbers[numbers.length - 1] === 0) numbers.pop();
-
-  const rest = value.slice(match.index + match[0].length);
-  const tag = /^[\s._-]*(dev|alpha|beta|preview|pre|rc|a|b)(?![a-z])[\s._-]*(\d+)?/i.exec(rest);
-  const pre = tag ? { rank: PRERELEASE_RANK[tag[1].toLowerCase()], number: Number(tag[2] ?? 0) } : null;
-  return { numbers, pre };
+/** The address of a theme route, for both /wp-json and ?rest_route= roots. */
+function endpoint(config, route) {
+  return config.apiRoot.includes('rest_route=') ? `${config.apiRoot}${route}` : `${config.apiRoot.replace(/\/+$/, '')}${route}`;
 }
 
-/**
- * 1 when a is newer than b, -1 when older, 0 when the same version, and null
- * when either has no number to compare. "2.10" > "2.9", "1.0" > "1.0-rc2" >
- * "1.0-beta".
- */
-function compareVersions(a, b) {
-  const x = parseVersion(a);
-  const y = parseVersion(b);
-  if (!x || !y) return null;
-
-  const length = Math.max(x.numbers.length, y.numbers.length);
-  for (let i = 0; i < length; i++) {
-    const diff = (x.numbers[i] ?? 0) - (y.numbers[i] ?? 0);
-    if (diff !== 0) return Math.sign(diff);
-  }
-  if (!x.pre && !y.pre) return 0;
-  if (!x.pre) return 1; // a release is newer than its pre-releases
-  if (!y.pre) return -1;
-  return Math.sign(x.pre.rank - y.pre.rank || x.pre.number - y.pre.number);
-}
-
-/* ------------------------------------------------------------------ *
- * Push
- * ------------------------------------------------------------------ */
-
-function truncate(text, max) {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
-function topicFor(appId, prefix) {
-  const topic = `${prefix}${appId}`;
-  if (!TOPIC_PATTERN.test(topic)) throw new Error(`Invalid FCM topic "${topic}"`);
-  return topic;
-}
-
-/** The FCM message announcing app's new version. FCM data values must be strings. */
-function buildMessage(app, topicPrefix) {
-  const from = app.notified_version;
-  const to = app.latest_version;
-  const collapse = `app_update_${app.id}`;
-  const message = {
-    topic: topicFor(app.id, topicPrefix),
-    notification: {
-      title: truncate(`${app.name} updated`, 100),
-      body: truncate(`Version ${to} is available (was ${from}).`, 200),
-    },
-    data: {
-      type: 'app_update',
-      appId: String(app.id),
-      name: app.name,
-      version: to,
-      previousVersion: from,
-      link: app.link,
-    },
-    android: { priority: 'high', collapseKey: collapse, ttl: PUSH_TTL_MS },
-    apns: {
-      headers: { 'apns-collapse-id': collapse },
-      payload: { aps: { sound: 'default' } },
-    },
-  };
-  if (/^https:\/\//i.test(app.link)) {
-    message.webpush = { fcmOptions: { link: app.link } }; // FCM accepts HTTPS links only
-  }
-  return message;
-}
-
-/** { send(message) → message id, close() } for the configured PUSH_MODE. */
-function createPushSender(config) {
-  if (config.pushMode === 'log') {
-    let sequence = 0;
-    return {
-      async send(message) {
-        logger.info(`[push:log] ${JSON.stringify(message)}`);
-        sequence += 1;
-        return `log/${Date.now()}-${sequence}`;
-      },
-      async close() {},
-    };
-  }
-
-  const { initializeApp, cert, applicationDefault, deleteApp } = require('firebase-admin/app');
-  const { getMessaging } = require('firebase-admin/messaging');
-  // Without FIREBASE_SERVICE_ACCOUNT, Application Default Credentials are used
-  // (GOOGLE_APPLICATION_CREDENTIALS, or the service account of a Google Cloud host).
-  const credential = config.serviceAccount
-    ? cert(path.resolve(path.join(__dirname, '..'), config.serviceAccount))
-    : applicationDefault();
-  const app = initializeApp({ credential }, 'version-monitor');
-  const messaging = getMessaging(app);
-  const dryRun = config.pushMode === 'dry-run';
-
-  return {
-    send: (message) => messaging.send(message, dryRun),
-    close: () => deleteApp(app),
-  };
-}
-
-/* ------------------------------------------------------------------ *
- * One pass
- * ------------------------------------------------------------------ */
-
-const CANDIDATES_SQL = `
-  SELECT a.id, a.name, a.link, a.latest_version, a.notified_version,
-         (SELECT COUNT(*) FROM push_notifications p
-           WHERE p.app_id = a.id AND p.to_version = a.latest_version AND p.status = 'failed') AS failures
-    FROM apps a
-   WHERE a.latest_version <> ''
-     AND (a.notified_version IS NULL OR a.notified_version <> a.latest_version)
-  HAVING failures < ?
-   ORDER BY a.version_changed_at IS NULL, a.version_changed_at, a.id
-   LIMIT ?`;
-
-// The latest_version guard skips the update when the scraper wrote a newer
-// version meanwhile; the next run handles that one.
-const ADOPT_SQL = `
-  UPDATE apps SET notified_version = latest_version
-   WHERE id = ? AND latest_version = ?`;
-
-const NOTIFIED_SQL = `
-  UPDATE apps SET notified_version = ?, notified_at = UTC_TIMESTAMP()
-   WHERE id = ? AND latest_version = ?`;
-
-const LOG_SQL = `
-  INSERT INTO push_notifications (app_id, from_version, to_version, topic, mode, status, message_id, error)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-
-function lockName(database) {
-  return `version_monitor:${database}`.slice(0, 64);
-}
-
-async function withLock(pool, name, work) {
-  const conn = await pool.getConnection();
-  try {
-    await conn.query("SET time_zone = '+00:00'");
-    const [[{ locked }]] = await conn.query('SELECT GET_LOCK(?, 0) AS locked', [name]);
-    if (locked !== 1) return { skipped: true };
-    try {
-      return await work(conn);
-    } finally {
-      await conn.query('SELECT RELEASE_LOCK(?)', [name]);
-    }
-  } finally {
-    conn.release();
-  }
-}
-
-async function notify(conn, app, push, config) {
-  const message = buildMessage(app, config.topicPrefix);
-  let messageId;
-  try {
-    messageId = await push.send(message);
-  } catch (err) {
-    const error = truncate(`${err.code ? `${err.code}: ` : ''}${err.message}`, 2000);
-    await conn.query(LOG_SQL, [
-      app.id, app.notified_version, app.latest_version, message.topic, config.pushMode, 'failed', null, error,
-    ]);
-    logger.warn(`Push for ${app.name} ${app.latest_version} failed (attempt ${Number(app.failures) + 1}`
-      + ` of ${config.maxAttempts}): ${error}`);
-    return false;
-  }
-
-  await conn.beginTransaction();
-  try {
-    await conn.query(LOG_SQL, [
-      app.id, app.notified_version, app.latest_version, message.topic, config.pushMode, 'sent', messageId, null,
-    ]);
-    await conn.query(NOTIFIED_SQL, [app.latest_version, app.id, app.latest_version]);
-    await conn.commit();
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  }
-  logger.info(`Notified ${message.topic}: ${app.name} ${app.notified_version} -> ${app.latest_version}`
-    + ` (${config.pushMode}, ${messageId})`);
-  return true;
-}
-
-/**
- * Checks one batch of apps and notifies the updated ones. Returns counts:
- * { checked, baselined, adopted, sent, failed }, or { skipped: true } when
- * another monitor holds the lock.
- */
-async function runOnce(pool, push, config) {
-  return withLock(pool, lockName(config.db.database), async (conn) => {
-    const stats = { checked: 0, baselined: 0, adopted: 0, sent: 0, failed: 0 };
-    const [apps] = await conn.query(CANDIDATES_SQL, [config.maxAttempts, config.batchSize]);
-
-    for (const app of apps) {
-      stats.checked += 1;
-      if (app.notified_version === null) {
-        await conn.query(ADOPT_SQL, [app.id, app.latest_version]);
-        stats.baselined += 1;
-        continue;
-      }
-
-      const order = compareVersions(app.latest_version, app.notified_version);
-      if (order === null || order <= 0) {
-        const why = order === null ? 'no comparable number' : order === 0 ? 'same version' : 'lower version';
-        logger.info(`Not announcing ${app.name} ${app.notified_version} -> ${app.latest_version} (${why})`);
-        await conn.query(ADOPT_SQL, [app.id, app.latest_version]);
-        stats.adopted += 1;
-        continue;
-      }
-
-      if (await notify(conn, app, push, config)) stats.sent += 1;
-      else stats.failed += 1;
-    }
-    return stats;
+/** A client for one run: the sync key (or Application Password) as the rotator's only key. */
+function client(config, options = {}) {
+  return new ApiKeyRotator({
+    keys: [config.auth.key],
+    auth: { in: 'header', name: config.auth.header, prefix: config.auth.prefix },
+    timeoutMs: config.timeoutMs,
+    maxRetries: 3,
+    maxWaitMs: 60_000,
+    logger: null,
+    ...options,
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * One run
+ * ------------------------------------------------------------------ */
+
+/** One line about what WordPress did. */
+function summarize(run) {
+  if (run.skipped) return `skipped: ${run.skipped}`;
+  const parts = [];
+  const items = run.items || {};
+  if (items.matched || items.nopost) {
+    parts.push(`${items.matched} items matched to posts (${items.versions} newer versions), ${items.nopost} without a post`);
+  }
+  const posts = run.posts || {};
+  if (posts.added) parts.push(`${posts.added} new posts for Write with AI`);
+  if (posts.limit) parts.push('new posts: today\'s limit reached');
+  const push = run.push;
+  if (push) {
+    const announced = Object.entries(push.caught_up || {});
+    if (announced.length) {
+      parts.push(`announced ${announced.map(([id, version]) => `post ${id} → ${version}`).join(', ')}`);
+    }
+    if (push.sent) parts.push(`${push.sent} queued notifications sent`);
+    if (push.waiting) parts.push(`${push.waiting} notifications still queued`);
+  }
+  const writer = run.writer;
+  if (writer && writer.queue) {
+    const state = writer.paused ? `paused: ${writer.paused}` : writer.waiting ? `waiting: ${writer.waiting}` : `next by ${writer.ai}`;
+    parts.push(`Write with AI: ${writer.queue} in the queue (${state})`);
+  }
+  return parts.length ? parts.join('; ') : 'nothing new';
+}
+
+/** Explains a failed request the way someone fixing .env needs it. */
+function explain(err) {
+  const said = err instanceof AllKeysExhaustedError ? String(err.keys?.[0]?.lastError || '') : '';
+  if (said.includes('y4apk_sync_off')) {
+    return 'Catalog sync is switched off on the site (App updates ▸ Settings ▸ Catalog sync)';
+  }
+  if (err instanceof AllKeysExhaustedError && !err.retryAt) {
+    return 'WordPress refused the credentials: check WP_SYNC_KEY (App updates ▸ Settings ▸ Catalog sync) or WP_USER / WP_APP_PASSWORD';
+  }
+  if (err instanceof AllKeysExhaustedError) {
+    return `WordPress is rate limiting; try again after ${err.retryAt.toISOString()}`;
+  }
+  if (err instanceof ApiError && err.status === 404) {
+    return 'No Catalog sync route on this site: update the Y4APK theme to 2.30+, or check WP_URL / WP_API_ROOT';
+  }
+  if (err instanceof ApiError && err.data && typeof err.data === 'object' && err.data.message) {
+    return `${err.message}: ${err.data.message}`;
+  }
+  return err.message;
+}
+
+/**
+ * POST /sync/run, then wp-cron.php. Resolves { ok, run, cron }, where run is
+ * WordPress's answer; never throws.
+ */
+async function runOnce(config, options = {}) {
+  const api = client(config, options);
+  let run;
+  try {
+    ({ data: run } = await api.request(endpoint(config, '/y4apk/v1/sync/run'), {
+      method: 'POST',
+      headers: { 'User-Agent': config.userAgent, Accept: 'application/json' },
+    }));
+  } catch (err) {
+    logger.error(`Sync run failed: ${explain(err)}`);
+    return { ok: false, error: explain(err) };
+  }
+  if (!run || typeof run !== 'object') {
+    logger.error('Sync run failed: WordPress did not answer with JSON (a security plugin or cache in the way?)');
+    return { ok: false, error: 'not JSON' };
+  }
+  logger.info(`Sync run: ${summarize(run)}`);
+
+  let cron = null;
+  if (config.wpCron) {
+    try {
+      // wp-cron.php runs the events that are due and needs no sign-in. doing_wp_cron
+      // stays empty: WordPress then takes its own lock (a value it did not make
+      // itself makes it do nothing); the parameter keeps page caches out of the way.
+      const r = await (options.fetch || fetch)(`${config.site}/wp-cron.php?doing_wp_cron`, {
+        headers: { 'User-Agent': config.userAgent },
+        signal: AbortSignal.timeout(config.timeoutMs),
+      });
+      await r.arrayBuffer();
+      cron = r.status;
+      if (!r.ok) logger.warn(`wp-cron.php answered HTTP ${r.status}`);
+    } catch (err) {
+      logger.warn(`wp-cron.php: ${err.message}`);
+    }
+  }
+  return { ok: true, run, cron };
+}
+
+async function status(config) {
+  const { data } = await client(config).request(endpoint(config, '/y4apk/v1/sync/status'), {
+    headers: { 'User-Agent': config.userAgent, Accept: 'application/json' },
+  });
+  return data;
 }
 
 /* ------------------------------------------------------------------ *
@@ -339,40 +212,30 @@ async function runOnce(pool, push, config) {
  * ------------------------------------------------------------------ */
 
 async function main() {
-  const once = process.argv.includes('--once');
   const config = loadConfig();
-  const pool = mysql.createPool(config.db);
-  const push = createPushSender(config);
+
+  if (process.argv.includes('--status')) {
+    try {
+      console.log(JSON.stringify(await status(config), null, 2));
+    } catch (err) {
+      logger.error(explain(err));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (process.argv.includes('--once')) {
+    const result = await runOnce(config);
+    process.exitCode = result.ok ? 0 : 1;
+    return;
+  }
 
   let timer = null;
   let current = null;
   let stopping = false;
 
-  const pass = async () => {
-    try {
-      const stats = await runOnce(pool, push, config);
-      if (stats.skipped) logger.info('Another monitor is running; skipped this pass');
-      else if (stats.checked) logger.info('Pass done', stats);
-      return !stats.failed;
-    } catch (err) {
-      logger.error(`Pass failed: ${err.stack || err.message}`);
-      return false;
-    }
-  };
-
-  const close = async () => {
-    await Promise.allSettled([pool.end(), push.close()]);
-  };
-
-  if (once) {
-    const ok = await pass();
-    await close();
-    process.exitCode = ok ? 0 : 1;
-    return;
-  }
-
   const tick = async () => {
-    current = pass();
+    current = runOnce(config);
     await current;
     current = null;
     if (!stopping) timer = setTimeout(tick, config.intervalMs);
@@ -381,16 +244,16 @@ async function main() {
   const shutdown = async (signal) => {
     if (stopping) return;
     stopping = true;
-    logger.info(`${signal}: stopping after the current pass`);
+    logger.info(`${signal}: stopping after the current run`);
     clearTimeout(timer);
     if (current) await current;
-    await close();
     process.exit(0);
   };
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  logger.info(`Version monitor started: every ${config.intervalMs / 1000}s, PUSH_MODE=${config.pushMode}`);
+  logger.info(`Version monitor started for ${config.site || config.apiRoot}: every ${config.intervalMs / 1000}s`
+    + (config.wpCron ? ', wp-cron.php after each run' : ''));
   await tick();
 }
 
@@ -401,4 +264,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseVersion, compareVersions, buildMessage, createPushSender, runOnce, loadConfig };
+module.exports = { loadConfig, endpoint, runOnce, status, summarize, explain };

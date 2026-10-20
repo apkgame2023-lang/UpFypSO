@@ -534,6 +534,31 @@ class Y4APK_App_Updates {
 		return ['version' => $apt, 'source' => $apt !== '' ? 'aptoide' : ($varies ? 'varies' : '')];
 	}
 
+	/**
+	 * The latest version and where it was seen. A newer version a catalog
+	 * listed in the last week (Catalog sync, 2.30) stays until Google Play
+	 * shows it too.
+	 */
+	public static function store_latest($post_id, $version, $source) {
+		if (class_exists('Y4APK_Sync')) {
+			list($version, $source) = Y4APK_Sync::prefer($post_id, (string) $version, (string) $source);
+		}
+		update_post_meta($post_id, self::LATEST, $version);
+		update_post_meta($post_id, self::SOURCE, $source);
+	}
+
+	/** Where the stored latest version was seen: Google Play, Aptoide, or the catalog's site. */
+	public static function source_name($post_id) {
+		$source = (string) get_post_meta($post_id, self::SOURCE, true);
+		if ($source === 'aptoide') {
+			return 'Aptoide';
+		}
+		if ($source === 'catalog' && class_exists('Y4APK_Sync')) {
+			return Y4APK_Sync::seen_on($post_id);
+		}
+		return 'Google Play';
+	}
+
 	public static function check_post($post_id) {
 		$package = self::package_from(get_post_meta($post_id, 'wp_GP_ID', true));
 		if ($package === '') {
@@ -548,8 +573,7 @@ class Y4APK_App_Updates {
 			self::apply_info($post_id, $play);
 		}
 		self::fill_size($post_id); // a download with no size: Aptoide's, once
-		update_post_meta($post_id, self::LATEST, $latest['version']);
-		update_post_meta($post_id, self::SOURCE, $latest['source']);
+		self::store_latest($post_id, $latest['version'], $latest['source']);
 		update_post_meta($post_id, self::CHECKED, time());
 		self::refresh_flag($post_id);
 		return true;
@@ -1214,7 +1238,7 @@ class Y4APK_App_Updates {
 			return;
 		}
 		$latest = (string) get_post_meta($post_id, self::LATEST, true);
-		$source = get_post_meta($post_id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
+		$source = self::source_name($post_id);
 		if ($latest === '') {
 			echo '<span style="color:#8c8f94">' . esc_html(get_post_meta($post_id, self::SOURCE, true) === 'varies'
 				? __('Google Play shows “Varies with device”', 'y4apk')
@@ -1857,7 +1881,7 @@ class Y4APK_App_Updates {
 					$current = self::current_version($id);
 					$latest = (string) get_post_meta($id, self::LATEST, true);
 					$new_n = self::number($latest);
-					$source = get_post_meta($id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
+					$source = self::source_name($id);
 					$suggest = self::number($current) !== '' ? self::with_number($current, $new_n) : $latest;
 					$uploads = class_exists('Y4APK_R2') && Y4APK_R2::ready();
 					$title = get_the_title($id); ?>
@@ -1869,6 +1893,9 @@ class Y4APK_App_Updates {
 								<div class="au-links">
 									<a href="<?php echo esc_url(get_permalink($id)); ?>" target="_blank"><?php esc_html_e('View post', 'y4apk'); ?> ↗</a>
 									<a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode(get_post_meta($id, 'wp_GP_ID', true))); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Google Play', 'y4apk'); ?> ↗</a>
+									<?php if (class_exists('Y4APK_Sync') && ($catalog = Y4APK_Sync::catalog_link($id)) !== '') : ?>
+										<a href="<?php echo esc_url($catalog); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(Y4APK_Sync::seen_on($id)); ?> ↗</a>
+									<?php endif; ?>
 								</div>
 								<?php echo self::info_chips($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in info_chips() ?>
 							</div>
@@ -2066,6 +2093,9 @@ class Y4APK_App_Updates {
 				</div>
 				<?php if (class_exists('Y4APK_Push')) {
 					Y4APK_Push::settings_card();
+				}
+				if (class_exists('Y4APK_Sync')) {
+					Y4APK_Sync::settings_card();
 				}
 				if (class_exists('Y4APK_R2')) {
 					Y4APK_R2::settings_card();
