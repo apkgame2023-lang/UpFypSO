@@ -61,8 +61,11 @@ function breadcrumbsX() {
 		if( is_singular('post') ) {
 			$parent_cat_id = null;
 			$post_categories = get_the_category();
+			$roblox_game = class_exists('Y4APK_Roblox') ? Y4APK_Roblox::game_of($post_id) : null;
 			
-			if(!empty($post_categories) ) {
+			if ($roblox_game) {
+				Y4APK_Roblox::crumbs($roblox_game, $sep, $link, $item_list); // Home → Roblox → the game (2.32)
+			} elseif(!empty($post_categories) ) {
 				foreach($post_categories as $cat) {
 					if($cat->parent == 0) {
 						echo $sep . $before . sprintf( $link, get_category_link($cat->term_id), $cat->name ) . $after;
@@ -125,6 +128,14 @@ function breadcrumbsX() {
 				"position" => count($item_list) + 1,
 				"name" => get_the_title()
 			);
+			
+		} elseif( class_exists('Y4APK_Roblox') && is_tax(Y4APK_Roblox::TAX) ) {
+			$paged = get_query_var('paged');
+			Y4APK_Roblox::crumbs(get_queried_object(), $sep, $link, $item_list, !$paged);
+			if ($paged) {
+				echo $sep . $before . sprintf( $current, sprintf($text['page'], $paged) ) . $after;
+				$item_list[] = array("@type" => "ListItem", "position" => count($item_list) + 1, "name" => sprintf($text['page'], $paged));
+			}
 			
 		} elseif( is_archive() && !is_post_type_archive() ) {
 			$paged = get_query_var('paged');

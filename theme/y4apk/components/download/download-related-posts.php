@@ -31,7 +31,8 @@ if ($sub_cat_id) {
     $related_posts = new WP_Query(array(
         'cat' => $sub_cat_id,
         'posts_per_page' => $post_per_page,
-        'post__not_in' => array(get_the_ID())
+        'post__not_in' => array(get_the_ID()),
+        'tax_query' => class_exists('Y4APK_Roblox') ? Y4APK_Roblox::not_roblox() : array(),
     ));
 }
 

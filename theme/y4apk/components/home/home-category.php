@@ -84,7 +84,14 @@ foreach($terms as $index => $term) :
 			$popular_post_args["tax_query"][] = $popular_tax_query_item;
 		}
 	}
-	
+
+	// Roblox scripts have /roblox/ of their own (2.32): not in the Games and Apps sections.
+	// ($term_obj is only this section's when it has a term: it stays set from the section before otherwise.)
+	if (class_exists('Y4APK_Roblox') && !(!empty($term_id) && !empty($term_obj) && $term_obj->taxonomy === 'category' && Y4APK_Roblox::is_roblox_category($term_obj->term_id))) {
+		$post_args['tax_query'][] = Y4APK_Roblox::not_roblox();
+		$popular_post_args['tax_query'][] = Y4APK_Roblox::not_roblox();
+	}
+
     $term_posts = new WP_Query($post_args);
 
 	$popular_posts = new WP_Query($popular_post_args);

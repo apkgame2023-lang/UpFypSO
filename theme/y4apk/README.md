@@ -331,6 +331,58 @@ download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
 
+## Roblox (2.32)
+
+Roblox script posts lived in a "Roblox Script" category under Games, mixed in
+with the APKs. They have a section of their own now, sorted by the Roblox game
+each script is for:
+
+- **`/roblox/`** — every game (icon, scripts, players on Roblox), a "Find a
+  game…" box, and the latest scripts, 24 a page. It is an ordinary page (slug
+  `roblox`, made once on the first admin visit), so its title, text and Rank
+  Math SEO are edited like any page; the theme draws the rest.
+- **`/roblox/<game>/`** — the game's banner, icon, scripts, views, players
+  and likes, *Play on Roblox* and *Share*; a summary ("Y4APK lists 24 Blox
+  Fruits scripts…, 10 of them are keyless. Most viewed right now: …"); search
+  within the game, *All* / *Keyless*, sort by *Recently updated*, *Newest* or
+  *Most viewed*; the scripts 4 a row (3 on tablets, 2 on phones), 24 a page;
+  and more games. The title is "Blox Fruits Scripts", also with Rank Math
+  (its default "… Archives"), and the description is written from the numbers
+  when the game has none.
+- **Header** — *Roblox* after Games and Apps, its menu the games with their
+  icons; on phones a third tab. The Roblox category is no longer a Games tile.
+- **On a script post** — Home → Roblox → Blox Fruits, and "More Blox Fruits
+  scripts" and "Other Roblox games" in place of "Similar".
+
+A game is a term of the `roblox_game` taxonomy (Posts ▸ Roblox Games). A post's
+**Roblox Game** box (beside the editor) picks one, or adds one by name, by
+`roblox.com/games/<id>/…` link or by place ID. With a link the game's name,
+icon, banner, players, visits, likes and maker come from Roblox's public API
+(place → universe, `games`, `games/votes`, `thumbnails …/icons` and
+`…/multiget/thumbnails`), and are brought up to date daily in one batched call;
+when Roblox cannot be reached, the name comes from the link. Without a link the
+game's icon is its newest post's picture, and its banner that post's first
+screenshot. The game's screen has the link, *Fetch from Roblox now*, and an
+icon and banner of your own.
+
+**Kept apart.** Posts with a game, or still in the Roblox category, are left out
+of the Games and Apps category pages, the home sections (unless a section *is*
+the Roblox category), the Games menu and APK posts' "Similar". The Roblox
+category page sends visitors to /roblox/ (301). Posts keep their URLs.
+
+**The posts already there.** Posts says how many Roblox posts have no game yet,
+with *Sort them into games*: a list of them with each one's game read from its
+title — "Blox Fruits Script - [Zee Hub]", "BLOX FRUITS Script - [Xeter Hub]"
+and "Blox Fruits Script Zee Hub VIP (No Key …)" are all *Blox Fruits*, "99 Nights
+in the Forest - [Somtank]" is *99 Nights in the Forest* — to correct, untick or
+save as they are.
+
+**Fixed with it.** The archive sort (Customizer ▸ archive order and count) was
+applied to every query on an archive page, not only its list. And every page
+counted a view for `get_the_ID()` — on a list page, the first post in the list —
+so the newest post gained a view with each visit to the home page; views are
+now counted on single posts and pages only.
+
 ## Script Code (2.31)
 
 Roblox script posts had their code pasted into the article as a Custom HTML

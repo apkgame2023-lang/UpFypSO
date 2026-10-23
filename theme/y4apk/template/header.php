@@ -13,12 +13,18 @@ $menu_locations = get_nav_menu_locations();
 $header = wp_get_nav_menu_items($menu_locations['header'] ?? 0);
 $footer = wp_get_nav_menu_items($menu_locations['footer'] ?? 0);
     
+// The Roblox category has its own "Roblox" menu (2.32), not a Games tile.
+$roblox_menu = class_exists('Y4APK_Roblox') && Y4APK_Roblox::in_menu();
+$roblox_cats = $roblox_menu ? Y4APK_Roblox::categories() : array();
+
 $subcategories_1 = get_categories(array(
 	'child_of' => $menu_id_1,
+	'exclude' => $roblox_cats,
 ));
 
 $subcategories_2 = get_categories(array(
     'child_of' => $menu_id_2,
+    'exclude' => $roblox_cats,
 ));
     
 $hasMenu1CategoryIcon = false;
@@ -90,12 +96,24 @@ if ($subcategories_2) {
 				<?php endif; ?>
             </div>
             <div class="h-menu">
+                <?php if ($roblox_menu) : // three tabs on phones: Games, Apps, Roblox ?>
+                <input class="y4-m-radio" id="select-mobile-games" type="radio" name="y4apk-m-menu" checked style="display:none;">
+                <input class="select-m-menu y4-m-radio" id="select-mobile-menu" type="radio" name="y4apk-m-menu" style="display:none;">
+                <input class="y4-m-radio" id="select-mobile-roblox" type="radio" name="y4apk-m-menu" style="display:none;">
+                <div class="select-m-menu-tabs y4-tabs3" style="display:none;">
+                <label for="select-mobile-games"><?php echo $menu_name_1; ?></label>
+                <label for="select-mobile-menu"><?php echo $menu_name_2; ?></label>
+                <label for="select-mobile-roblox"><?php esc_html_e('Roblox', 'y4apk'); ?></label>
+                <i class="select-m-menu-marker"></i>
+                </div>
+                <?php else : ?>
                 <input class="select-m-menu" id="select-mobile-menu" type="checkbox" style="display:none;">
                 <label class="select-m-menu-tabs" for="select-mobile-menu" style="display:none;">
                 <span><?php echo $menu_name_1; ?></span>
                 <span><?php echo $menu_name_2; ?></span>
                 <i class="select-m-menu-marker"></i>
                 </label>
+                <?php endif; ?>
                 <div class="h-menu-item h-menu-games">
                     <a class="h-link" href="<?php echo $menu_link_1; ?>">
                         <?php echo $menu_name_1; ?> 
@@ -180,6 +198,7 @@ if ($subcategories_2) {
                         </div>
                     </div>
                 </div>
+				<?php if ($roblox_menu) Y4APK_Roblox::menu(); ?>
 				<?php if($header) : ?>
 				<div class="h-menu-item h-menu-links" style="display: none">
 					<?php foreach($header as $menu) : ?>

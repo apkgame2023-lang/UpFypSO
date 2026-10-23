@@ -1,4 +1,10 @@
 <?php
+if (class_exists('Y4APK_Roblox') && Y4APK_Roblox::is_roblox_post(get_the_ID())) {
+	if (get_theme_mod('recommend_swt', true)) {
+		Y4APK_Roblox::related(get_the_ID()); // more scripts for the same Roblox game (2.32)
+	}
+	return;
+}
 $is_recommended_post = get_theme_mod('recommend_swt', true);
 $post_per_page = get_theme_mod('recommend_post_limit', 6);
 $post_categories = get_the_category(get_the_ID());
@@ -29,7 +35,8 @@ if ($sub_cat_id) {
     $related_posts = new WP_Query(array(
         'cat' => $sub_cat_id,
         'posts_per_page' => $post_per_page,
-        'post__not_in' => array(get_the_ID())
+        'post__not_in' => array(get_the_ID()),
+        'tax_query' => class_exists('Y4APK_Roblox') ? Y4APK_Roblox::not_roblox() : array(),
     ));
 }
 

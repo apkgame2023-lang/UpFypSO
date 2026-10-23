@@ -216,7 +216,8 @@ function archive_sort($query){
 	$archive_post_limit = get_theme_mod('archive_posts_limit', 12);
 	$archive_sort_order = get_theme_mod('archive_sort', 'latest');
 	
-	if ( !is_admin() && ( is_archive() || is_post_type_archive() ) ) {
+	// The archive's own list only: other queries on the page (2.32: a Roblox game's "most viewed") keep their order.
+	if ( !is_admin() && $query->is_main_query() && ( is_archive() || is_post_type_archive() ) ) {
 
 		switch ($archive_sort_order) {
     		case 'latest':

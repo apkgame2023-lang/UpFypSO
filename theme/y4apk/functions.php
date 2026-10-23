@@ -14,6 +14,7 @@ require $theme_dir . '/inc/breadcrumbs.php';
 require $theme_dir . '/inc/core.php';
 require $theme_dir . '/inc/inits.php';
 require $theme_dir . '/inc/scripts.php';
+require $theme_dir . '/inc/roblox.php';
 require $theme_dir . '/inits/cpt/articles-cpt.php';
 require $theme_dir . '/inits/cpt/news-cpt.php';
 require $theme_dir . '/inits/advertisements.php';
