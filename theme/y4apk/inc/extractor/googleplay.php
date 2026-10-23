@@ -10,9 +10,12 @@
 
 if (!defined('ABSPATH')) exit;
 
-$theme_dir = get_template_directory();
-
-require_once $theme_dir . '/admin/inc.php';
+// 2.33: the vendor's Google Play importer (admin/: the Y4APK ▸ Google Play and
+// Settings pages, APK upload to the server, Google Drive or FTP, and the Google
+// API client) is gone. Y4APK ▸ App updates ▸ Add from Google Play adds apps,
+// and App updates uploads files to R2. Its AJAX actions answered logged-out
+// visitors too, guarded only by a nonce, one of them saving a remote file under
+// its own name in uploads/.
 
 /**
  * Load the Customizer panel definitions — in the Customizer only.
@@ -75,4 +78,24 @@ if (!function_exists('y4apk_purge_legacy_license_data')) {
 		update_option('y4apk_license_purged', 1, false);
 	}
 	add_action('admin_init', 'y4apk_purge_legacy_license_data');
+}
+
+/**
+ * One time removal of what the old importer stored: its title and upload
+ * settings, and the Google Drive and FTP credentials it kept in plain text.
+ * at_mod_feature stays: Write with AI uses it as its default MOD.
+ */
+if (!function_exists('y4apk_purge_importer_options')) {
+	function y4apk_purge_importer_options() {
+		if (get_option('y4apk_importer_purged')) {
+			return;
+		}
+		foreach (['at_post_title_start', 'at_post_title_end', 'at_is_mod_title', 'at_is_mod_feature_title', 'at_is_title_version', 'at_is_blocks_content',
+			'at_is_get_apk', 'at_upload_storage', 'at_gdrive_client_id', 'at_gdrive_client_secret', 'at_gdrive_folder_name', 'at_gdrive_token',
+			'at_ftp_server_ip', 'at_ftp_port', 'at_ftp_username', 'at_ftp_password', 'at_ftp_directory', 'at_ftp_url', 'file_progress'] as $name) {
+			delete_option($name);
+		}
+		update_option('y4apk_importer_purged', 1, false);
+	}
+	add_action('admin_init', 'y4apk_purge_importer_options');
 }

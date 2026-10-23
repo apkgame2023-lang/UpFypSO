@@ -267,7 +267,7 @@ class Y4APK_Direct_Link {
 	 * ---------------------------------------------------------------- */
 
 	public static function register_page() {
-		add_submenu_page('y4apk-gplay', __('Direct Link', 'y4apk'), __('Direct Link', 'y4apk'),
+		add_submenu_page(Y4APK_MENU, __('Direct Link', 'y4apk'), __('Direct Link', 'y4apk'),
 			'manage_options', self::SLUG, [__CLASS__, 'render_page']);
 	}
 

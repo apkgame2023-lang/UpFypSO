@@ -47,7 +47,7 @@ class Y4APK_Logo_Page {
 
 	public static function register_page() {
 		add_submenu_page(
-			'y4apk-gplay',
+			Y4APK_MENU,
 			__('Site Logo', 'y4apk'),
 			__('Site Logo', 'y4apk'),
 			'edit_theme_options',

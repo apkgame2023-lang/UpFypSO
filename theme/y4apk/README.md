@@ -19,9 +19,8 @@ for a license key.
 | `inc/extractor/settings.php` | Indirection that only loaded the admin when licensed |
 
 The Customizer panel and the whole importer admin are now loaded
-unconditionally from `inc/extractor/googleplay.php`. The importer's only
-remaining gate is a `manage_options` capability check, which is what it should
-have been all along.
+unconditionally from `inc/extractor/googleplay.php`. (The importer itself is
+gone since 2.33: see *The old Google Play importer, removed*.)
 
 Left-over license rows (`MODW_lic_*`) and the old `modw_up` update transient are
 deleted from the options table once, on the first admin page load.
@@ -47,9 +46,7 @@ Everything user-visible, plus every internal identifier:
 **Nothing stored in the database was renamed.** Option keys still use the `at_`
 prefix, post meta still uses `wp_*_GP`, and all 56 Kirki Customizer settings keep
 their original names — so existing settings, imported apps and Customizer values
-carry over untouched. The Google Drive OAuth redirect is still
-`https://your-site/?at_upload=gdrive`, so the credentials registered in Google
-Cloud Console keep working.
+carry over untouched.
 
 Front-end markup and CSS are unchanged: the site looks exactly the same.
 
@@ -330,6 +327,25 @@ first letter in a colour of its own (`y4apk_icon_url()`, an inline SVG). A
 download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
+
+## The old Google Play importer, removed (2.33)
+
+The vendor's importer — Y4APK ▸ *Google Play* (a Play URL → a post, its APK
+downloaded to the server, Google Drive or FTP) and Y4APK ▸ *Settings* — is
+gone, with `admin/` and the Google API client under it (816 of the theme's 946
+files, 7 MB). It had been replaced: App updates ▸ *Add from Google Play* adds
+apps (a Play link or package name goes straight to that app) and Write with AI
+writes them; App updates uploads files to R2.
+
+It was also a risk. Its four AJAX actions were registered for logged-out
+visitors too (`wp_ajax_nopriv_…`) and checked a nonce but never a capability,
+and one of them fetched a URL from the request and wrote it into `uploads/`
+under the URL's own file name. On the first admin visit its stored settings
+are deleted, with the Google Drive secret and token and the FTP login it kept in
+plain text; `at_mod_feature` stays (Write with AI's default MOD).
+
+The Y4APK menu now opens on Analytics; every Y4APK page is under it
+(`Y4APK_MENU`).
 
 ## Roblox (2.32)
 
@@ -1046,4 +1062,4 @@ early" notice WordPress 6.7+ logs for every `__()` call in it.
 
 - WordPress 5.4+, PHP 7.4+
 - [Kirki](https://wordpress.org/plugins/kirki/) — prompted for on activation via TGMPA; the Customizer panel is skipped if it is missing
-- For the Google Play importer: `max_execution_time` and `max_input_time` ≥ 300, and `memory_limit` / `post_max_size` / `upload_max_filesize` ≥ 4G for APK uploads
+- For App updates' uploads to R2: `upload_max_filesize` / `post_max_size` large enough for the APKs uploaded through it

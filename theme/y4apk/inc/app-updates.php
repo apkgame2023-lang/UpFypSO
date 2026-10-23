@@ -1274,7 +1274,7 @@ class Y4APK_App_Updates {
 	 * ---------------------------------------------------------------- */
 
 	public static function register_page() {
-		add_submenu_page('y4apk-gplay', __('App updates', 'y4apk'), __('App updates', 'y4apk'),
+		add_submenu_page(Y4APK_MENU, __('App updates', 'y4apk'), __('App updates', 'y4apk'),
 			'edit_posts', self::SLUG, [__CLASS__, 'render_page']);
 	}
 

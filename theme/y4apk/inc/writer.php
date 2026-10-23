@@ -2336,7 +2336,7 @@ class Y4APK_Writer {
 	 * ---------------------------------------------------------------- */
 
 	public static function register_page() {
-		add_submenu_page('y4apk-gplay', __('Write with AI', 'y4apk'), __('Write with AI', 'y4apk'),
+		add_submenu_page(Y4APK_MENU, __('Write with AI', 'y4apk'), __('Write with AI', 'y4apk'),
 			'edit_posts', self::SLUG, [__CLASS__, 'render_page']);
 	}
 

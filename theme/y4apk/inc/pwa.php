@@ -876,7 +876,7 @@ class Y4APK_PWA {
 	 * ---------------------------------------------------------------- */
 
 	public static function register_page() {
-		add_submenu_page('y4apk-gplay', __('App', 'y4apk'), __('App', 'y4apk'),
+		add_submenu_page(Y4APK_MENU, __('App', 'y4apk'), __('App', 'y4apk'),
 			'manage_options', self::SLUG, [__CLASS__, 'render_page']);
 	}
 
