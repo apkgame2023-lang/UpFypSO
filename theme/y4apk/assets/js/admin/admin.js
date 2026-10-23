@@ -18,6 +18,27 @@ jQuery(document).ready(function($) {
         $(this).parents('tr').remove();
         return false;
     });
+
+	/* Script Code JS (2.31): new rows go last, so the codes keep their order */
+    $('#script-table tbody').sortable({
+        items: 'tr',
+        cursor: 'move',
+        handle: '.handle',
+    });
+
+    $('#add-script-row').on('click', function() {
+        var row = $('.empty-s-row').clone(true);
+        row.removeClass('empty-s-row').css('display', 'table-row');
+        row.find('input, textarea').val('');
+        row.insertBefore('#script-table tbody > tr.empty-s-row');
+        row.find('textarea').trigger('focus');
+        return false;
+    });
+
+    $('#script-table').on('click', '.remove-btn', function() {
+        $(this).parents('tr').remove();
+        return false;
+    });
 	
     // Show the current value as a tooltip
     var rangeInput = $('.range-input');

@@ -7,6 +7,7 @@ add_action('save_post', 'save_screenshots');
 
 function add_post_metaboxes(){
     add_meta_box('download-links', __('Download Links', 'y4apk'), 'download_links_callback', 'post', 'normal', 'high');
+    add_meta_box('script-code', __('Script Code', 'y4apk'), ['Y4APK_Scripts', 'box'], 'post', 'normal', 'high');
     add_meta_box('app-info', __('App Information', 'y4apk'), 'app_info_callback', 'post', 'normal', 'high');
     add_meta_box('screenshots', __('Screenshots', 'y4apk'), 'screenshots_callback', 'post', 'normal', 'high');
 }
@@ -14,7 +15,7 @@ function add_post_metaboxes(){
 function y4apk_post_editor_styles() {
     if (is_admin() && get_current_screen()->id === 'post') {
         wp_enqueue_style('y4apk-admin', get_template_directory_uri() . '/assets/css/admin/admin.min.css', array(), Y4APK_THEME_VERSION, 'all');
-        wp_enqueue_script('y4apk-admin', get_template_directory_uri() . '/assets/js/admin/admin.js', array('jquery'), Y4APK_THEME_VERSION, true);
+        wp_enqueue_script('y4apk-admin', get_template_directory_uri() . '/assets/js/admin/admin.js', array('jquery', 'jquery-ui-sortable'), Y4APK_THEME_VERSION, true);
     }
 }
 add_action('admin_enqueue_scripts', 'y4apk_post_editor_styles');

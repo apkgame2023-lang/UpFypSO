@@ -331,6 +331,32 @@ download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
 
+## Script Code (2.31)
+
+Roblox script posts had their code pasted into the article as a Custom HTML
+block, copied into every post: a `<style>`, a `<div class="copy-wrap">` holding
+the code, and a `<script>` for its Copy button. The code now has a box of its
+own under the post, **Script Code**, next to Download Links: one row per code,
+a name (optional: "ENG", "ภาษาไทย") and the code, in any order (drag ☰), with
+*Add Code* and *Remove*. It is kept as plain text (`_y4apk_scripts`) and shown
+escaped, so nothing in it runs on the page, whoever typed it in.
+
+On the post page the codes come first in the download section, where the
+**Download** button at the top goes (`#download-now`): *COPY SCRIPT*, then each
+code in a dark box with its name and a **Copy** button ("Copied!" for two
+seconds; where the browser will not copy, the code is selected to copy by hand).
+Long lines wrap on phones; what is copied is the code exactly as typed.
+
+**Moving the pasted code out.** A post whose article still has `copy-wrap`
+blocks says so in its box: *Move them into this box* (save first: the page
+reloads). Posts says how many posts have them, with *Move the code of all N
+posts* — 50 posts a round, each round its own page, so it goes on past the 20
+redirects a browser follows. Moving takes out each `copy-wrap` div, the
+`<style>`/`<script>` that came with it, and a Custom HTML block left empty;
+anything else in that block stays. A `-- ENG` first line becomes the code's
+name. Each post keeps its date (no "Updated today" on hundreds of posts), its
+previous version stays in Revisions, and running it again changes nothing.
+
 ## Write with AI (2.23–2.29)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen

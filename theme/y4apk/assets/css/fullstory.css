@@ -284,3 +284,16 @@
 .f-app-install li::before { content: counter(y4step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: #29b1d8; color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 14px; }
 .f-app-install code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: #eef6f9; white-space: nowrap; }
 .f-app-install code.pkg { white-space: normal; overflow-wrap: anywhere; }
+
+/* Script Code (2.31): code to copy, in the download section */
+.y4-scripts { margin-bottom: 1rem; }
+.f-app-download .f-app-script { text-align: left; }
+.f-app-download .f-app-script .attachment-name { text-align: center; }
+.y4-code { margin-top: .75rem; border-radius: .75rem; overflow: hidden; background: #1e1e1e; color: #f1f1f1; }
+.y4-code-bar { display: flex; align-items: center; gap: .5rem; padding: .5rem .5rem .5rem 1rem; background: #2b2b2b; }
+.y4-code-label { flex: 1; min-width: 0; font-size: .8125rem; font-weight: bold; color: #cfd3d8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.y4-code-copy { flex: none; margin-left: auto; border: 0; border-radius: .5rem; padding: .375rem .875rem; font: inherit; font-size: .8125rem; font-weight: bold; line-height: 1.4; color: #fff; background: #4DD066; cursor: pointer; transition: background-color .2s ease; }
+.y4-code-copy:hover { background: #37BA50; }
+.y4-code-copy.is-done { background: #29B1D8; }
+.y4-code-text { margin: 0; padding: .875rem 1rem; max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: .875rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: inherit; background: none; border: 0; text-align: left; }
+.y4-code-text code { font: inherit; color: inherit; background: none; padding: 0; white-space: inherit; overflow-wrap: anywhere; } /* core.css: pre code { white-space: pre } */

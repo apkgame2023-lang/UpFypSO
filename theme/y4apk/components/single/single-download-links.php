@@ -36,6 +36,7 @@ if ($hasApk && $hasObb) {
 if(function_exists('single_bottom_ad')) single_bottom_ad();
 ?>
 <div class="f-app-download" id="download-now">
+    <?php if (class_exists('Y4APK_Scripts')) Y4APK_Scripts::render(get_the_ID()); // Script Code (2.31): what a script post offers, before any download ?>
     <div class="grid-list <?php echo $grid2_class; ?>">
 		<?php 
 		if (!empty($download_links)) :
