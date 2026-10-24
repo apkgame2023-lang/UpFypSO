@@ -425,6 +425,16 @@ anything else in that block stays. A `-- ENG` first line becomes the code's
 name. Each post keeps its date (no "Updated today" on hundreds of posts), its
 previous version stays in Revisions, and running it again changes nothing.
 
+**Unlock step (2.34).** With **Y4APK ▸ Direct Link ▸ *Lock the script until the
+ad is tapped*** on (and a link set), the code is blurred behind *Almost there —
+1 step to unlock · 0/1*. Tapping it opens that same Direct Link in a new tab,
+then shows the code — one tap unlocks every code on the post. It follows Direct
+Link's *How often* (once per visit, once a day, or every tap) and, like the
+download-button ad, never runs inside the installed app, where it would take
+the one window over; there the code shows straight away. The lock is cosmetic
+(the code is in the page for search engines and the app), so it is a monetiser,
+not a wall.
+
 ## Write with AI (2.23–2.29)
 
 **Y4APK ▸ Write with AI** writes a post's article with one of four AIs, chosen

@@ -151,8 +151,11 @@ class Y4APK_Scripts {
 		if (!$rows) {
 			return;
 		}
+		// The unlock gate (Y4APK ▸ Direct Link ▸ Lock the script): tap the ad once, then the code shows.
+		$gate = class_exists('Y4APK_Direct_Link') ? Y4APK_Direct_Link::script_gate() : null;
+		$locked = $gate ? ' is-locked' : '';
 		?>
-		<div class="y4-scripts">
+		<div class="y4-scripts<?php echo $locked; ?>"<?php if ($gate) : ?> data-y4-url="<?php echo esc_attr($gate[0]); ?>" data-y4-every="<?php echo esc_attr($gate[1]); ?>"<?php endif; ?>>
 			<div class="block f-app-script">
 				<span class="muted"></span>
 				<div class="attachment-name"><?php esc_html_e('COPY SCRIPT', 'y4apk'); ?></div>
@@ -165,8 +168,56 @@ class Y4APK_Scripts {
 					<pre class="y4-code-text"><code><?php echo esc_html($row['code']); ?></code></pre>
 				</div>
 				<?php endforeach; ?>
+				<?php if ($gate) : ?>
+				<div class="y4-unlock" role="button" tabindex="0" aria-label="<?php esc_attr_e('Unlock the script', 'y4apk'); ?>">
+					<span class="y4-unlock-step"><?php esc_html_e('Almost there — 1 step to unlock', 'y4apk'); ?></span>
+					<span class="y4-unlock-count"><span class="y4-unlock-n">0</span>/1</span>
+				</div>
+				<?php endif; ?>
 			</div>
 		</div>
+		<?php if ($gate) : ?>
+		<script>
+		(function () {
+			var box = document.currentScript.previousElementSibling;
+			while (box && !(box.classList && box.classList.contains('y4-scripts'))) { box = box.previousElementSibling; }
+			if (!box || box.y4Ready) { return; }
+			box.y4Ready = 1;
+			var url = box.getAttribute('data-y4-url'), every = box.getAttribute('data-y4-every'),
+				gate = box.querySelector('.y4-unlock'), key = 'y4apk_script_unlock', inApp = <?php echo Y4APK_Direct_Link::in_app_expr(); ?>;
+			function done() {
+				try {
+					if (every === 'visit') sessionStorage.setItem(key, '1');
+					else if (every === 'day') localStorage.setItem(key, String(Date.now()));
+				} catch (e) {}
+			}
+			function unlocked() {
+				if (inApp) { return true; } // the installed app cannot open the ad tab
+				try {
+					if (every === 'always') { return false; }
+					if (every === 'visit') { return !!sessionStorage.getItem(key); }
+					if (every === 'day') { return Date.now() - (parseInt(localStorage.getItem(key) || '0', 10) || 0) < 864e5; }
+				} catch (e) {}
+				return false;
+			}
+			function reveal() {
+				box.classList.remove('is-locked');
+				var n = box.querySelector('.y4-unlock-n'); if (n) { n.textContent = '1'; }
+			}
+			if (unlocked()) { reveal(); return; }
+			function go() {
+				if (box.y4Done) { return; }
+				box.y4Done = 1;
+				if (window.y4apkTrack) { window.y4apkTrack('direct_link', 'script'); }
+				window.open(url, '_blank', 'noopener');
+				done();
+				setTimeout(reveal, 400); // after the new tab takes focus
+			}
+			gate.addEventListener('click', go);
+			gate.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+		})();
+		</script>
+		<?php endif; ?>
 		<script>
 		(function () {
 			if (window.y4apkCopy) { return; }

@@ -48,6 +48,7 @@ class Y4APK_Direct_Link {
 			'url'   => home_url('/update-ads'),
 			'every' => 'visit',
 			'image' => 'https://y4apk.com/wp-content/uploads/2026/04/Ads.png',
+			'script_lock' => 1, // Script Code is hidden until the ad is tapped (2.34)
 		];
 	}
 
@@ -69,6 +70,29 @@ class Y4APK_Direct_Link {
 	/* ---------------------------------------------------------------- *
 	 * Front end
 	 * ---------------------------------------------------------------- */
+
+	/* ---------------------------------------------------------------- *
+	 * Shared with the Script Code unlock (inc/scripts.php)
+	 * ---------------------------------------------------------------- */
+
+	/**
+	 * The ad for the Script Code unlock: [url, every], or null when there is
+	 * nothing to tap (no link, or the lock turned off). The link is used
+	 * whatever the download-button "When" mode is — the two gates are separate.
+	 */
+	public static function script_gate() {
+		$s = self::settings();
+		$url = esc_url_raw((string) $s['url'], ['http', 'https']);
+		if ($url === '' || empty($s['script_lock'])) {
+			return null;
+		}
+		return [$url, in_array($s['every'], ['visit', 'day', 'always'], true) ? $s['every'] : 'visit'];
+	}
+
+	/** The in-app test, for code that cannot open a new tab (reused by the unlock). */
+	public static function in_app_expr() {
+		return self::in_app_js();
+	}
 
 	/**
 	 * JS expression: is the page running inside the installed app? The app has
@@ -283,6 +307,7 @@ class Y4APK_Direct_Link {
 			'url'   => esc_url_raw(isset($in['url']) ? trim((string) $in['url']) : '', ['http', 'https']),
 			'every' => (isset($in['every']) && in_array($in['every'], ['visit', 'day', 'always'], true)) ? $in['every'] : 'visit',
 			'image' => esc_url_raw(isset($in['image']) ? trim((string) $in['image']) : '', ['http', 'https']),
+			'script_lock' => empty($in['script_lock']) ? 0 : 1,
 		], true);
 		self::$settings = null;
 
@@ -334,6 +359,9 @@ class Y4APK_Direct_Link {
 					<tr><th scope="row"><label for="dl-image"><?php esc_html_e('Unlock box image', 'y4apk'); ?></label></th>
 						<td><input id="dl-image" type="url" class="large-text code" name="image" value="<?php echo esc_attr($s['image']); ?>">
 							<p class="description"><?php esc_html_e('Only used by the Unlock box.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Script Code', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="script_lock" value="1" <?php checked(!empty($s['script_lock'])); ?>> <strong><?php esc_html_e('Lock the script until the ad is tapped', 'y4apk'); ?></strong></label>
+							<p class="description" style="max-width:640px"><?php esc_html_e('On a Roblox script post, the code in the download section is hidden behind “Almost there — 1 step to unlock”. Tapping it opens the Link above in a new tab (the same link), then shows the code. It follows the “How often” setting, and never runs inside the installed app.', 'y4apk'); ?></p></td></tr>
 				</tbody></table>
 				<?php submit_button(__('Save', 'y4apk')); ?>
 			</form>
