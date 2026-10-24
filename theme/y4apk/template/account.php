@@ -358,8 +358,10 @@ if ($screen === 'login') {
 				<?php $field(__('Not in the list? Type the game’s name', 'y4apk'), 'game_new', 'text', ['maxlength' => '60', 'placeholder' => 'Blox Fruits']); ?>
 
 				<div class="acc-step"><span>2</span><?php esc_html_e('Name it', 'y4apk'); ?></div>
-				<?php $field(__('Script name', 'y4apk'), 'hub', 'text', ['required' => true, 'minlength' => '2', 'maxlength' => '40', 'placeholder' => 'Zee Hub']); ?>
+				<?php $field(__('Script name', 'y4apk'), 'hub', 'text', ['required' => true, 'minlength' => '2', 'maxlength' => '40', 'placeholder' => 'Y4APK Hub']); ?>
+				<p class="acc-hint"><?php esc_html_e('The name its maker gave it, like Redz Hub or Speed Hub X. Made it yourself? Give it your own name.', 'y4apk'); ?></p>
 				<label class="acc-switch"><input type="checkbox" name="keyless" value="1" <?php checked((int) $v('keyless', 1), 1); ?>><i></i><span><?php esc_html_e('No key needed', 'y4apk'); ?></span></label>
+				<div class="acc-title-preview" data-title-preview hidden><span><?php esc_html_e('Your post will be called', 'y4apk'); ?></span><b data-title-text></b></div>
 
 				<div class="acc-step"><span>3</span><?php esc_html_e('Paste the code', 'y4apk'); ?></div>
 				<div data-codes>
@@ -438,6 +440,21 @@ if ($screen === 'login') {
 			if (box.querySelectorAll('[data-code]').length >= 3) { add.hidden = true; }
 		}
 	});
+	// Share / edit: the post's title as it will be made (members.php save_script()).
+	var prev = document.querySelector('[data-title-preview]');
+	if (prev) {
+		var f = prev.closest('form'), out = prev.querySelector('[data-title-text]');
+		var show = function () {
+			var game = f.querySelector('[name="game"]'), opt = game && game.value !== '0' ? game.options[game.selectedIndex] : null;
+			var name = opt ? opt.text : f.querySelector('[name="game_new"]').value.trim();
+			var hub = f.querySelector('[name="hub"]').value.trim();
+			out.textContent = (name || '…') + ' Script ' + hub + (f.querySelector('[name="keyless"]').checked ? ' (No Key)' : '');
+			prev.hidden = hub === '';
+		};
+		f.addEventListener('input', show);
+		f.addEventListener('change', show);
+		show();
+	}
 })();
 </script>
 <?php // Named y4apk-pwa-…: the speed plugin's delay already leaves y4apk-pwa scripts alone. ?>

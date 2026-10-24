@@ -39,6 +39,9 @@ class Y4APK_Roblox {
 	const M_ICON_SRC = 'y4apk_icon_src';  // 'post' (a post's picture) | 'roblox' | 'manual'
 	const M_BANNER   = 'y4apk_banner';    // attachment ID
 	const M_STATS    = 'y4apk_stats';     // ['playing', 'visits', 'favorites', 'up', 'down', 'creator', 'updated', 'fetched']
+	const M_SHOTS    = 'y4apk_shots';     // ['urls' => up to SHOTS screenshot URLs on Roblox's CDN, 'fetched' => time]
+	const SHOTS      = 5;
+	const SHOTS_HOOK = 'y4apk_roblox_shots';
 
 	public static function init() {
 		add_action('init', [__CLASS__, 'register'], 5);
@@ -52,6 +55,8 @@ class Y4APK_Roblox {
 		add_filter('rank_math/frontend/title', [__CLASS__, 'rank_math_title']);
 		add_filter('rank_math/frontend/description', [__CLASS__, 'rank_math_description']);
 		add_action(self::HOOK, [__CLASS__, 'refresh']);
+		add_action(self::SHOTS_HOOK, [__CLASS__, 'refresh_shots']);
+		add_action('admin_init', [__CLASS__, 'first_shots']);
 
 		add_action('add_meta_boxes_post', [__CLASS__, 'add_box']);
 		add_action('save_post_post', [__CLASS__, 'save_box']);
@@ -480,7 +485,11 @@ class Y4APK_Roblox {
 	public static function card($post_id, $show_game = true) {
 		$title = get_the_title($post_id);
 		$shots = get_post_meta($post_id, 'ss_images', true);
-		$img = is_array($shots) && !empty($shots[0]['ss_url']) ? $shots[0]['ss_url'] : y4apk_icon_url($post_id, 'medium_large');
+		if (!is_array($shots) || empty($shots[0]['ss_url'])) {
+			$shots = self::game_shots($post_id);
+			$shots = $shots ? array_slice($shots, $post_id % count($shots), 1) : []; // not the same picture on every card of a game
+		}
+		$img = !empty($shots[0]['ss_url']) ? $shots[0]['ss_url'] : y4apk_icon_url($post_id, 'medium_large');
 		$views = (int) get_post_meta($post_id, 'wpb_post_views_count', true);
 		$game = $show_game ? self::game_of($post_id) : null;
 		$hub = self::hub_name($post_id);
@@ -508,6 +517,41 @@ class Y4APK_Roblox {
 				</span>
 			</a>
 		</article>
+		<?php
+	}
+
+	/** In place of Name / Category / OS on a Roblox post: its game, the key, players now and views. */
+	public static function facts($post_id) {
+		$game = self::game_of($post_id);
+		$keyless = self::keyless(get_the_title($post_id));
+		$s = $game ? self::stats($game) : null;
+		$cards = [];
+		if ($game) {
+			$cards[] = ['code', __('Game', 'y4apk'), '<a class="f-app-meta-data rbx-fact-game" href="' . esc_url(get_term_link($game)) . '"><img src="' . esc_url(self::icon_url($game), ['http', 'https', 'data']) . '" alt="" width="22" height="22" loading="lazy">' . esc_html($game->name) . '</a>'];
+		}
+		$cards[] = ['key', __('Key', 'y4apk'), '<span class="f-app-meta-data ' . ($keyless ? 'rbx-fact-ok' : 'rbx-fact-warn') . '">' . esc_html($keyless ? __('No key needed', 'y4apk') : __('Key system', 'y4apk')) . '</span>'];
+		if ($s && $s['playing'] !== null) {
+			$play = self::play_url($game);
+			$cards[] = ['users', __('Playing now', 'y4apk'), '<span class="f-app-meta-data rbx-fact-row"><span>' . esc_html(self::short_number($s['playing'])) . '</span>'
+				. ($play !== '' ? '<a class="rbx-fact-play" href="' . esc_url($play) . '" target="_blank" rel="nofollow noopener">' . self::icon('play') . esc_html__('Play', 'y4apk') . '</a>' : '') . '</span>'];
+		} else {
+			$cards[] = ['clock', __('Updated', 'y4apk'), '<span class="f-app-meta-data">' . esc_html(self::ago(get_post_modified_time('U', true, $post_id))) . '</span>'];
+		}
+		$cards[] = ['eye', __('Views', 'y4apk'), '<span class="f-app-meta-data">' . esc_html(number_format_i18n((int) get_post_meta($post_id, 'wpb_post_views_count', true))) . '</span>'];
+		?>
+		<div class="f-app-meta rbx-facts">
+			<div class="grid-list grid4">
+				<?php foreach ($cards as $c) : ?>
+				<div class="b-grid">
+					<div class="block">
+						<i class="f-app-meta-icon c-blue"><?php echo self::icon($c[0]); ?></i>
+						<span class="fw-b c-blue"><?php echo esc_html($c[1]); ?></span>
+						<?php echo $c[2]; // built and escaped above ?>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
 		<?php
 	}
 
@@ -655,6 +699,8 @@ class Y4APK_Roblox {
 		$icons = self::images('https://thumbnails.roblox.com/v1/games/icons?universeIds=' . $universe . '&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false');
 		$data['icon'] = isset($icons[$universe]) ? $icons[$universe] : '';
 		$b = self::get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=' . $universe . '&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false');
+		$shots = self::shots_of([$universe]);
+		$data['shots'] = !is_wp_error($shots) && !empty($shots[$universe]) ? $shots[$universe] : [];
 		$data['banner'] = '';
 		if (!is_wp_error($b) && !empty($b['data'])) {
 			foreach ((array) $b['data'] as $row) {
@@ -716,6 +762,82 @@ class Y4APK_Roblox {
 		return $out;
 	}
 
+	/**
+	 * Up to SHOTS screenshots of each universe, from one call for up to 50 games:
+	 * [universe => [URL, …]], or a WP_Error. They stay on Roblox's CDN (nothing to
+	 * download or resize here); its addresses expire, so the daily refresh asks again.
+	 */
+	private static function shots_of($universes) {
+		$r = self::get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=' . implode(',', array_map('rawurlencode', $universes))
+			. '&countPerUniverse=' . self::SHOTS . '&defaults=true&size=768x432&format=Webp&isCircular=false');
+		if (is_wp_error($r)) {
+			return $r;
+		}
+		$out = [];
+		foreach (isset($r['data']) ? (array) $r['data'] : [] as $row) {
+			$u = isset($row['universeId']) ? (string) $row['universeId'] : (count($universes) === 1 ? (string) $universes[0] : '');
+			foreach ($u !== '' && isset($row['thumbnails']) ? (array) $row['thumbnails'] : [] as $t) {
+				if (isset($t['imageUrl'], $t['state']) && $t['state'] === 'Completed' && self::cdn_url($t['imageUrl'])) {
+					$out[$u][] = (string) $t['imageUrl'];
+				}
+			}
+		}
+		return $out;
+	}
+
+	public static function cdn_url($url) {
+		return (bool) preg_match('~^https://[a-z0-9-]+\.rbxcdn\.com/[^\s"\'<>]+$~i', (string) $url);
+	}
+
+	private static function save_shots($term_id, $urls) {
+		$urls = array_slice(array_values(array_filter((array) $urls, [__CLASS__, 'cdn_url'])), 0, self::SHOTS);
+		if ($urls) {
+			update_term_meta($term_id, self::M_SHOTS, ['urls' => $urls, 'fetched' => time()]);
+		}
+	}
+
+	/** The screenshots of every game with a Roblox link (daily, and once after this update). */
+	public static function refresh_shots() {
+		$terms = get_terms(['taxonomy' => self::TAX, 'hide_empty' => false, 'meta_key' => self::M_UNIVERSE, 'meta_compare' => 'EXISTS']);
+		$by = [];
+		foreach (is_array($terms) ? $terms : [] as $t) {
+			$by[(string) get_term_meta($t->term_id, self::M_UNIVERSE, true)] = $t->term_id;
+		}
+		unset($by['']);
+		foreach (array_chunk(array_keys($by), 50) as $chunk) {
+			$shots = self::shots_of($chunk);
+			if (is_wp_error($shots)) {
+				return;
+			}
+			foreach ($shots as $u => $urls) {
+				if (isset($by[$u])) {
+					self::save_shots($by[$u], $urls);
+				}
+			}
+		}
+	}
+
+	public static function first_shots() {
+		if (!get_option('y4apk_roblox_shots_v1')) {
+			update_option('y4apk_roblox_shots_v1', 1);
+			wp_schedule_single_event(time() + 30, self::SHOTS_HOOK);
+		}
+	}
+
+	/** A Roblox post without screenshots of its own (a member's) shows its game's: [['ss_url' => URL], …]. */
+	public static function game_shots($post_id) {
+		$game = self::game_of($post_id);
+		if (!$game) {
+			return [];
+		}
+		$s = get_term_meta($game->term_id, self::M_SHOTS, true);
+		$urls = is_array($s) && !empty($s['urls']) ? array_values(array_filter((array) $s['urls'], [__CLASS__, 'cdn_url'])) : [];
+		if (!$urls && ($banner = self::banner_url($game)) !== '') {
+			$urls = [$banner];
+		}
+		return array_map(function ($url) { return ['ss_url' => $url]; }, $urls);
+	}
+
 	/** Keeps what Roblox said; downloads its icon and banner where the game has none of its own. */
 	public static function apply($term_id, $data, $replace = false) {
 		$stats = self::stats(get_term($term_id));
@@ -731,6 +853,9 @@ class Y4APK_Roblox {
 		}
 		if (!empty($data['universe'])) {
 			update_term_meta($term_id, self::M_UNIVERSE, (string) $data['universe']);
+		}
+		if (!empty($data['shots'])) {
+			self::save_shots($term_id, $data['shots']);
 		}
 		$term = get_term($term_id);
 		$src = (string) get_term_meta($term_id, self::M_ICON_SRC, true);
@@ -808,6 +933,7 @@ class Y4APK_Roblox {
 				}
 			}
 		}
+		self::refresh_shots();
 	}
 
 	/* ---------------------------------------------------------------- *

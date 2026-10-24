@@ -1,5 +1,9 @@
 <?php
 $post_id = get_the_ID();
+if (class_exists('Y4APK_Roblox') && Y4APK_Roblox::is_roblox_post($post_id)) {
+	Y4APK_Roblox::facts($post_id); // a script: its game, the key, players and views
+	return;
+}
 $app_name = get_post_meta($post_id, 'wp_title_GP', true);
 $app_publisher = get_post_meta($post_id, 'wp_developers_GP', true);
 $app_mod_feature = get_post_meta($post_id, 'wp_mods', true);

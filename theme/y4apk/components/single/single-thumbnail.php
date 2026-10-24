@@ -2,6 +2,9 @@
 $app_name = get_post_meta(get_the_ID(), 'wp_title_GP', true);
 $app_name = $app_name ?: get_the_title();
 $screenshots = get_post_meta(get_the_ID(), 'ss_images', true);
+if (!$screenshots && class_exists('Y4APK_Roblox') && Y4APK_Roblox::is_roblox_post(get_the_ID())) {
+	$screenshots = Y4APK_Roblox::game_shots(get_the_ID()); // a member's script: its game's screenshots from Roblox
+}
 $screenshots_limit = get_theme_mod('screenshots_limit', 5);
 $rating_data = get_star_rating(get_the_ID());
 ?>
@@ -73,8 +76,8 @@ $rating_data = get_star_rating(get_the_ID());
 						if ($index >= $screenshots_limit) break;        	
 					?>
                     <li>
-						<a href="<?php echo $screenshot['ss_url']; ?>" target="_blank">
-							<img width="100%" height="auto" src="<?php echo $screenshot['ss_url']; ?>" alt="<?php echo $app_name; ?>" loading="lazy">
+						<a href="<?php echo esc_url($screenshot['ss_url']); ?>" target="_blank">
+							<img width="100%" height="auto" src="<?php echo esc_url($screenshot['ss_url']); ?>" alt="<?php echo esc_attr(wp_strip_all_tags($app_name)); ?>" loading="lazy">
 						</a>
 					</li>
                     <?php endforeach; ?>

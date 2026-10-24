@@ -64,6 +64,9 @@
 .acc-eye { position: absolute; right: .25rem; top: .25rem; width: 2.5rem; height: 2.5rem; border: 0; border-radius: .625rem; background: none; color: var(--acc-mute); cursor: pointer; display: grid; place-items: center; }
 .acc-eye:hover, .acc-eye.is-on { color: var(--acc-blue); }
 .acc-hint { margin: -.375rem 0 .875rem; font-size: .75rem; line-height: 1.5; color: var(--acc-mute); }
+.acc-title-preview { margin: .25rem 0 1rem; padding: .75rem 1rem; border-radius: .875rem; background: rgba(41, 177, 216, .08); box-shadow: inset 0 0 0 1px rgba(41, 177, 216, .2); }
+.acc-title-preview span { display: block; margin-bottom: .125rem; font-size: .75rem; color: var(--acc-mute); }
+.acc-title-preview b { font-size: .9375rem; color: var(--acc-ink); word-break: break-word; }
 .acc-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .25rem 0 1rem; font-size: .875rem; }
 .acc-check { display: flex; align-items: flex-start; gap: .5rem; margin: 0 0 1rem; font-size: .875rem; line-height: 1.45; cursor: pointer; }
 .acc-row .acc-check { margin: 0; }

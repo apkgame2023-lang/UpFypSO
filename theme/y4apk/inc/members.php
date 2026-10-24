@@ -1046,7 +1046,7 @@ class Y4APK_Members {
 			}
 		}
 		if (mb_strlen($hub) < 2) {
-			$err[] = __('Give the script a name (the hub or the author’s name, like “Zee Hub”).', 'y4apk');
+			$err[] = __('Give the script a name: the one its maker gave it, like “Redz Hub”, or your own.', 'y4apk');
 		}
 		if (!$rows) {
 			$err[] = __('Paste the script’s code.', 'y4apk');

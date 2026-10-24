@@ -508,6 +508,21 @@ counted a view for `get_the_ID()` — on a list page, the first post in the list
 so the newest post gained a view with each visit to the home page; views are
 now counted on single posts and pages only.
 
+**Game screenshots and script facts (2.36).** A Roblox post without screenshots
+of its own (every member's post) shows its game's, up to five, in the slider
+beside the title, and its card on the game page uses one of them (a different
+one per post) instead of the square icon. They come from Roblox's thumbnails API
+(`multiget/thumbnails`, WebP 768×432, up to 50 games a call) and stay on
+Roblox's CDN: nothing is downloaded or resized on the server. Their addresses
+expire, so the daily refresh asks again; the first run is scheduled on the first
+admin visit after the update. Only `https://…rbxcdn.com/` addresses are kept.
+
+Name / Category / OS on a Roblox post became **Game** (icon and link to its
+page), **Key** (No key needed / Key system, from the title), **Playing now**
+(with a Play link to Roblox; *Updated* when the game has no numbers) and
+**Views**. On the Share form, *Script name* explains itself (its maker's name
+for it, or your own) and shows the title the post will get as you type.
+
 ## Script Code (2.31)
 
 Roblox script posts had their code pasted into the article as a Custom HTML

@@ -250,3 +250,14 @@ a.rbx-tag:hover { color: #fff; background-color: rgba(255, 255, 255, .24); }
 /* ---------------------------------------------------------------- On a script post */
 .rbx-related { margin-top: .5rem; }
 .rbx-more-games { margin-top: 2.5rem; }
+
+/* Game, key, players, views in place of Name / Category / OS (2.36) */
+.rbx-facts .f-app-meta-icon .rbx-i { width: 1.5rem; height: 1.5rem; }
+.rbx-facts .block .rbx-fact-game, .rbx-facts .block .rbx-fact-row { display: flex; align-items: center; justify-content: center; gap: .5rem; max-width: 100%; }
+.rbx-facts .block .rbx-fact-game { font-weight: 700; }
+.rbx-fact-game img { flex: none; border-radius: .375rem; object-fit: cover; }
+.rbx-fact-ok { color: #22a447; font-weight: 700; }
+.rbx-fact-warn { color: #d98a00; font-weight: 700; }
+.rbx-fact-play { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .5rem; border-radius: 1rem; font-size: .75rem; font-weight: 700; color: #fff; background: #3fc35a; }
+.rbx-fact-play:hover { color: #fff; background: #34a94d; }
+.rbx-fact-play .rbx-i { width: .75rem; height: .75rem; }
