@@ -263,8 +263,8 @@ class Y4APK_Social {
 	/** What each picture may be, and what it becomes. */
 	public static function image_rules($kind) {
 		return $kind === 'banner'
-			? ['meta' => self::BANNER, 'max' => 5 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], 'min' => [600, 200], 'out' => [1800, 600], 'label' => __('banner', 'y4apk')]
-			: ['meta' => self::PIC, 'max' => 4 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [96, 96], 'out' => [400, 400], 'label' => __('profile picture', 'y4apk')];
+			? ['meta' => self::BANNER, 'max' => 5 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [600, 200], 'out' => [1800, 600], 'gif' => [2000, 1000], 'label' => __('banner', 'y4apk')]
+			: ['meta' => self::PIC, 'max' => 4 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [96, 96], 'out' => [400, 400], 'gif' => [1000, 1000], 'label' => __('profile picture', 'y4apk')];
 	}
 
 	/** The address of the member's own picture ('pic') or banner on R2, or ''. */
@@ -291,7 +291,7 @@ class Y4APK_Social {
 		}
 		$info = @getimagesize($file['tmp_name']);
 		if (!$info || !in_array($info[2], $rules['types'], true)) {
-			return new WP_Error('y4', $kind === 'banner' ? __('The banner must be a PNG, JPG or WebP picture.', 'y4apk') : __('The profile picture must be a PNG, JPG, WebP or GIF picture.', 'y4apk'));
+			return new WP_Error('y4', sprintf(__('The %s must be a PNG, JPG, WebP or GIF picture.', 'y4apk'), $rules['label']));
 		}
 		list($w, $h) = $info;
 		if ($w < $rules['min'][0] || $h < $rules['min'][1]) {
@@ -300,8 +300,21 @@ class Y4APK_Social {
 		if ($w * $h > 40000000) {
 			return new WP_Error('y4', sprintf(__('The %s has too many pixels.', 'y4apk'), $rules['label']));
 		}
+		// An animated GIF stays animated (2.42): GD would keep only its first frame.
+		$gif = $info[2] === IMAGETYPE_GIF ? self::clean_gif((string) file_get_contents($file['tmp_name'])) : null;
+		if ($gif && $gif[1] > 1) {
+			if ($w > $rules['gif'][0] || $h > $rules['gif'][1] || $gif[1] > 500 || $w * $h * $gif[1] > 60000000) {
+				return new WP_Error('y4', sprintf(__('That moving %1$s is too big: up to %2$d × %3$d pixels and 500 frames.', 'y4apk'), $rules['label'], $rules['gif'][0], $rules['gif'][1]));
+			}
+		} else {
+			$gif = null;
+		}
 		if (!Y4APK_Members::hit('img_' . $user->ID, 12, HOUR_IN_SECONDS)) {
 			return new WP_Error('y4', __('You changed your pictures many times. Try again in an hour.', 'y4apk'));
+		}
+		if ($gif) {
+			// Kept whole and cut to shape on the page (object-fit / background-size: cover).
+			return self::keep_image($user, $kind, $gif[0], 'gif', 'image/gif');
 		}
 		$open = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp', IMAGETYPE_GIF => 'imagecreatefromgif'];
 		$src = function_exists($open[$info[2]]) ? @call_user_func($open[$info[2]], $file['tmp_name']) : false;
@@ -338,14 +351,98 @@ class Y4APK_Social {
 		if ($bytes === '') {
 			return new WP_Error('y4', sprintf(__('The %s could not be saved.', 'y4apk'), $rules['label']));
 		}
-		$key = 'members/' . (int) $user->ID . '/' . ($kind === 'banner' ? 'banner' : 'picture') . '-' . strtolower(wp_generate_password(10, false, false)) . ($webp ? '.webp' : '.png');
-		$put = Y4APK_R2::put($key, $bytes, $webp ? 'image/webp' : 'image/png');
+		return self::keep_image($user, $kind, $bytes, $webp ? 'webp' : 'png', $webp ? 'image/webp' : 'image/png');
+	}
+
+	/** On R2 at members/<id>/<kind>-<random>.<ext>, in place of the one before. */
+	private static function keep_image($user, $kind, $bytes, $ext, $type) {
+		$rules = self::image_rules($kind);
+		$key = 'members/' . (int) $user->ID . '/' . ($kind === 'banner' ? 'banner' : 'picture') . '-' . strtolower(wp_generate_password(10, false, false)) . '.' . $ext;
+		$put = Y4APK_R2::put($key, $bytes, $type);
 		if (is_wp_error($put)) {
 			return new WP_Error('y4', sprintf(__('The %s could not be stored. Try again later.', 'y4apk'), $rules['label']));
 		}
 		self::drop_image($user->ID, $kind); // the one it replaces
 		update_user_meta($user->ID, $rules['meta'], ['key' => $key, 'url' => Y4APK_R2::public_url($key), 'at' => time()]);
 		return true;
+	}
+
+	/**
+	 * A GIF rebuilt block by block: [bytes, frames], or null when it is not a
+	 * well-formed GIF. Its frames, their timing and the loop are kept; comments,
+	 * other extensions (XMP and the like) and anything after its end are dropped,
+	 * so nothing rides along inside the picture.
+	 */
+	public static function clean_gif($in) {
+		$n = strlen($in);
+		if ($n < 14 || (substr($in, 0, 6) !== 'GIF89a' && substr($in, 0, 6) !== 'GIF87a')) {
+			return null;
+		}
+		$at = 13;
+		$table = function ($packed) {
+			return $packed & 0x80 ? 3 * (1 << (($packed & 7) + 1)) : 0;
+		};
+		// Sub-blocks from $at to their 0 terminator: their bytes, or null if cut short.
+		$blocks = function (&$at) use ($in, $n) {
+			$start = $at;
+			while ($at < $n) {
+				$len = ord($in[$at]);
+				$at += 1 + $len;
+				if ($len === 0) {
+					return $at <= $n ? substr($in, $start, $at - $start) : null;
+				}
+			}
+			return null;
+		};
+		$at += $table(ord($in[10]));
+		if ($at > $n) {
+			return null;
+		}
+		$out = 'GIF89a' . substr($in, 6, $at - 6);
+		$frames = 0;
+		$gce = '';
+		while ($at < $n) {
+			$b = ord($in[$at]);
+			if ($b === 0x3B) { // the end
+				return $frames ? [$out . ';', $frames] : null;
+			}
+			if ($b === 0x2C) { // a frame
+				if ($at + 10 > $n) {
+					return null;
+				}
+				$head = $at;
+				$at += 10 + $table(ord($in[$at + 9])) + 1; // descriptor, colour table, LZW code size
+				if ($at > $n) {
+					return null;
+				}
+				$data = $blocks($at);
+				if ($data === null) {
+					return null;
+				}
+				$out .= $gce . substr($in, $head, $at - $head - strlen($data)) . $data;
+				$gce = '';
+				$frames++;
+				continue;
+			}
+			if ($b !== 0x21 || $at + 2 > $n) {
+				return null;
+			}
+			$label = ord($in[$at + 1]);
+			$head = $at;
+			$at += 2;
+			$data = $blocks($at);
+			if ($data === null) {
+				return null;
+			}
+			if ($label === 0xF9) { // frame timing and transparency, for the next frame
+				$gce = substr($in, $head, $at - $head);
+			} elseif ($label === 0xFF && substr($data, 0, 12) === "\x0BNETSCAPE2.0") { // the loop
+				$out .= substr($in, $head, $at - $head);
+			} else {
+				$gce = $label === 0x01 ? '' : $gce; // plain text took its timing with it
+			}
+		}
+		return null; // no end: cut short
 	}
 
 	/** Removes the member's picture ('pic') or banner, from R2 too. */

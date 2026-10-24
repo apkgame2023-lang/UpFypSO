@@ -503,9 +503,9 @@ if ($screen === 'login') {
 				<h2 id="banner"><?php esc_html_e('Profile banner', 'y4apk'); ?></h2>
 				<p class="acc-hint acc-hint-top"><?php esc_html_e('A wide picture across the top of your page. Best at 2400 × 800 (3:1).', 'y4apk'); ?></p>
 				<label class="acc-drop acc-drop-wide<?php echo $ban !== '' ? ' has-image' : ''; ?>" data-drop="banner" data-max="5">
-					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp">
+					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp,image/gif">
 					<span class="acc-drop-img" data-drop-img<?php echo $ban !== '' ? ' style="background-image:url(' . esc_url($ban) . ')"' : ''; ?>></span>
-					<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG or WebP, up to 5 MB', 'y4apk'); ?></small></span>
+					<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF (moving too), up to 5 MB', 'y4apk'); ?></small></span>
 				</label>
 				<?php if ($ban !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_banner" value="1"> <span><?php esc_html_e('Remove my banner (use the theme’s)', 'y4apk'); ?></span></label><?php endif; ?>
 
@@ -514,7 +514,7 @@ if ($screen === 'login') {
 					<span class="acc-pic-now" data-pic-now><?php echo Y4APK_Social::avatar($u, 96); ?></span>
 					<label class="acc-drop<?php echo $pic !== '' ? ' has-image' : ''; ?>" data-drop="picture" data-max="4">
 						<input type="file" name="picture" accept="image/png,image/jpeg,image/webp,image/gif">
-						<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm-8 12a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF, up to 4 MB · cut to a square', 'y4apk'); ?></small></span>
+						<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm-8 12a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF (moving too), up to 4 MB · cut to a square', 'y4apk'); ?></small></span>
 					</label>
 				</div>
 				<?php if ($pic !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_picture" value="1"> <span><?php esc_html_e('Remove my picture', 'y4apk'); ?></span></label><?php endif; ?>

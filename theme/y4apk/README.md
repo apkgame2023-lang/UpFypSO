@@ -559,6 +559,16 @@ size they are shown at so they stay sharp on phones. The wordmark has a faint
 white edge: Gmail's dark mode darkens the background but not images, and the
 edge keeps the black *Y4* readable there.
 
+**Moving pictures (2.42.1).** A GIF with more than one frame — as a profile
+picture or a banner — is kept as a GIF: PHP's GD reads only a GIF's first frame,
+so before this it became a still WebP. It is not re-encoded but rebuilt block by
+block (`Y4APK_Social::clean_gif()`): the frames, their timing and the loop stay;
+comments, other extensions and anything after the GIF's end are dropped, and a
+GIF that is cut short or malformed is refused. It is cut to shape on the page
+(`object-fit` / `background-size: cover`). Up to 1000 × 1000 (picture) or
+2000 × 1000 (banner), 500 frames, and the size limits as before. A one-frame GIF
+still becomes a WebP.
+
 ## A member's own pages, the header menu, sharing, the script box (2.41)
 
 **My scripts is the member's own page.** /account/ opens with the same head as
