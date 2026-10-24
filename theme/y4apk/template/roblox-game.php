@@ -41,8 +41,8 @@ get_header();
 					<ul class="rbx-stats">
 						<li><?php echo Y4APK_Roblox::icon('code'); ?><b><?php echo esc_html(number_format_i18n($term->count)); ?></b> <?php echo esc_html(_n('Script', 'Scripts', $term->count, 'y4apk')); ?></li>
 						<?php if ($totals['views']) : ?><li><?php echo Y4APK_Roblox::icon('eye'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($totals['views'])); ?></b> <?php esc_html_e('Views', 'y4apk'); ?></li><?php endif; ?>
-						<?php if ($stats['playing'] !== null) : ?><li><?php echo Y4APK_Roblox::icon('users'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($stats['playing'])); ?></b> <?php esc_html_e('Playing', 'y4apk'); ?></li><?php endif; ?>
-						<?php if ($likes !== null) : ?><li><?php echo Y4APK_Roblox::icon('thumb'); ?><b><?php echo esc_html($likes); ?>%</b> <?php esc_html_e('Likes', 'y4apk'); ?></li><?php endif; ?>
+						<?php if ($stats['playing'] !== null) : ?><li><?php echo Y4APK_Roblox::icon('users'); ?><b<?php echo Y4APK_Roblox::live($term, 'playing'); ?>><?php echo esc_html(Y4APK_Roblox::short_number($stats['playing'])); ?></b> <?php esc_html_e('Playing', 'y4apk'); ?></li><?php endif; ?>
+						<?php if ($likes !== null) : ?><li><?php echo Y4APK_Roblox::icon('thumb'); ?><b<?php echo Y4APK_Roblox::live($term, 'likes'); ?>><?php echo esc_html($likes); ?>%</b> <?php esc_html_e('Likes', 'y4apk'); ?></li><?php endif; ?>
 					</ul>
 				</div>
 				<div class="rbx-hero-actions">

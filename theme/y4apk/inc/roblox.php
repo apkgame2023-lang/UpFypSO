@@ -54,8 +54,10 @@ class Y4APK_Roblox {
 		add_filter('document_title_parts', [__CLASS__, 'title_parts']);
 		add_filter('rank_math/frontend/title', [__CLASS__, 'rank_math_title']);
 		add_filter('rank_math/frontend/description', [__CLASS__, 'rank_math_description']);
+		add_filter('cron_schedules', [__CLASS__, 'every_10_minutes']);
 		add_action(self::HOOK, [__CLASS__, 'refresh']);
 		add_action(self::SHOTS_HOOK, [__CLASS__, 'refresh_shots']);
+		add_action('wp_footer', [__CLASS__, 'live_script'], 60);
 		add_action('admin_init', [__CLASS__, 'first_shots']);
 
 		add_action('add_meta_boxes_post', [__CLASS__, 'add_box']);
@@ -99,11 +101,65 @@ class Y4APK_Roblox {
 			'meta_box_cb'       => false,
 			'rewrite'           => ['slug' => 'roblox', 'with_front' => false],
 		]);
-		// Players and likes every hour (one call for 50 games); it was daily before 2.37.
-		if (wp_get_schedule(self::HOOK) !== 'hourly') {
+		// Players and likes every 10 minutes (2.42; hourly 2.37, daily before): two calls for 50 games.
+		if (wp_get_schedule(self::HOOK) !== 'y4apk_10min') {
 			wp_clear_scheduled_hook(self::HOOK);
-			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'hourly', self::HOOK);
+			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'y4apk_10min', self::HOOK);
 		}
+		// The screenshots' addresses on Roblox's CDN expire: renewed every hour, on their own.
+		if (wp_get_schedule(self::SHOTS_HOOK) !== 'hourly') {
+			wp_clear_scheduled_hook(self::SHOTS_HOOK);
+			wp_schedule_event(time() + 5 * MINUTE_IN_SECONDS, 'hourly', self::SHOTS_HOOK);
+		}
+	}
+
+	public static function every_10_minutes($schedules) {
+		$schedules['y4apk_10min'] = ['interval' => 10 * MINUTE_IN_SECONDS, 'display' => __('Every 10 minutes', 'y4apk')];
+		return $schedules;
+	}
+
+	/** Marks a number to be brought up to date in the page (live_script): which game, which number. */
+	public static function live($term, $what) {
+		self::$live = true;
+		return ' data-rbx-live="' . (int) $term->term_id . '" data-rbx-n="' . esc_attr($what) . '"';
+	}
+
+	private static $live = false;
+
+	/**
+	 * Pages are cached for longer than 10 minutes, so a page with players or likes
+	 * asks rbx.php for the newest (one small request, itself cached for a minute).
+	 */
+	public static function live_script() {
+		if (!self::$live) {
+			return;
+		}
+		?>
+<script id="y4apk-pwa-rbx" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+	var els = document.querySelectorAll('[data-rbx-live]'), ids = {};
+	if (!els.length || !window.fetch) { return; }
+	[].forEach.call(els, function (el) { ids[el.getAttribute('data-rbx-live')] = 1; });
+	var short = function (n) {
+		var u = [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
+		for (var i = 0; i < u.length; i++) {
+			if (n >= u[i][0]) { var v = n / u[i][0], t = v.toFixed(v < 10 ? 1 : 0); return (t.indexOf('.') !== -1 ? t.replace(/\.?0+$/, '') : t) + u[i][1]; }
+		}
+		return n.toLocaleString();
+	};
+	fetch(<?php echo wp_json_encode(get_template_directory_uri() . '/rbx.php'); ?> + '?g=' + Object.keys(ids).slice(0, 40).join(','))
+		.then(function (r) { return r.json(); })
+		.then(function (j) {
+			[].forEach.call(els, function (el) {
+				var g = j[el.getAttribute('data-rbx-live')], what = el.getAttribute('data-rbx-n');
+				if (!g || g[what] === null || g[what] === undefined) { return; }
+				el.textContent = what === 'likes' ? g.likes + '%' : short(g[what]);
+			});
+		})
+		.catch(function () {});
+})();
+</script>
+		<?php
 	}
 
 	/** /roblox/<game>/ needs the rewrite rules written once. */
@@ -540,7 +596,7 @@ class Y4APK_Roblox {
 		$cards[] = ['key', __('Key', 'y4apk'), '<span class="f-app-meta-data ' . ($keyless ? 'rbx-fact-ok' : 'rbx-fact-warn') . '">' . esc_html($keyless ? __('No key needed', 'y4apk') : __('Key system', 'y4apk')) . '</span>'];
 		if ($s && $s['playing'] !== null) {
 			$play = self::play_url($game);
-			$cards[] = ['users', __('Playing now', 'y4apk'), '<span class="f-app-meta-data rbx-fact-row"><span>' . esc_html(self::short_number($s['playing'])) . '</span>'
+			$cards[] = ['users', __('Playing now', 'y4apk'), '<span class="f-app-meta-data rbx-fact-row"><span' . self::live($game, 'playing') . '>' . esc_html(self::short_number($s['playing'])) . '</span>'
 				. ($play !== '' ? '<a class="rbx-fact-play" href="' . esc_url($play) . '" target="_blank" rel="nofollow noopener">' . self::icon('play') . esc_html__('Play', 'y4apk') . '</a>' : '') . '</span>'];
 		} else {
 			$cards[] = ['clock', __('Updated', 'y4apk'), '<span class="f-app-meta-data">' . esc_html(self::ago(get_post_modified_time('U', true, $post_id))) . '</span>'];
@@ -572,7 +628,7 @@ class Y4APK_Roblox {
 			<span class="rbx-game-name"><?php echo esc_html($term->name); ?></span>
 			<span class="rbx-game-meta">
 				<span><?php echo self::icon('code'); ?><?php echo esc_html(sprintf(_n('%s script', '%s scripts', $term->count, 'y4apk'), number_format_i18n($term->count))); ?></span>
-				<?php if ($s['playing'] !== null) : ?><span title="<?php esc_attr_e('Playing now on Roblox', 'y4apk'); ?>"><?php echo self::icon('users'); ?><?php echo esc_html(self::short_number($s['playing'])); ?></span><?php endif; ?>
+				<?php if ($s['playing'] !== null) : ?><span title="<?php esc_attr_e('Playing now on Roblox', 'y4apk'); ?>"><?php echo self::icon('users'); ?><span<?php echo self::live($term, 'playing'); ?>><?php echo esc_html(self::short_number($s['playing'])); ?></span></span><?php endif; ?>
 			</span>
 		</a>
 		<?php
@@ -955,7 +1011,6 @@ class Y4APK_Roblox {
 				}
 			}
 		}
-		self::refresh_shots();
 	}
 
 	/* ---------------------------------------------------------------- *

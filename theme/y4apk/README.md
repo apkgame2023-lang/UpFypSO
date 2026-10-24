@@ -701,6 +701,19 @@ counts a post once an hour; editors are not counted. Players, likes and
 screenshots from Roblox are fetched every hour instead of every day (one call
 per 50 games). A cached page still shows the numbers of when it was made.
 
+**Roblox numbers every 10 minutes, fresh on cached pages too (2.42).** Players
+and likes are fetched every 10 minutes (`y4apk_10min`: two calls to Roblox per
+50 games, about 290 a day; the screenshots' addresses stay hourly, on their own
+schedule, `y4apk_roblox_shots`). Pages stay cached longer than that, so the
+numbers that change — players and likes on a game page, players on a script
+post and on game tiles — carry `data-rbx-live`, and a small script
+(`y4apk-pwa-rbx`) asks `rbx.php` for the stored ones: GET `?g=<term IDs>`,
+WordPress with SHORTINIT and one query, answered with
+`Cache-Control: public, max-age=60` since nothing in it is private. WP-Cron only
+runs when WordPress does, so on a quiet site the 10 minutes can stretch; a
+server cron (hPanel ▸ Advanced ▸ Cron Jobs: `wget -q -O - https://<site>/wp-cron.php?doing_wp_cron`
+every 5 minutes) keeps it on time.
+
 ## Script Code (2.31)
 
 Roblox script posts had their code pasted into the article as a Custom HTML
