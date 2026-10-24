@@ -421,7 +421,8 @@ class Y4APK_Roblox {
 		foreach ([1e9 => 'B', 1e6 => 'M', 1e3 => 'K'] as $size => $unit) {
 			if ($n >= $size) {
 				$v = $n / $size;
-				return rtrim(rtrim(number_format($v, $v < 10 ? 1 : 0, '.', ''), '0'), '.') . $unit;
+				$t = number_format($v, $v < 10 ? 1 : 0, '.', '');
+				return (strpos($t, '.') !== false ? rtrim(rtrim($t, '0'), '.') : $t) . $unit; // 1.0K → 1K; 20K stays 20K
 			}
 		}
 		return number_format_i18n($n);

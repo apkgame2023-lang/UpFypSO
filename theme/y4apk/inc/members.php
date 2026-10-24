@@ -8,7 +8,8 @@
  *   /upload/              share a script: game, details, code, review (2.38; was /account/submit/)
  *   /account/edit/<id>/   change one of their scripts
  *   /account/settings/    password, closing the account
- *   /u/<handle>/          a member's public page, with the scripts they shared
+ *   /@handle             a member's public page: scripts, activity, statistics, Follow (2.39; /u/<handle>/ redirects)
+ *   /account/following/  the members you follow and their new scripts; /account/customize/ edit profile
  *
  * The role is "Script Author" (y4apk_author) and has only the "read"
  * capability: it cannot reach wp-admin, cannot use the editor or the REST
@@ -30,7 +31,7 @@ class Y4APK_Members {
 
 	const ROLE     = 'y4apk_author';
 	const OPTION   = 'y4apk_members';
-	const VERSION  = '4';               // rewrite rules and the role, written again when this changes
+	const VERSION  = '5';               // rewrite rules and the role, written again when this changes
 	const VERIFIED = 'y4apk_email_ok';  // '0' until the email link is opened (absent: an older account, fine)
 	const BANNED   = 'y4apk_banned';
 	const REJECT   = '_y4apk_reject_reason';
@@ -40,7 +41,7 @@ class Y4APK_Members {
 	const MEMBER_POST = '_y4apk_member_post';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings'];
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings', 'customize' => 'customize'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -52,6 +53,7 @@ class Y4APK_Members {
 		add_action('init', [__CLASS__, 'setup'], 6);
 		add_filter('query_vars', [__CLASS__, 'query_vars']);
 		add_action('template_redirect', [__CLASS__, 'route'], 0);
+		add_filter('redirect_canonical', [__CLASS__, 'no_slash'], 10, 2);
 		add_action('template_redirect', [__CLASS__, 'author_pages'], 1);
 		add_filter('template_include', [__CLASS__, 'template'], 20);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
@@ -122,6 +124,9 @@ class Y4APK_Members {
 		add_rewrite_rule('^upload/?$', 'index.php?y4_acct=submit', 'top');
 		add_rewrite_rule('^account/edit/([0-9]+)/?$', 'index.php?y4_acct=edit&y4_id=$matches[1]', 'top');
 		add_rewrite_rule('^account/([a-z]+)/?$', 'index.php?y4_acct=$matches[1]', 'top');
+		add_rewrite_rule('^@([a-z0-9_]{3,20})/page/([0-9]+)/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]&paged=$matches[2]', 'top');
+		add_rewrite_rule('^@([a-z0-9_]{3,20})/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]', 'top');
+		// The addresses before 2.39: they redirect to /@name.
 		add_rewrite_rule('^u/([a-z0-9_]{3,20})/page/([0-9]+)/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]&paged=$matches[2]', 'top');
 		add_rewrite_rule('^u/([a-z0-9_]{3,20})/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]', 'top');
 		if (get_option('y4apk_members_ver') !== self::VERSION) {
@@ -142,7 +147,7 @@ class Y4APK_Members {
 	}
 
 	public static function profile_url($user) {
-		return home_url('/u/' . rawurlencode($user->user_login) . '/');
+		return home_url('/@' . rawurlencode($user->user_login));
 	}
 
 	public static function is_member($user) {
@@ -286,7 +291,7 @@ class Y4APK_Members {
 		return $name;
 	}
 
-	/** /author/<login>/ : a member's own page is /u/<handle>/; the others do not exist. */
+	/** /author/<login>/ : a member's own page is /@handle; the others do not exist. */
 	public static function author_pages() {
 		if (!is_author()) {
 			return;
@@ -507,15 +512,25 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
 			status_header(404);
 			return;
 		}
-		if ($view === 'submit' && $_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('~^/account/submit~', (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH))) {
+		$path = (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH);
+		if ($view === 'submit' && $_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('~^/account/submit~', $path)) {
 			wp_safe_redirect(self::url('submit'), 301);
+			exit;
+		}
+		if ($view === 'profile' && preg_match('~^/@[a-z0-9_]+/$~i', $path)) {
+			wp_safe_redirect(home_url('/@' . rawurlencode((string) get_query_var('y4_user'))) . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : ''), 301); // /@name, as people type it
+			exit;
+		}
+		if ($view === 'profile' && preg_match('~^/u/~', $path)) {
+			$paged = (int) get_query_var('paged');
+			wp_safe_redirect(home_url('/@' . rawurlencode((string) get_query_var('y4_user')) . ($paged > 1 ? '/page/' . $paged . '/' : '')), 301);
 			exit;
 		}
 		$wp_query->is_404 = false;
@@ -529,7 +544,8 @@ class Y4APK_Members {
 		header('Surrogate-Control: no-store');
 		header('X-LiteSpeed-Cache-Control: no-cache');
 		do_action('litespeed_control_set_nocache', 'y4apk member page');
-		header('X-Robots-Tag: ' . ($view === 'profile' ? 'index, follow' : 'noindex, nofollow'));
+		$listed = $view === 'profile' && !isset($_GET['tab']) && !isset($_GET['sort']) && !isset($_GET['q']); // one address per profile in search engines
+		header('X-Robots-Tag: ' . ($listed ? 'index, follow' : 'noindex, nofollow'));
 
 		$user = wp_get_current_user();
 		$ctx = ['view' => $view, 'screen' => $view, 'errors' => [], 'ok' => '', 'old' => [], 'user' => $user->exists() ? $user : null, 'member' => self::is_member($user)];
@@ -539,7 +555,7 @@ class Y4APK_Members {
 		self::$ctx = &$ctx;
 
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
-		$members_only = ['home', 'submit', 'edit', 'settings'];
+		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
 			wp_safe_redirect(self::url());
 			exit;
@@ -578,7 +594,15 @@ class Y4APK_Members {
 			case 'profile':
 				self::view_profile($ctx);
 				break;
+			case 'following':
+				self::view_following($ctx);
+				break;
 		}
+	}
+
+	/** WordPress would add a slash to /@name: a profile's address is without one. */
+	public static function no_slash($redirect, $requested) {
+		return get_query_var('y4_acct') === 'profile' ? false : $redirect;
 	}
 
 	public static function template($template) {
@@ -611,10 +635,12 @@ class Y4APK_Members {
 		}
 		$names = ['home' => __('My scripts', 'y4apk'), 'login' => __('Sign in', 'y4apk'), 'register' => __('Create an account', 'y4apk'), 'forgot' => __('Reset your password', 'y4apk'),
 			'reset' => __('Choose a new password', 'y4apk'), 'verify' => __('Confirm your email', 'y4apk'), 'submit' => __('Share a script', 'y4apk'), 'edit' => __('Edit your script', 'y4apk'),
-			'settings' => __('Account settings', 'y4apk'), 'profile' => ''];
+			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk')];
 		$v = self::$ctx['view'];
 		if ($v === 'profile' && !empty(self::$ctx['profile'])) {
-			$parts['title'] = sprintf(__('%s’s Roblox scripts', 'y4apk'), '@' . self::$ctx['profile']->user_login);
+			$p = self::$ctx['profile'];
+			$name = Y4APK_Social::name($p);
+			$parts['title'] = sprintf(__('%s’s Roblox scripts', 'y4apk'), $name !== $p->user_login ? $name . ' (@' . $p->user_login . ')' : '@' . $p->user_login);
 		} elseif (!empty($names[$v])) {
 			$parts['title'] = $names[$v];
 		}
@@ -957,6 +983,34 @@ class Y4APK_Members {
 			$ctx['stats']['review'] += $s['key'] === 'review' ? 1 : 0;
 			$ctx['stats']['views'] += $s['views'];
 		}
+		$ctx['stats']['followers'] = Y4APK_Social::followers_count($ctx['user']->ID);
+		$ctx['stats']['following'] = Y4APK_Social::following_count($ctx['user']->ID);
+	}
+
+	/** /account/following/: the members you follow, and their newest scripts. */
+	private static function view_following(&$ctx) {
+		$ids = Y4APK_Social::following_ids($ctx['user']->ID);
+		$ctx['people'] = Y4APK_Social::following($ctx['user']->ID, 200);
+		$ctx['feed'] = $ids ? get_posts(['author__in' => $ids, 'post_type' => 'post', 'post_status' => 'publish', 'numberposts' => 24, 'orderby' => 'date', 'order' => 'DESC']) : [];
+	}
+
+	private static function do_customize(&$ctx) {
+		$ctx['screen'] = 'customize';
+		$g = self::guard('customize', false);
+		if ($g !== true) {
+			$ctx['errors'][] = $g;
+			return;
+		}
+		$err = Y4APK_Social::save($ctx['user'], $_POST);
+		if ($err) {
+			$ctx['errors'] = $err;
+			foreach (['display', 'bio', 'theme', 'youtube', 'discord', 'roblox'] as $k) {
+				$ctx['old'][$k] = isset($_POST[$k]) ? sanitize_textarea_field(wp_unslash($_POST[$k])) : ''; // shown again as typed
+			}
+			return;
+		}
+		wp_safe_redirect(self::url('customize', ['ok' => 'profile']));
+		exit;
 	}
 
 	private static function view_profile(&$ctx) {
@@ -969,15 +1023,64 @@ class Y4APK_Members {
 			self::$ctx = null;
 			return;
 		}
-		$paged = max(1, (int) get_query_var('paged'));
-		$q = new WP_Query(['author' => $user->ID, 'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => 24, 'paged' => $paged, 'orderby' => 'modified', 'order' => 'DESC', 'ignore_sticky_posts' => true]);
+		$tab = isset($_GET['tab']) && in_array($_GET['tab'], ['activity', 'stats'], true) ? $_GET['tab'] : 'scripts';
+		$sort = isset($_GET['sort']) && $_GET['sort'] === 'views' ? 'views' : 'new';
+		$search = isset($_GET['q']) ? trim(mb_substr(sanitize_text_field(wp_unslash($_GET['q'])), 0, 60)) : '';
+		// Every live script of the member, for the numbers, the activity and the statistics.
+		$all = get_posts(['author' => $user->ID, 'post_type' => 'post', 'post_status' => 'publish', 'numberposts' => 500, 'orderby' => 'date', 'order' => 'DESC']);
 		$views = 0;
-		foreach ($q->posts as $p) {
-			$views += (int) get_post_meta($p->ID, 'wpb_post_views_count', true);
+		$per = [];
+		foreach ($all as $p) {
+			$n = (int) get_post_meta($p->ID, 'wpb_post_views_count', true);
+			$views += $n;
+			$per[$p->ID] = $n;
 		}
 		$ctx['profile'] = $user;
-		$ctx['query'] = $q;
+		$ctx['tab'] = $tab;
+		$ctx['sort'] = $sort;
+		$ctx['search'] = $search;
 		$ctx['views'] = $views;
+		$ctx['count'] = count($all);
+		$ctx['followers'] = Y4APK_Social::followers_count($user->ID);
+		$ctx['following_n'] = Y4APK_Social::following_count($user->ID);
+		$me = $ctx['user'];
+		$ctx['own'] = $me && (int) $me->ID === (int) $user->ID;
+		$ctx['can_follow'] = $me && !$ctx['own'] && self::is_public($me);
+		$ctx['i_follow'] = $ctx['can_follow'] && Y4APK_Social::is_following($me->ID, $user->ID);
+		$ctx['followers_list'] = Y4APK_Social::followers($user->ID);
+		$ctx['following_list'] = Y4APK_Social::following($user->ID);
+		if ($tab === 'scripts') {
+			$args = ['author' => $user->ID, 'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => 24, 'paged' => max(1, (int) get_query_var('paged')), 'ignore_sticky_posts' => true];
+			$args += $sort === 'views' ? ['meta_key' => 'wpb_post_views_count', 'orderby' => 'meta_value_num', 'order' => 'DESC'] : ['orderby' => 'date', 'order' => 'DESC'];
+			if ($search !== '') {
+				$args['s'] = $search;
+			}
+			$ctx['query'] = new WP_Query($args);
+		} elseif ($tab === 'activity') {
+			$events = [['time' => strtotime($user->user_registered . ' UTC'), 'kind' => 'joined', 'post' => null]];
+			foreach (array_slice($all, 0, 40) as $p) {
+				$made = (int) get_post_time('U', true, $p);
+				$changed = (int) get_post_modified_time('U', true, $p);
+				$events[] = ['time' => $made, 'kind' => 'shared', 'post' => $p];
+				if ($changed - $made > DAY_IN_SECONDS) {
+					$events[] = ['time' => $changed, 'kind' => 'updated', 'post' => $p];
+				}
+			}
+			usort($events, function ($a, $b) { return $b['time'] - $a['time']; });
+			$ctx['events'] = array_slice($events, 0, 30);
+		} else {
+			arsort($per);
+			$ctx['top'] = array_slice($per, 0, 5, true);
+			$games = [];
+			foreach ($all as $p) {
+				$g = Y4APK_Roblox::game_of($p->ID);
+				if ($g) {
+					$games[$g->term_id] = isset($games[$g->term_id]) ? [$g, $games[$g->term_id][1] + 1] : [$g, 1];
+				}
+			}
+			uasort($games, function ($a, $b) { return $b[1] - $a[1]; });
+			$ctx['games'] = array_slice($games, 0, 5, true);
+		}
 	}
 
 	/** The scripts' address list on a post written by a member: "by @handle". */

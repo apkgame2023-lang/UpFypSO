@@ -339,7 +339,9 @@ Everything is on pages of the theme:
 | `/account/` | The member's dashboard: scripts with *Live* / *In review* / *Needs changes* (with the reason), views, Edit and Delete |
 | `/upload/` | **Share a script** (2.38; `/account/submit/` redirects here): four steps, below |
 | `/account/settings/` | Change password; close the account (the scripts can go with it, or stay without the name) |
-| `/u/<name>/` | The member's public page: their live scripts and views |
+| `/@name` | The member's public page (2.39; `/u/<name>/` redirects): see *Profiles and following* below |
+| `/account/following/` | The members you follow, and their newest scripts |
+| `/account/customize/` | **Edit profile**: display name, bio, Roblox avatar, theme, YouTube and Discord links |
 
 **The upload page (2.38).** One form in four steps, with the steps listed on the
 left (a row of four on phones) and each one checked before the next:
@@ -458,6 +460,46 @@ Cloudflare Turnstile is loaded from the inline `y4apk-pwa-account` script: as a
 plain `<script src>`, 10Web Booster's JavaScript delay held it back until the
 visitor moved, and the box stayed empty. **Email** goes through `wp_mail()`: on shared
 hosting install an SMTP plugin (FluentSMTP) and use *Send myself a test email*.
+
+## Profiles and following (2.39)
+
+A member's page is `https://y4apk.com/@name` (no slash: WordPress's added one is
+redirected away; `/@name/page/2/` pages). It is a card in the member's **theme**
+— Ocean, Midnight, Pumpkin, Aurora, Cosmic or Matrix, each a banner with a
+moving touch (lines, a grid, fog, glow, stars, rain; still for people who ask
+for less motion) — with the display name written large across it, the avatar,
+*Follow* (*Edit profile* on your own page; signed out it leads to sign-up) and
+*Share*, then the name, `@name`, *Joined*, *Online now* / *Active 3h ago*, the
+bio, YouTube and Discord links, and Followers · Following · Scripts · Views
+(followers and following open a list). Three tabs: **Scripts** (*Recent* /
+*Most viewed*, a search), **Activity** (joined, shared, updated) and
+**Statistics** (views, scripts, followers, views per script, the five most
+viewed scripts as bars, the games). `?tab`, `?sort` and `?q` pages are noindex.
+
+**Following** is one usermeta row per follow (`y4apk_follows` = the followed
+member's ID), toggled by `admin-ajax.php` (`y4apk_follow`: a nonce, members only,
+not yourself, 60 changes an hour, up to 1,000 follows); a deleted account's rows
+go with it. `/account/following/` lists them, with Unfollow, and their newest
+24 live scripts.
+
+**Edit profile** (`/account/customize/`) keeps a display name (2–30 characters;
+names with *Y4APK*, *admin*, *moderator*, *official* or *staff* are refused), a
+bio (200), the theme, and links that must be `youtube.com/@…` / `channel/…` and
+`discord.gg/…` / `discord.com/invite/…` (shown `nofollow ugc`). The **avatar** is
+the member's Roblox avatar: they type their Roblox username, the theme asks
+Roblox for the user (`users.roblox.com`) and the headshot
+(`thumbnails.roblox.com`), and the picture stays on Roblox's CDN — nothing is
+uploaded to the site. Ten lookups an hour per member; the addresses expire, so
+they are renewed daily (`y4apk_avatars`, 100 users a call). Without one, the
+letter tile as before. A preview beside the form follows what is typed.
+
+*Online now* / *Active …* comes from `y4apk_seen`, written at most every five
+minutes while a member is signed in. Signed-in pages now have the tabs My
+scripts · Following · Edit profile · Settings · Sign out; *My public page*
+opens in the same tab. In 10Web ▸ Cloudflare CDN ▸ Bypass Urls add `/@`.
+
+**Fixed with it:** short numbers dropped a zero from whole thousands — 20,215
+views showed as *2K* and 120,000 as *12K* (game pages, cards, profiles).
 
 ## The old Google Play importer, removed (2.33)
 
