@@ -553,6 +553,12 @@ sign-up page cannot hang. *Send myself a test email* says what it went through,
 and what the mail server said when it failed. An optional *Replies go to*
 address is set as Reply-To.
 
+**The logo (2.40.1).** The header is the fox icon and the Y4Apk wordmark, as PNG
+files in `assets/img/mail/` (Outlook shows neither SVG nor WebP), three times the
+size they are shown at so they stay sharp on phones. The wordmark has a faint
+white edge: Gmail's dark mode darkens the background but not images, and the
+edge keeps the black *Y4* readable there.
+
 ## The old Google Play importer, removed (2.33)
 
 The vendor's importer — Y4APK ▸ *Google Play* (a Play URL → a post, its APK

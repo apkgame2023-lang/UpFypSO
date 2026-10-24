@@ -156,7 +156,7 @@ class Y4APK_Mail {
 		$s = Y4APK_Members::settings();
 		$site = $s['from_name'];
 		$home = home_url('/');
-		$icon = get_template_directory_uri() . '/assets/img/pwa/icon-192.png';
+		$img = get_template_directory_uri() . '/assets/img/mail/';
 		$ink = '#172021';
 		$text = '#4a5559';
 		$mute = '#8a9599';
@@ -187,8 +187,8 @@ class Y4APK_Mail {
 			<tr><td style="padding:0 8px 20px;">
 				<a href="<?php echo esc_url($home); ?>" style="text-decoration:none;">
 					<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-						<td style="padding-right:10px;"><img src="<?php echo esc_url($icon); ?>" width="36" height="36" alt="" style="display:block;border:0;border-radius:10px;"></td>
-						<td style="font-family:<?php echo $font; ?>;font-size:22px;font-weight:800;letter-spacing:-.5px;color:<?php echo $ink; ?>;">Y4<span style="color:<?php echo $blue; ?>;">Apk</span></td>
+						<td style="padding-right:8px;"><img src="<?php echo esc_url($img . 'icon.png'); ?>" width="44" height="44" alt="" style="display:block;border:0;"></td>
+						<td><img src="<?php echo esc_url($img . 'logo.png'); ?>" width="112" height="34" alt="Y4Apk" style="display:block;border:0;font-family:<?php echo $font; ?>;font-size:22px;font-weight:800;line-height:34px;color:<?php echo $ink; ?>;"></td>
 					</tr></table>
 				</a>
 			</td></tr>
