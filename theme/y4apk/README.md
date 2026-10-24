@@ -569,6 +569,23 @@ GIF that is cut short or malformed is refused. It is cut to shape on the page
 2000 × 1000 (banner), 500 frames, and the size limits as before. A one-frame GIF
 still becomes a WebP.
 
+**Up to 100 MB, straight to R2 (2.42.2).** On Save, Edit profile sends each new
+picture from the browser straight to R2, with a bar on the picture and the
+percentage on the button: `y4apk_pic_start` (members only, 20 an hour) gives a
+link signed for 15 minutes to PUT one file at `incoming/<member>/<kind>-<random>`
+— the same CORS rule as App updates — and the form then carries only that key.
+The server fetches it (streamed to a temporary file, cut off past 100 MB),
+deletes it from R2, and handles it as before: a still picture becomes a small
+WebP, a moving GIF is cut to shape and size frame by frame with Imagick (320 ×
+320, banners 1200 × 400; without Imagick it is kept as sent if it is at most
+1000 × 1000 and 10 MB, banners 2000 × 1000 and 20 MB), at most 1,000 frames and
+80 million frame-pixels. Keys never used (a page closed before Save) are deleted
+daily after an hour. If the browser cannot reach R2, the pictures go through the
+site as before, within PHP's `upload_max_filesize` / `post_max_size`; a form
+bigger than `post_max_size` (which PHP drops whole) now says so instead of doing
+nothing. Y4APK ▸ Members ▸ Members' pictures says what this server takes and
+whether it has Imagick.
+
 ## A member's own pages, the header menu, sharing, the script box (2.41)
 
 **My scripts is the member's own page.** /account/ opens with the same head as

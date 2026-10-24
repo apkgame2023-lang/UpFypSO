@@ -40,6 +40,7 @@ class Y4APK_Social {
 	const ONLINE  = 180; // seconds since the last sign of life that still count as online
 	const HOOK    = 'y4apk_avatars';
 	const ME      = 'y4apk_me';
+	const INCOMING = 'y4apk_incoming'; // option: [R2 key => time] of files sent straight to R2, not yet used
 	const UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
 
 	public static function init() {
@@ -51,6 +52,8 @@ class Y4APK_Social {
 		add_action('init', [__CLASS__, 'schedule']);
 		add_action('deleted_user', [__CLASS__, 'forget']);
 		add_action('delete_user', [__CLASS__, 'drop_images']); // before the account goes: its pictures on R2 too
+		add_action('wp_ajax_y4apk_pic_start', [__CLASS__, 'ajax_pic_start']);
+		add_action(self::HOOK, [__CLASS__, 'forget_incoming']);
 		add_action('set_logged_in_cookie', [__CLASS__, 'me_on_login'], 10, 4);
 		add_action('clear_auth_cookie', [__CLASS__, 'me_clear']);
 		add_action('template_redirect', [__CLASS__, 'me_sync'], 2);
@@ -260,11 +263,91 @@ class Y4APK_Social {
 	 * Pictures a member uploads (R2)
 	 * ---------------------------------------------------------------- */
 
-	/** What each picture may be, and what it becomes. */
+	/**
+	 * The biggest picture a member may send (2.42.2): 100 MB. It goes from the
+	 * browser straight to R2 (ajax_pic_start), so this server's own upload limit
+	 * does not count; what is kept is far smaller, cut to the size it is shown at.
+	 * Sent the old way, through this server (no CORS rule on R2), PHP's
+	 * upload_max_filesize and post_max_size still apply.
+	 */
+	public static function upload_max() {
+		return 100 * MB_IN_BYTES;
+	}
+
+	/**
+	 * Edit profile asks for a place on R2 to send one picture to: a link that
+	 * lets the browser PUT it there for 15 minutes, at incoming/<member>/<kind>-<random>.
+	 * On Save, save() fetches it from there, makes it small and stores that, and
+	 * deletes the file sent; any left behind (a page closed before Save) go daily.
+	 */
+	public static function ajax_pic_start() {
+		check_ajax_referer('y4apk_pic', 'nonce');
+		$user = wp_get_current_user();
+		$kind = isset($_POST['kind']) && $_POST['kind'] === 'banner' ? 'banner' : 'pic';
+		$size = isset($_POST['size']) ? (int) $_POST['size'] : 0;
+		if (!Y4APK_Members::is_public($user)) {
+			wp_send_json_error(['message' => __('Sign in with a member account first.', 'y4apk')], 403);
+		}
+		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			wp_send_json_error(['message' => __('Picture uploads are not set up on this site yet.', 'y4apk')], 400);
+		}
+		if ($size <= 0 || $size > self::upload_max()) {
+			wp_send_json_error(['message' => sprintf(__('The %1$s is too big: up to %2$s MB.', 'y4apk'), self::image_rules($kind)['label'], (int) (self::upload_max() / MB_IN_BYTES))], 400);
+		}
+		if (!Y4APK_Members::hit('pic_start_' . $user->ID, 20, HOUR_IN_SECONDS)) {
+			wp_send_json_error(['message' => __('You changed your pictures many times. Try again in an hour.', 'y4apk')], 429);
+		}
+		$key = 'incoming/' . (int) $user->ID . '/' . $kind . '-' . strtolower(wp_generate_password(12, false, false));
+		$list = (array) get_option(self::INCOMING, []);
+		$list[$key] = time();
+		update_option(self::INCOMING, array_slice($list, -500, null, true), false);
+		wp_send_json_success(['url' => Y4APK_R2::presign('PUT', $key, [], 15 * MINUTE_IN_SECONDS), 'key' => $key]);
+	}
+
+	/** A file sent straight to R2 for this member's picture of this kind: a local copy, as an upload would be; or a WP_Error. */
+	private static function fetch_incoming($user, $kind, $key) {
+		$list = (array) get_option(self::INCOMING, []);
+		$label = self::image_rules($kind)['label'];
+		if (!preg_match('~^incoming/' . (int) $user->ID . '/' . $kind . '-[a-z0-9]{12}$~', $key) || !isset($list[$key])) {
+			return new WP_Error('y4', sprintf(__('The %s did not arrive. Try again.', 'y4apk'), $label));
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		$tmp = wp_tempnam('y4apk-pic');
+		$r = wp_remote_get(Y4APK_R2::presign('GET', $key, [], 600), ['timeout' => 90, 'stream' => true, 'filename' => $tmp, 'limit_response_size' => self::upload_max() + 1]);
+		self::forget_incoming($key);
+		$size = is_file($tmp) ? (int) filesize($tmp) : 0;
+		if (is_wp_error($r) || (int) wp_remote_retrieve_response_code($r) !== 200 || $size === 0 || $size > self::upload_max()) {
+			@unlink($tmp);
+			return new WP_Error('y4', $size > self::upload_max() ? sprintf(__('The %1$s is too big: up to %2$s MB.', 'y4apk'), $label, (int) (self::upload_max() / MB_IN_BYTES)) : sprintf(__('The %s did not arrive. Try again.', 'y4apk'), $label));
+		}
+		return ['tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'size' => $size, 'name' => basename($key)];
+	}
+
+	/** Deletes sent files from R2: this one, or (daily) any older than an hour. */
+	public static function forget_incoming($only = '') {
+		$list = (array) get_option(self::INCOMING, []);
+		foreach ($list as $key => $at) {
+			if ($only !== '' ? $key === $only : time() - (int) $at > HOUR_IN_SECONDS) {
+				if (class_exists('Y4APK_R2') && Y4APK_R2::can_store()) {
+					Y4APK_R2::remove($key);
+				}
+				unset($list[$key]);
+			}
+		}
+		update_option(self::INCOMING, $list, false);
+	}
+
+	/**
+	 * What each picture may be, and what it becomes: 'out' for a still one (WebP);
+	 * 'anim' for a moving GIF, shrunk frame by frame; 'gif' the most a moving GIF
+	 * may measure when it cannot be shrunk (no Imagick on the server); 'keep' the
+	 * most a moving GIF may weigh once stored, since every visitor loads it.
+	 */
 	public static function image_rules($kind) {
+		$types = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF];
 		return $kind === 'banner'
-			? ['meta' => self::BANNER, 'max' => 5 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [600, 200], 'out' => [1800, 600], 'gif' => [2000, 1000], 'label' => __('banner', 'y4apk')]
-			: ['meta' => self::PIC, 'max' => 4 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [96, 96], 'out' => [400, 400], 'gif' => [1000, 1000], 'label' => __('profile picture', 'y4apk')];
+			? ['meta' => self::BANNER, 'max' => self::upload_max(), 'types' => $types, 'min' => [600, 200], 'out' => [1800, 600], 'anim' => [1200, 400], 'gif' => [2000, 1000], 'keep' => 20 * MB_IN_BYTES, 'label' => __('banner', 'y4apk')]
+			: ['meta' => self::PIC, 'max' => self::upload_max(), 'types' => $types, 'min' => [96, 96], 'out' => [400, 400], 'anim' => [320, 320], 'gif' => [1000, 1000], 'keep' => 10 * MB_IN_BYTES, 'label' => __('profile picture', 'y4apk')];
 	}
 
 	/** The address of the member's own picture ('pic') or banner on R2, or ''. */
@@ -277,12 +360,12 @@ class Y4APK_Social {
 	}
 
 	/** An uploaded file ($_FILES entry) → cropped, re-encoded, on R2, in the member's profile. True or a WP_Error. */
-	public static function store_image($user, $file, $kind) {
+	public static function store_image($user, $file, $kind, $fetched = false) {
 		$rules = self::image_rules($kind);
 		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
 			return new WP_Error('y4', __('Picture uploads are not set up on this site yet.', 'y4apk'));
 		}
-		if (!is_array($file) || (int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+		if (!is_array($file) || (int) $file['error'] !== UPLOAD_ERR_OK || !($fetched ? is_file($file['tmp_name']) : is_uploaded_file($file['tmp_name']))) {
 			$big = is_array($file) && in_array((int) $file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
 			return new WP_Error('y4', $big ? sprintf(__('The %s is too big.', 'y4apk'), $rules['label']) : sprintf(__('The %s did not arrive. Try again.', 'y4apk'), $rules['label']));
 		}
@@ -300,22 +383,30 @@ class Y4APK_Social {
 		if ($w * $h > 40000000) {
 			return new WP_Error('y4', sprintf(__('The %s has too many pixels.', 'y4apk'), $rules['label']));
 		}
-		// An animated GIF stays animated (2.42): GD would keep only its first frame.
-		$gif = $info[2] === IMAGETYPE_GIF ? self::clean_gif((string) file_get_contents($file['tmp_name'])) : null;
-		if ($gif && $gif[1] > 1) {
-			if ($w > $rules['gif'][0] || $h > $rules['gif'][1] || $gif[1] > 500 || $w * $h * $gif[1] > 60000000) {
-				return new WP_Error('y4', sprintf(__('That moving %1$s is too big: up to %2$d × %3$d pixels and 500 frames.', 'y4apk'), $rules['label'], $rules['gif'][0], $rules['gif'][1]));
-			}
-		} else {
-			$gif = null;
-		}
 		if (!Y4APK_Members::hit('img_' . $user->ID, 12, HOUR_IN_SECONDS)) {
 			return new WP_Error('y4', __('You changed your pictures many times. Try again in an hour.', 'y4apk'));
 		}
-		if ($gif) {
-			// Kept whole and cut to shape on the page (object-fit / background-size: cover).
+		// An animated GIF stays animated (2.42): GD would keep only its first frame.
+		$gif = $info[2] === IMAGETYPE_GIF ? self::clean_gif((string) file_get_contents($file['tmp_name'])) : null;
+		if ($gif && $gif[1] > 1) {
+			if ($gif[1] > 1000 || $w * $h * $gif[1] > 80000000) {
+				return new WP_Error('y4', sprintf(__('That moving %s has too many frames for its size. Use a shorter or smaller GIF.', 'y4apk'), $rules['label']));
+			}
+			// Cut to shape and to the size it is shown at, frame by frame (2.42.2): a big GIF becomes a light one.
+			$small = self::shrink_gif($file['tmp_name'], $rules['anim']);
+			$small = $small !== null ? self::clean_gif($small) : null;
+			if ($small && $small[1] > 1 && strlen($small[0]) < strlen($gif[0])) {
+				$gif = $small;
+			} elseif ($w > $rules['gif'][0] || $h > $rules['gif'][1]) {
+				return new WP_Error('y4', sprintf(__('That moving %1$s is too big: up to %2$d × %3$d pixels.', 'y4apk'), $rules['label'], $rules['gif'][0], $rules['gif'][1]));
+			}
+			if (strlen($gif[0]) > $rules['keep']) {
+				return new WP_Error('y4', sprintf(__('That moving %1$s is still %2$s once made smaller; it can be up to %3$s, as everyone who opens a page loads it. Use a shorter GIF.', 'y4apk'), $rules['label'], size_format(strlen($gif[0]), 1), size_format($rules['keep'])));
+			}
+			// Kept moving and cut to shape on the page too (object-fit / background-size: cover).
 			return self::keep_image($user, $kind, $gif[0], 'gif', 'image/gif');
 		}
+		wp_raise_memory_limit('image'); // a big photo, opened whole
 		$open = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp', IMAGETYPE_GIF => 'imagecreatefromgif'];
 		$src = function_exists($open[$info[2]]) ? @call_user_func($open[$info[2]], $file['tmp_name']) : false;
 		if (!$src) {
@@ -365,6 +456,53 @@ class Y4APK_Social {
 		self::drop_image($user->ID, $kind); // the one it replaces
 		update_user_meta($user->ID, $rules['meta'], ['key' => $key, 'url' => Y4APK_R2::public_url($key), 'at' => time()]);
 		return true;
+	}
+
+	/**
+	 * A moving GIF, its middle cut to $size's shape and made no bigger than $size,
+	 * every frame, its timing and loop kept; null without Imagick, or when it fails.
+	 */
+	private static function shrink_gif($path, $size) {
+		if (!class_exists('Imagick') || !Imagick::queryFormats('GIF')) {
+			return null;
+		}
+		try {
+			Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * MB_IN_BYTES);
+			Imagick::setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * MB_IN_BYTES);
+			if (defined('Imagick::RESOURCETYPE_TIME')) {
+				Imagick::setResourceLimit(Imagick::RESOURCETYPE_TIME, 60);
+			}
+			$im = new Imagick();
+			$im->readImage($path);
+			$loops = $im->getImageIterations();
+			$all = $im->coalesceImages(); // whole frames, not just what changed
+			$im->clear();
+			$w = $all->getImageWidth();
+			$h = $all->getImageHeight();
+			$ratio = $size[0] / $size[1];
+			$cw = min($w, (int) round($h * $ratio));
+			$ch = (int) round($cw / $ratio);
+			$tw = min($size[0], $cw);
+			$th = (int) round($tw / $ratio);
+			foreach ($all as $frame) {
+				$frame->cropImage($cw, $ch, (int) (($w - $cw) / 2), (int) (($h - $ch) / 2));
+				$frame->setImagePage(0, 0, 0, 0);
+				if ($tw < $cw) {
+					$frame->resizeImage($tw, $th, Imagick::FILTER_TRIANGLE, 1);
+				}
+				$frame->setImagePage($tw, $th, 0, 0);
+			}
+			$out = $all->deconstructImages(); // back to what changes from frame to frame: smaller
+			$all->clear();
+			$out->setFirstIterator();
+			$out->setImageIterations($loops);
+			$out->setImageFormat('gif');
+			$blob = $out->getImagesBlob();
+			$out->clear();
+			return is_string($blob) && $blob !== '' ? $blob : null;
+		} catch (Exception $e) {
+			return null;
+		}
 	}
 
 	/**
@@ -525,8 +663,21 @@ class Y4APK_Social {
 	public static function save($user, $post, $files = []) {
 		$err = [];
 		foreach (['pic' => 'picture', 'banner' => 'banner'] as $kind => $field) {
+			$sent = isset($post[$field . '_key']) ? sanitize_text_field(wp_unslash($post[$field . '_key'])) : '';
 			if (!empty($post['remove_' . $field])) {
 				self::drop_image($user->ID, $kind);
+				if ($sent !== '') {
+					self::forget_incoming($sent);
+				}
+			} elseif ($sent !== '') { // sent straight to R2 (2.42.2)
+				$file = self::fetch_incoming($user, $kind, $sent);
+				$r = is_wp_error($file) ? $file : self::store_image($user, $file, $kind, true);
+				if (!is_wp_error($file)) {
+					@unlink($file['tmp_name']);
+				}
+				if (is_wp_error($r)) {
+					$err[] = $r->get_error_message();
+				}
 			} elseif (!empty($files[$field]) && (int) $files[$field]['error'] !== UPLOAD_ERR_NO_FILE) {
 				$r = self::store_image($user, $files[$field], $kind);
 				if (is_wp_error($r)) {

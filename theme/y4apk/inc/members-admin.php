@@ -649,6 +649,11 @@ class Y4APK_Members_Admin {
 			?>
 			<h2><?php esc_html_e('Members’ pictures', 'y4apk'); ?></h2>
 			<p class="description" style="max-width:720px"><?php esc_html_e('The newest profile pictures and banners members uploaded (kept in Cloudflare R2). Take down one that does not belong: it is removed from R2 too, and a ban removes all of a member’s.', 'y4apk'); ?></p>
+			<?php $imagick = class_exists('Imagick') && Imagick::queryFormats('GIF'); $cap = Y4APK_Social::upload_max(); ?>
+			<p class="description" style="max-width:720px">
+				<?php echo esc_html(sprintf(__('Members may send pictures up to %1$s. They go from the browser straight to R2 (with the CORS rule in Y4APK ▸ App updates ▸ R2 settings, the same one your uploads use); this server then fetches each one, makes it the size it is shown at, keeps that on R2 and deletes what was sent. If a browser cannot reach R2, the picture comes through this server instead, which takes up to %2$s.', 'y4apk'), size_format($cap), size_format(wp_max_upload_size()))); ?>
+				<?php echo esc_html($imagick ? __('Moving GIFs are shrunk to the size they are shown at, frame by frame (Imagick).', 'y4apk') : __('Imagick is not on this server, so moving GIFs are kept as they are sent: up to 1000 × 1000 (banners 2000 × 1000) and 10 MB (banners 20 MB). Turn on the imagick extension in hPanel ▸ Advanced ▸ PHP Configuration to take bigger ones.', 'y4apk')); ?>
+			</p>
 			<?php if (!empty($_GET['dropped'])) : ?><div class="notice notice-success inline"><p><?php esc_html_e('Picture removed.', 'y4apk'); ?></p></div><?php endif; ?>
 			<?php if ($pics) : ?>
 			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;max-width:980px;margin:12px 0 28px">

@@ -497,24 +497,25 @@ if ($screen === 'login') {
 	<?php $messages(); ?>
 	<div class="acc-prof">
 		<div class="acc-card">
-			<?php $form_open('customize', ' data-profile-form enctype="multipart/form-data"'); ?>
+			<?php $form_open('customize', ' data-profile-form enctype="multipart/form-data" data-pic-nonce="' . esc_attr(wp_create_nonce('y4apk_pic')) . '"'); ?>
+				<input type="hidden" name="banner_key" value=""><input type="hidden" name="picture_key" value="">
 				<?php $pic = Y4APK_Social::image_url($u, 'pic'); $ban = Y4APK_Social::image_url($u, 'banner'); $r2 = class_exists('Y4APK_R2') && Y4APK_R2::can_store(); ?>
 				<?php if ($r2) : ?>
 				<h2 id="banner"><?php esc_html_e('Profile banner', 'y4apk'); ?></h2>
 				<p class="acc-hint acc-hint-top"><?php esc_html_e('A wide picture across the top of your page. Best at 2400 × 800 (3:1).', 'y4apk'); ?></p>
-				<label class="acc-drop acc-drop-wide<?php echo $ban !== '' ? ' has-image' : ''; ?>" data-drop="banner" data-max="5">
-					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp,image/gif">
+				<label class="acc-drop acc-drop-wide<?php echo $ban !== '' ? ' has-image' : ''; ?>" data-drop="banner" data-max="<?php echo (int) floor(Y4APK_Social::upload_max() / MB_IN_BYTES); ?>">
+					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp,image/gif"><span class="acc-drop-bar" hidden><i></i></span>
 					<span class="acc-drop-img" data-drop-img<?php echo $ban !== '' ? ' style="background-image:url(' . esc_url($ban) . ')"' : ''; ?>></span>
-					<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF (moving too), up to 5 MB', 'y4apk'); ?></small></span>
+					<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php echo esc_html(sprintf(__('PNG, JPG, WebP or GIF (moving too), up to %d MB', 'y4apk'), floor(Y4APK_Social::upload_max() / MB_IN_BYTES))); ?></small></span>
 				</label>
 				<?php if ($ban !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_banner" value="1"> <span><?php esc_html_e('Remove my banner (use the theme’s)', 'y4apk'); ?></span></label><?php endif; ?>
 
 				<h2 id="picture"><?php esc_html_e('Profile picture', 'y4apk'); ?></h2>
 				<div class="acc-pic-row">
 					<span class="acc-pic-now" data-pic-now><?php echo Y4APK_Social::avatar($u, 96); ?></span>
-					<label class="acc-drop<?php echo $pic !== '' ? ' has-image' : ''; ?>" data-drop="picture" data-max="4">
-						<input type="file" name="picture" accept="image/png,image/jpeg,image/webp,image/gif">
-						<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm-8 12a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF (moving too), up to 4 MB · cut to a square', 'y4apk'); ?></small></span>
+					<label class="acc-drop<?php echo $pic !== '' ? ' has-image' : ''; ?>" data-drop="picture" data-max="<?php echo (int) floor(Y4APK_Social::upload_max() / MB_IN_BYTES); ?>">
+						<input type="file" name="picture" accept="image/png,image/jpeg,image/webp,image/gif"><span class="acc-drop-bar" hidden><i></i></span>
+						<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm-8 12a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php echo esc_html(sprintf(__('PNG, JPG, WebP or GIF (moving too), up to %d MB · cut to a square', 'y4apk'), floor(Y4APK_Social::upload_max() / MB_IN_BYTES))); ?></small></span>
 					</label>
 				</div>
 				<?php if ($pic !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_picture" value="1"> <span><?php esc_html_e('Remove my picture', 'y4apk'); ?></span></label><?php endif; ?>
@@ -1286,6 +1287,59 @@ if ($screen === 'login') {
 				if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; use(input.files[0]); }
 			});
 		});
+		// Save: the pictures go from the browser straight to R2 (2.42.2), with a bar; the form then says only where
+		// they are. If R2 cannot be reached from here (no CORS rule), they go the old way, through the site.
+		var P = <?php echo wp_json_encode(['sending' => __('Uploading… %d%%', 'y4apk'), 'saving' => __('Saving…', 'y4apk')]); ?>;
+		document.addEventListener('submit', function (e) {
+			if (e.target !== f || f.y4direct || !window.XMLHttpRequest || !window.Promise) { return; }
+			var zones = [].filter.call(f.querySelectorAll('[data-drop]'), function (z) { var i = z.querySelector('input[type=file]'); return i.files && i.files[0]; });
+			if (!zones.length) { return; }
+			e.preventDefault(); e.stopImmediatePropagation(); // the form's own submit waits until they are there
+			var btn = f.querySelector('button[type=submit]'), was = btn.textContent;
+			btn.disabled = true; dropErr.hidden = true;
+			var go = function () { f.y4direct = true; btn.textContent = P.saving; if (f.requestSubmit) { f.requestSubmit(); } else { HTMLFormElement.prototype.submit.call(f); } };
+			var pcText = function (n) { return P.sending.replace('%d', n).replace('%%', '%'); };
+			var done = {}, all = 0; // bytes sent of each picture, and of all: the button shows the whole
+			zones.forEach(function (z) { all += z.querySelector('input[type=file]').files[0].size; });
+			var send = function (zone) {
+				return new Promise(function (ok, fail) {
+					var input = zone.querySelector('input[type=file]'), file = input.files[0], bar = zone.querySelector('.acc-drop-bar'), b = new FormData();
+					b.append('action', 'y4apk_pic_start'); b.append('nonce', f.getAttribute('data-pic-nonce'));
+					b.append('kind', zone.getAttribute('data-drop') === 'banner' ? 'banner' : 'pic'); b.append('size', file.size);
+					fetch(ajax, {method: 'POST', body: b, credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+						if (!j || !j.success) { fail(new Error(j && j.data && j.data.message ? j.data.message : T.error)); return; }
+						var x = new XMLHttpRequest();
+						bar.hidden = false; zone.classList.add('is-sending');
+						x.open('PUT', j.data.url);
+						x.upload.onprogress = function (ev) {
+							if (!ev.lengthComputable) { return; }
+							var pc = Math.min(100, Math.round(ev.loaded / ev.total * 100));
+							bar.firstChild.style.width = pc + '%'; bar.setAttribute('data-pc', pcText(pc));
+							done[input.name] = ev.loaded;
+							var sum = 0;
+							for (var k in done) { sum += done[k]; }
+							btn.textContent = pcText(Math.min(100, Math.round(sum / all * 100)));
+						};
+						x.onload = function () {
+							if (x.status < 200 || x.status >= 300) { fail(null); return; }
+							f.querySelector('[name="' + input.name + '_key"]').value = j.data.key;
+							input.value = ''; // sent: not again with the form
+							ok();
+						};
+						x.onerror = function () { fail(null); };
+						x.send(file);
+					}).catch(function () { fail(null); });
+				});
+			};
+			Promise.all(zones.map(send)).then(go, function (err) {
+				if (err && err.message) { // refused (too big, too many): say so and stop
+					dropErr.textContent = err.message; dropErr.hidden = false; btn.disabled = false; btn.textContent = was;
+					[].forEach.call(f.querySelectorAll('.acc-drop-bar'), function (bb) { bb.hidden = true; bb.parentNode.classList.remove('is-sending'); });
+					return;
+				}
+				go(); // R2 could not be reached from the browser: the pictures still in the form go through the site
+			});
+		}, true);
 	}
 })();
 </script>

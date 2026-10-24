@@ -624,3 +624,10 @@
 .prf-share-line .prf-share-ico { background: #06c755; }
 .prf-share-email .prf-share-ico { background: #64748b; }
 .prf-share-more .prf-share-ico { color: #172021; background: #e8eef0; }
+
+/* a picture on its way to R2 (2.42.2) */
+.acc-drop-bar { position: absolute; z-index: 2; left: 1rem; right: 1rem; bottom: .875rem; height: .5rem; border-radius: 1rem; background: rgba(23, 32, 33, .1); pointer-events: none; }
+.acc-drop-bar[hidden] { display: none; }
+.acc-drop-bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #29b1d8, #6fd3ef); transition: width .2s ease; }
+.acc-drop-bar::after { content: attr(data-pc); position: absolute; right: 0; bottom: .875rem; padding: .125rem .5rem; border-radius: 1rem; font-size: .75rem; font-weight: 700; color: #172021; background: rgba(255, 255, 255, .92); }
+.acc-drop.is-sending { pointer-events: none; }

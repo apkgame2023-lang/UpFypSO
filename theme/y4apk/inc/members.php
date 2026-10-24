@@ -616,6 +616,10 @@ class Y4APK_Members {
 			return;
 		}
 
+		// More than PHP takes in one go (post_max_size): it drops the whole form, so say why nothing happened.
+		if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && !empty($_SERVER['CONTENT_LENGTH'])) {
+			$ctx['errors'][] = sprintf(__('That was more than the site takes at once (%s). Send a smaller picture, or one picture at a time.', 'y4apk'), size_format(wp_max_upload_size()));
+		}
 		$do = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do'])) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
 		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
 			call_user_func_array([__CLASS__, 'do_' . $do], [&$ctx]);
