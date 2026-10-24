@@ -423,7 +423,10 @@ counted them again on every visit).
 
 **Page cache.** `/account/…` is sent with `no-cache` headers and
 `DONOTCACHEPAGE`, but exclude `/account/` and `/u/` in 10Web Booster as well: a
-cached form has a stale nonce. **Email** goes through `wp_mail()`: on shared
+cached form has a stale nonce, and its hidden time field is refused after 6
+hours. Since 2.35.2 *Check my site now* opens `/account/login/` twice, like a
+browser, and warns when the second copy comes from a cache (an older time field,
+or a `*cache*` header saying HIT). **Email** goes through `wp_mail()`: on shared
 hosting install an SMTP plugin (FluentSMTP) and use *Send myself a test email*.
 
 ## The old Google Play importer, removed (2.33)

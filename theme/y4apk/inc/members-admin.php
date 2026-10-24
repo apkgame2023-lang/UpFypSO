@@ -468,6 +468,38 @@ class Y4APK_Members_Admin {
 		return is_wp_error($r) ? null : $r;
 	}
 
+	/**
+	 * Is /account/ served fresh? A form kept in a page cache stops working after
+	 * 6 hours (its hidden time field gets too old), so open the sign-in page twice,
+	 * like a browser, and see whether the second one is a stored copy.
+	 */
+	private static function cache_check() {
+		$label = __('Member pages kept out of the page cache', 'y4apk');
+		$url = home_url('/account/login/');
+		$args = ['timeout' => 10, 'redirection' => 0, 'sslverify' => false, 'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'];
+		$first = wp_remote_get($url, $args);
+		sleep(2);
+		$start = time();
+		$r = wp_remote_get($url, $args);
+		if (is_wp_error($first) || is_wp_error($r) || (int) wp_remote_retrieve_response_code($r) !== 200) {
+			return [$label, null, __('could not check', 'y4apk')];
+		}
+		$hit = '';
+		foreach (wp_remote_retrieve_headers($r) as $name => $value) {
+			$value = is_array($value) ? implode(', ', $value) : (string) $value;
+			if (stripos($name, 'cache') !== false && preg_match('/\b(HIT|STALE)\b/i', $value)) {
+				$hit = $name . ': ' . $value;
+				break;
+			}
+		}
+		$old = preg_match('/name="y4t" value="(\d+)\./', (string) wp_remote_retrieve_body($r), $m) && (int) $m[1] < $start - 1;
+		if (!$hit && !$old) {
+			return [$label, true, __('every visitor gets a fresh sign-in page', 'y4apk')];
+		}
+		$what = $old ? sprintf(__('a copy made %s ago', 'y4apk'), human_time_diff((int) $m[1], $start)) : $hit;
+		return [$label, false, sprintf(__('/account/login/ comes from the cache (%s): exclude /account/ and /u/ from the page cache, clear it and check again', 'y4apk'), $what)];
+	}
+
 	/** Looks at the site the way a stranger does: [label, ok (true|false|null), what was found]. */
 	public static function check_results() {
 		$rows = [];
@@ -489,6 +521,7 @@ class Y4APK_Members_Admin {
 		$r = self::get_headers_of(home_url('/xmlrpc.php'));
 		$code = $r ? (int) wp_remote_retrieve_response_code($r) : 0;
 		$rows[] = [__('XML-RPC (a way to guess passwords)', 'y4apk'), $r ? ($code !== 200 || stripos((string) wp_remote_retrieve_body($r), 'XML-RPC server accepts') === false) : null, $r ? sprintf(__('answers %d', 'y4apk'), $code) : __('could not check', 'y4apk')];
+		$rows[] = self::cache_check();
 		$r = self::get_headers_of(home_url('/readme.html'));
 		$code = $r ? (int) wp_remote_retrieve_response_code($r) : 0;
 		$rows[] = [__('readme.html is public', 'y4apk'), $r ? $code >= 400 : null, $r ? ($code < 400 ? __('it names the WordPress version: delete readme.html in File Manager (WordPress puts it back with each update)', 'y4apk') : __('not reachable', 'y4apk')) : __('could not check', 'y4apk')];
