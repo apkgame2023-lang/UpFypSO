@@ -440,9 +440,44 @@ if ($screen === 'login') {
 	});
 })();
 </script>
+<?php // Named y4apk-pwa-…: the speed plugin's delay already leaves y4apk-pwa scripts alone. ?>
+<script id="y4apk-pwa-account" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+<?php if (Y4APK_Members::turnstile_on() && in_array($screen, ['login', 'register', 'forgot', 'submit', 'edit'], true)) : ?>
+	// Cloudflare Turnstile is added from here: as a plain <script src> a speed plugin holds it back until the visitor moves.
+	var ts = document.createElement('script');
+	ts.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+	ts.async = true;
+	document.head.appendChild(ts);
+<?php endif; ?>
+	// A page cache may have kept this page: ask for fresh hidden values, and hold a quick submit until they are in.
+	var forms = [].slice.call(document.querySelectorAll('form')).filter(function (f) { return f.querySelector('[name="_y4n"]'); });
+	if (!forms.length || !window.fetch || !window.FormData) { return; }
+	var body = new FormData(), done = false;
+	body.append('action', 'y4apk_fresh');
+	forms.forEach(function (f) { var d = f.querySelector('[name="y4_do"]'); if (d) { body.append('do[]', d.value); } });
+	var ready = fetch(<?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, {method: 'POST', body: body, credentials: 'same-origin', cache: 'no-store'})
+		.then(function (r) { return r.json(); })
+		.then(function (j) {
+			forms.forEach(function (f) {
+				var t = f.querySelector('[name="y4t"]'), n = f.querySelector('[name="_y4n"]'), d = f.querySelector('[name="y4_do"]');
+				if (t && j.t && !(j.now - parseInt(t.value, 10) < 3600)) { t.value = j.t; }
+				if (n && d && j.n && j.n[d.value]) { n.value = j.n[d.value]; }
+			});
+		})
+		.catch(function () {})
+		.then(function () { done = true; });
+	forms.forEach(function (f) {
+		f.addEventListener('submit', function (e) {
+			if (done) { return; }
+			e.preventDefault();
+			var go = function () { if (!f.y4sent) { f.y4sent = true; HTMLFormElement.prototype.submit.call(f); } };
+			ready.then(go);
+			setTimeout(go, 4000);
+		});
+	});
+})();
+</script>
 <?php
-if (Y4APK_Members::turnstile_on() && in_array($screen, ['login', 'register', 'forgot', 'submit', 'edit'], true)) {
-	echo '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>';
-}
 get_template_part('template/footer');
 get_footer();

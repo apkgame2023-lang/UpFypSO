@@ -484,20 +484,26 @@ class Y4APK_Members_Admin {
 		if (is_wp_error($first) || is_wp_error($r) || (int) wp_remote_retrieve_response_code($r) !== 200) {
 			return [$label, null, __('could not check', 'y4apk')];
 		}
-		$hit = '';
+		$hit = false;
+		$seen = []; // the headers that name the cache, to know which one to set
 		foreach (wp_remote_retrieve_headers($r) as $name => $value) {
 			$value = is_array($value) ? implode(', ', $value) : (string) $value;
+			if (preg_match('/cache|cdn|^age$|^server$|^via$|tenweb|litespeed|hcdn/i', $name) && !preg_match('/^(cache-control|cdn-cache-control|surrogate-control)$/i', $name)) {
+				$seen[] = strtolower($name) . ': ' . mb_substr($value, 0, 40);
+			}
 			if (stripos($name, 'cache') !== false && preg_match('/\b(HIT|STALE)\b/i', $value)) {
-				$hit = $name . ': ' . $value;
-				break;
+				$hit = true;
 			}
 		}
 		$old = preg_match('/name="y4t" value="(\d+)\./', (string) wp_remote_retrieve_body($r), $m) && (int) $m[1] < $start - 1;
 		if (!$hit && !$old) {
 			return [$label, true, __('every visitor gets a fresh sign-in page', 'y4apk')];
 		}
-		$what = $old ? sprintf(__('a copy made %s ago', 'y4apk'), human_time_diff((int) $m[1], $start)) : $hit;
-		return [$label, false, sprintf(__('/account/login/ comes from the cache (%s): exclude /account/ and /u/ from the page cache, clear it and check again', 'y4apk'), $what)];
+		$what = $old ? sprintf(__('a copy made %s ago', 'y4apk'), human_time_diff((int) $m[1], $start)) : __('the cache says HIT', 'y4apk');
+		if ($seen) {
+			$what .= '; ' . implode('; ', array_slice($seen, 0, 6));
+		}
+		return [$label, false, sprintf(__('/account/login/ comes from a cache (%s). The forms renew their hidden fields, so signing up still works, but exclude /account/ and /u/ from that cache, clear it and check again', 'y4apk'), $what)];
 	}
 
 	/** Looks at the site the way a stranger does: [label, ok (true|false|null), what was found]. */

@@ -426,7 +426,15 @@ counted them again on every visit).
 cached form has a stale nonce, and its hidden time field is refused after 6
 hours. Since 2.35.2 *Check my site now* opens `/account/login/` twice, like a
 browser, and warns when the second copy comes from a cache (an older time field,
-or a `*cache*` header saying HIT). **Email** goes through `wp_mail()`: on shared
+or a `*cache*` header saying HIT), naming the cache by its headers.
+
+Since 2.35.3 a kept copy still works: the account pages ask `admin-ajax.php`
+(`y4apk_fresh`) for new nonces, and for a new time field when theirs is over an
+hour old, and hold a quick submit until they are in. They also send
+`CDN-Cache-Control`, `Surrogate-Control` and `X-LiteSpeed-Cache-Control`.
+Cloudflare Turnstile is loaded from the inline `y4apk-pwa-account` script: as a
+plain `<script src>`, 10Web Booster's JavaScript delay held it back until the
+visitor moved, and the box stayed empty. **Email** goes through `wp_mail()`: on shared
 hosting install an SMTP plugin (FluentSMTP) and use *Send myself a test email*.
 
 ## The old Google Play importer, removed (2.33)

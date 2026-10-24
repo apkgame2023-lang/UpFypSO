@@ -38,6 +38,9 @@ class Y4APK_Members {
 	const HOSTS    = '_y4apk_hosts';       // addresses the code loads from
 	const HASHES   = '_y4apk_code_hash';
 	const MEMBER_POST = '_y4apk_member_post';
+	// y4_do => the screen that takes it
+	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -52,6 +55,8 @@ class Y4APK_Members {
 		add_action('template_redirect', [__CLASS__, 'author_pages'], 1);
 		add_filter('template_include', [__CLASS__, 'template'], 20);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
+		add_action('wp_ajax_y4apk_fresh', [__CLASS__, 'fresh']);
+		add_action('wp_ajax_nopriv_y4apk_fresh', [__CLASS__, 'fresh']);
 		add_filter('document_title_parts', [__CLASS__, 'title_parts']);
 		add_action('wp_head', [__CLASS__, 'noindex'], 1);
 
@@ -395,9 +400,30 @@ class Y4APK_Members {
 
 	/** Hidden fields of every form: a trap bots fill in, and the time the form was opened. */
 	public static function trap_fields() {
-		$t = time();
 		return '<div class="acc-hp" aria-hidden="true"><label>Website <input type="text" name="website" value="" tabindex="-1" autocomplete="off"></label></div>'
-			. '<input type="hidden" name="y4t" value="' . esc_attr($t . '.' . hash_hmac('sha256', (string) $t, wp_salt('nonce'))) . '">';
+			. '<input type="hidden" name="y4t" value="' . esc_attr(self::trap_value()) . '">';
+	}
+
+	private static function trap_value() {
+		$t = time();
+		return $t . '.' . hash_hmac('sha256', (string) $t, wp_salt('nonce'));
+	}
+
+	/**
+	 * New hidden values for forms that a page cache kept: the nonces, and the time
+	 * field (the page swaps it only when it is over an hour old, so the 3-second
+	 * wait still counts from when the visitor opened the page).
+	 */
+	public static function fresh() {
+		nocache_headers();
+		$n = [];
+		foreach (array_slice((array) ($_POST['do'] ?? []), 0, 5) as $do) {
+			$do = sanitize_key(wp_unslash($do));
+			if (isset(self::ACTIONS[$do])) {
+				$n[$do] = wp_create_nonce('y4apk_acct_' . $do);
+			}
+		}
+		wp_send_json(['now' => time(), 't' => self::trap_value(), 'n' => $n]);
 	}
 
 	private static function trap_ok() {
@@ -493,6 +519,11 @@ class Y4APK_Members {
 		if (!defined('DONOTCACHEPAGE')) {
 			define('DONOTCACHEPAGE', true); // the page cache must not keep a page with a form's nonce in it
 		}
+		// Caches in front of WordPress have headers of their own: CDNs (Cloudflare), LiteSpeed (Hostinger).
+		header('CDN-Cache-Control: no-store');
+		header('Surrogate-Control: no-store');
+		header('X-LiteSpeed-Cache-Control: no-cache');
+		do_action('litespeed_control_set_nocache', 'y4apk member page');
 		header('X-Robots-Tag: ' . ($view === 'profile' ? 'index, follow' : 'noindex, nofollow'));
 
 		$user = wp_get_current_user();
@@ -521,9 +552,7 @@ class Y4APK_Members {
 		}
 
 		$do = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do'])) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
-		$actions = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-			'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings'];
-		if ($do !== '' && isset($actions[$do]) && $actions[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
+		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
 			call_user_func_array([__CLASS__, 'do_' . $do], [&$ctx]);
 		}
 
