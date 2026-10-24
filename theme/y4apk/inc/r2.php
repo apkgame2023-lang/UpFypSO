@@ -259,6 +259,23 @@ HTML;
 		return $letter . '/' . implode('-', $parts) . '.' . self::ext($filename);
 	}
 
+	/** Enough to put small files (members' pictures): keys, the bucket and its public address. */
+	public static function can_store() {
+		$o = self::settings();
+		return $o['account'] !== '' && $o['bucket'] !== '' && $o['key_id'] !== '' && $o['secret'] !== '' && $o['public'] !== '';
+	}
+
+	/** Puts a small file (up to a few MB) from this server: true or a WP_Error. */
+	public static function put($key, $bytes, $type, $cache = 'public, max-age=31536000, immutable') {
+		$r = self::call('PUT', $key, [], $bytes, ['Content-Type' => $type, 'Cache-Control' => $cache]);
+		return !is_wp_error($r) && $r[0] >= 200 && $r[0] < 300 ? true : self::r2_error($r, __('Upload', 'y4apk'));
+	}
+
+	public static function remove($key) {
+		$r = self::call('DELETE', $key);
+		return !is_wp_error($r) && ($r[0] === 204 || $r[0] === 200 || $r[0] === 404);
+	}
+
 	public static function public_url($key) {
 		return self::settings()['public'] . '/' . self::encode_key($key);
 	}

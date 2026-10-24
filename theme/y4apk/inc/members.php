@@ -87,6 +87,13 @@ class Y4APK_Members {
 			'report_hide' => 5,   // reports that put a member's script back in review (0: never)
 			'notify'      => 1,   // email the site owner when a script arrives
 			'from_name'   => 'Y4APK',
+			'reply_to'    => '',  // where replies go (optional; mail comes from a no-reply address)
+			'smtp_on'     => 0,   // send through the site's mailbox (inc/mail.php)
+			'smtp_host'   => 'smtp.hostinger.com',
+			'smtp_port'   => 465,
+			'smtp_secure' => 'ssl',
+			'smtp_user'   => '',
+			'smtp_pass'   => '',  // encrypted (Y4APK_Mail::hide)
 			'hosts'       => "raw.githubusercontent.com\ngist.githubusercontent.com\ngithub.com\ngitlab.com\nraw.githack.com\ncdn.jsdelivr.net\npastebin.com\nrawscripts.net\nscriptblox.com\napi.luarmor.net\npaste.ee",
 		];
 	}
@@ -487,11 +494,49 @@ class Y4APK_Members {
 	 * Mail
 	 * ---------------------------------------------------------------- */
 
+	/** An email in the site's design (inc/mail.php): $body is a message() array, or plain paragraphs. */
 	public static function mail($to, $subject, $body) {
-		$name = self::settings()['from_name'];
-		$host = wp_parse_url(home_url(), PHP_URL_HOST);
-		$headers = ['From: ' . wp_specialchars_decode($name, ENT_QUOTES) . ' <noreply@' . preg_replace('~^www\.~', '', (string) $host) . '>'];
-		return wp_mail($to, $subject, $body . "\n\n— " . $name . "\n" . home_url('/'), $headers);
+		return Y4APK_Mail::send($to, $subject, is_array($body) ? $body : ['lines' => preg_split('/\n{2,}/', trim((string) $body))]);
+	}
+
+	/** What each email says: the parts Y4APK_Mail lays out. */
+	public static function message($kind, $d) {
+		$site = self::settings()['from_name'];
+		$d = wp_parse_args($d, ['name' => '', 'link' => '', 'title' => '', 'why' => '', 'count' => 0]);
+		$author = sprintf(__('You got this email because you shared a script on %s.', 'y4apk'), $site);
+		$owner = __('You get these because “Email me when a script is waiting” is on in Y4APK ▸ Members.', 'y4apk');
+		switch ($kind) {
+			case 'verify':
+				return ['title' => __('Confirm your email', 'y4apk'), 'preheader' => __('One click, and you can start sharing scripts.', 'y4apk'), 'hi' => $d['name'],
+					'lines' => [sprintf(__('Thanks for joining %s. Confirm that this is your email address, then share your first Roblox script.', 'y4apk'), $site)],
+					'button' => [__('Confirm my email', 'y4apk'), $d['link']],
+					'note' => __('This link works for 48 hours. If you did not create an account, ignore this email: nothing happens.', 'y4apk'),
+					'why' => sprintf(__('You got this email because someone signed up at %s with this address.', 'y4apk'), $site)];
+			case 'reset':
+				return ['title' => __('Reset your password', 'y4apk'), 'preheader' => sprintf(__('Choose a new password for your %s account.', 'y4apk'), $site), 'hi' => $d['name'],
+					'lines' => [sprintf(__('We got a request to reset the password of your %s account.', 'y4apk'), $site)],
+					'button' => [__('Choose a new password', 'y4apk'), $d['link']],
+					'note' => __('If you did not ask for this, ignore this email: your password stays the same.', 'y4apk'),
+					'why' => __('You got this email because a new password was asked for this address.', 'y4apk')];
+			case 'live':
+				return ['title' => __('Your script is live 🎉', 'y4apk'), 'preheader' => sprintf(__('“%s” is on the site now.', 'y4apk'), $d['title']), 'hi' => $d['name'],
+					'lines' => [__('Good news: we checked your script and it is live now. Share the link with your players.', 'y4apk')],
+					'card' => [__('Your script', 'y4apk'), $d['title']], 'button' => [__('See your script', 'y4apk'), $d['link']],
+					'note' => __('Keep the link working: scripts that stop working get removed.', 'y4apk'), 'why' => $author];
+			case 'changes':
+				return ['title' => __('Your script needs a change', 'y4apk'), 'preheader' => __('One thing to fix, and it can go live.', 'y4apk'), 'hi' => $d['name'],
+					'lines' => [__('We checked your script and could not publish it yet. Here is what to change:', 'y4apk')],
+					'card' => [__('Your script', 'y4apk'), $d['title']], 'quote' => $d['why'], 'button' => [__('Edit and send again', 'y4apk'), $d['link']], 'why' => $author];
+			case 'waiting':
+				return ['title' => __('A script is waiting for review', 'y4apk'), 'preheader' => sprintf(__('@%1$s shared “%2$s”.', 'y4apk'), $d['name'], $d['title']),
+					'lines' => [sprintf(__('@%s shared a new script. It stays hidden until you approve it.', 'y4apk'), $d['name'])],
+					'card' => [__('Script', 'y4apk'), $d['title']], 'button' => [__('Open Review', 'y4apk'), admin_url('admin.php?page=y4apk-review')], 'why' => $owner];
+			case 'reported':
+				return ['title' => __('A script was hidden after reports', 'y4apk'), 'preheader' => sprintf(__('“%s” is back in review.', 'y4apk'), $d['title']),
+					'lines' => [sprintf(_n('It got %d report from visitors, so it is back in review until you look at it.', 'It got %d reports from visitors, so it is back in review until you look at it.', $d['count'], 'y4apk'), $d['count'])],
+					'card' => [__('Script', 'y4apk'), $d['title']], 'button' => [__('Open Review', 'y4apk'), admin_url('admin.php?page=y4apk-review')], 'why' => $owner];
+		}
+		return ['lines' => []];
 	}
 
 	private static function send_verification($user) {
@@ -499,8 +544,7 @@ class Y4APK_Members {
 		update_user_meta($user->ID, 'y4apk_vtoken', hash('sha256', $token));
 		update_user_meta($user->ID, 'y4apk_vexp', time() + 2 * DAY_IN_SECONDS);
 		$link = self::url('verify', ['u' => $user->ID, 't' => $token]);
-		self::mail($user->user_email, sprintf(__('Confirm your email for %s', 'y4apk'), self::settings()['from_name']),
-			sprintf(__("Hi %s,\n\nConfirm your email to start sharing scripts:\n%s\n\nThe link works for 48 hours. If you did not sign up, ignore this email.", 'y4apk'), $user->user_login, $link));
+		self::mail($user->user_email, sprintf(__('Confirm your email for %s', 'y4apk'), self::settings()['from_name']), self::message('verify', ['name' => $user->user_login, 'link' => $link]));
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -841,8 +885,7 @@ class Y4APK_Members {
 				$key = get_password_reset_key($user);
 				if (!is_wp_error($key)) {
 					self::mail($user->user_email, __('Choose a new password', 'y4apk'),
-						sprintf(__("Hi %s,\n\nChoose a new password here:\n%s\n\nIf you did not ask for this, ignore this email: nothing changes.", 'y4apk'),
-							$user->user_login, self::url('reset', ['key' => $key, 'login' => $user->user_login])));
+						self::message('reset', ['name' => $user->user_login, 'link' => self::url('reset', ['key' => $key, 'login' => $user->user_login])]));
 				}
 			}
 		}
@@ -1001,7 +1044,7 @@ class Y4APK_Members {
 			$ctx['errors'][] = $g;
 			return;
 		}
-		$err = Y4APK_Social::save($ctx['user'], $_POST);
+		$err = Y4APK_Social::save($ctx['user'], $_POST, $_FILES);
 		if ($err) {
 			$ctx['errors'] = $err;
 			foreach (['display', 'bio', 'theme', 'youtube', 'discord', 'roblox'] as $k) {
@@ -1369,7 +1412,7 @@ class Y4APK_Members {
 			return;
 		}
 		self::mail(get_option('admin_email'), __('A script is waiting for review', 'y4apk'),
-			sprintf(__("@%s shared “%s”.\n\nReview it: %s", 'y4apk'), $user->user_login, get_the_title($post_id), admin_url('admin.php?page=y4apk-review')));
+			self::message('waiting', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($post_id))]));
 	}
 
 	/** Tells the member when their script goes live (from the review page or the editor). */
@@ -1383,7 +1426,7 @@ class Y4APK_Members {
 		}
 		update_post_meta($post->ID, '_y4apk_told', 1);
 		self::mail($user->user_email, __('Your script is live', 'y4apk'),
-			sprintf(__("Hi %s,\n\nYour script “%s” is live:\n%s", 'y4apk'), $user->user_login, get_the_title($post->ID), get_permalink($post->ID)));
+			self::message('live', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($post->ID)), 'link' => get_permalink($post->ID)]));
 	}
 }
 

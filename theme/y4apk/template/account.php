@@ -358,7 +358,30 @@ if ($screen === 'login') {
 	<?php $messages(); ?>
 	<div class="acc-prof">
 		<div class="acc-card">
-			<?php $form_open('customize', ' data-profile-form'); ?>
+			<?php $form_open('customize', ' data-profile-form enctype="multipart/form-data"'); ?>
+				<?php $pic = Y4APK_Social::image_url($u, 'pic'); $ban = Y4APK_Social::image_url($u, 'banner'); $r2 = class_exists('Y4APK_R2') && Y4APK_R2::can_store(); ?>
+				<?php if ($r2) : ?>
+				<h2><?php esc_html_e('Profile banner', 'y4apk'); ?></h2>
+				<p class="acc-hint acc-hint-top"><?php esc_html_e('A wide picture across the top of your page. Best at 2400 × 800 (3:1).', 'y4apk'); ?></p>
+				<label class="acc-drop acc-drop-wide<?php echo $ban !== '' ? ' has-image' : ''; ?>" data-drop="banner" data-max="5">
+					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp">
+					<span class="acc-drop-img" data-drop-img<?php echo $ban !== '' ? ' style="background-image:url(' . esc_url($ban) . ')"' : ''; ?>></span>
+					<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG or WebP, up to 5 MB', 'y4apk'); ?></small></span>
+				</label>
+				<?php if ($ban !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_banner" value="1"> <span><?php esc_html_e('Remove my banner (use the theme’s)', 'y4apk'); ?></span></label><?php endif; ?>
+
+				<h2><?php esc_html_e('Profile picture', 'y4apk'); ?></h2>
+				<div class="acc-pic-row">
+					<span class="acc-pic-now" data-pic-now><?php echo Y4APK_Social::avatar($u, 96); ?></span>
+					<label class="acc-drop<?php echo $pic !== '' ? ' has-image' : ''; ?>" data-drop="picture" data-max="4">
+						<input type="file" name="picture" accept="image/png,image/jpeg,image/webp,image/gif">
+						<span class="acc-drop-text"><span class="acc-drop-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm-8 12a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg></span><b><?php esc_html_e('Click to upload or drag and drop', 'y4apk'); ?></b><small><?php esc_html_e('PNG, JPG, WebP or GIF, up to 4 MB · cut to a square', 'y4apk'); ?></small></span>
+					</label>
+				</div>
+				<?php if ($pic !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_picture" value="1"> <span><?php esc_html_e('Remove my picture', 'y4apk'); ?></span></label><?php endif; ?>
+				<p class="acc-drop-err" data-drop-err hidden></p>
+				<?php endif; ?>
+
 				<h2><?php esc_html_e('About you', 'y4apk'); ?></h2>
 				<div class="acc-field">
 					<label for="f-display"><?php esc_html_e('Display name', 'y4apk'); ?></label>
@@ -371,7 +394,7 @@ if ($screen === 'login') {
 					<span class="acc-wiz-count" data-count-for="f-bio"></span>
 				</div>
 
-				<h2><?php esc_html_e('Avatar', 'y4apk'); ?></h2>
+				<h2><?php echo esc_html($r2 ? __('Or your Roblox avatar', 'y4apk') : __('Avatar', 'y4apk')); ?></h2>
 				<div class="acc-field">
 					<label for="f-roblox"><?php esc_html_e('Your Roblox username', 'y4apk'); ?></label>
 					<div class="acc-input"><input id="f-roblox" type="text" name="roblox" value="<?php echo esc_attr($v('roblox', $rbx['name'])); ?>" maxlength="20" placeholder="Builderman" autocomplete="off" spellcheck="false"></div>
@@ -399,8 +422,8 @@ if ($screen === 'login') {
 		</div>
 		<aside class="acc-prof-side">
 			<p class="acc-wiz-label"><?php esc_html_e('Preview', 'y4apk'); ?></p>
-			<div class="prf prf-mini prf-theme-<?php echo esc_attr($theme); ?>" data-preview>
-				<div class="prf-banner"><span class="prf-fx" aria-hidden="true"></span><span class="prf-word" aria-hidden="true" data-pv-word><?php echo esc_html(Y4APK_Social::name($u)); ?></span></div>
+			<div class="prf prf-mini prf-theme-<?php echo esc_attr($theme); ?><?php echo Y4APK_Social::image_url($u, 'banner') !== '' ? ' has-banner' : ''; ?>" data-preview>
+				<div class="prf-banner"<?php echo Y4APK_Social::image_url($u, 'banner') !== '' ? ' style="background-image:url(' . esc_url(Y4APK_Social::image_url($u, 'banner')) . ')"' : ''; ?> data-pv-banner><span class="prf-fx" aria-hidden="true"></span><span class="prf-word" aria-hidden="true" data-pv-word><?php echo esc_html(Y4APK_Social::name($u)); ?></span></div>
 				<div class="prf-body">
 					<div class="prf-top"><div class="prf-avatar"><?php echo Y4APK_Social::avatar($u, 72); ?></div><span class="prf-btn prf-btn-main"><?php esc_html_e('Follow', 'y4apk'); ?></span></div>
 					<h3 class="prf-name" data-pv-name><?php echo esc_html(Y4APK_Social::name($u)); ?></h3>
@@ -835,11 +858,12 @@ if ($screen === 'login') {
 		<?php
 	};
 	?>
-	<section class="prf prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?>">
-		<div class="prf-banner"><span class="prf-fx" aria-hidden="true"></span><span class="prf-word" aria-hidden="true"><?php echo esc_html($name); ?></span></div>
+	<?php $banner = Y4APK_Social::image_url($u, 'banner'); ?>
+	<section class="prf prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?><?php echo $banner !== '' ? ' has-banner' : ''; ?>">
+		<div class="prf-banner"<?php echo $banner !== '' ? ' style="background-image:url(' . esc_url($banner) . ')"' : ''; ?>><span class="prf-fx" aria-hidden="true"></span><span class="prf-word" aria-hidden="true"><?php echo esc_html($name); ?></span></div>
 		<div class="prf-body">
 			<div class="prf-top">
-				<div class="prf-avatar"><?php echo Y4APK_Social::avatar($u, 112); ?></div>
+				<div class="prf-avatar"><?php echo Y4APK_Social::avatar($u, 112); ?><span class="prf-dot<?php echo Y4APK_Social::is_online($u) ? ' is-online' : ''; ?>" data-status-dot title="<?php echo esc_attr($seen); ?>"></span></div>
 				<div class="prf-actions">
 					<?php if ($c['own']) : ?>
 						<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('customize')); ?>"><?php echo $si('edit'); ?><span><?php esc_html_e('Edit profile', 'y4apk'); ?></span></a>
@@ -855,7 +879,7 @@ if ($screen === 'login') {
 			<p class="prf-meta">
 				<span>@<?php echo esc_html($u->user_login); ?></span>
 				<span><?php echo $si('cal'); ?><?php echo esc_html(sprintf(__('Joined %s', 'y4apk'), mysql2date('M Y', $u->user_registered))); ?></span>
-				<?php if ($seen !== '') : ?><span class="prf-seen<?php echo $seen === __('Online now', 'y4apk') ? ' is-online' : ''; ?>"><i></i><?php echo esc_html($seen); ?></span><?php endif; ?>
+				<span class="prf-seen<?php echo Y4APK_Social::is_online($u) ? ' is-online' : ''; ?>" data-status="<?php echo (int) $u->ID; ?>" data-seen="<?php echo (int) Y4APK_Social::seen_at($u); ?>" data-now="<?php echo (int) time(); ?>"><i aria-hidden="true"></i><span data-status-text><?php echo esc_html($seen); ?></span></span>
 			</p>
 			<?php if ($bio !== '') : ?><p class="prf-bio"><?php echo nl2br(esc_html($bio)); ?></p><?php endif; ?>
 			<?php if ($links['youtube'] !== '' || $links['discord'] !== '') : ?>
@@ -1050,6 +1074,29 @@ if ($screen === 'login') {
 			}).catch(function () { prompt('', url); });
 		}
 	});
+	// A profile's light: online in the last 3 minutes; asked again every 40 seconds while the page is open
+	var st = document.querySelector('[data-status]');
+	if (st) {
+		var S = <?php echo wp_json_encode(['online' => __('Online now', 'y4apk'), 'offline' => __('Offline', 'y4apk'), 'active' => __('Offline · Active %s', 'y4apk'), 'm' => __('%dm ago', 'y4apk'), 'h' => __('%dh ago', 'y4apk'), 'd' => __('%dd ago', 'y4apk'), 'mo' => __('%dmo ago', 'y4apk'), 'y' => __('%dy ago', 'y4apk')]); ?>;
+		var dot = document.querySelector('[data-status-dot]'), skew = (+st.getAttribute('data-now') || 0) * 1000 - Date.now(), polls = 0;
+		var ago = function (d) {
+			var u = d < 3600 ? ['m', Math.max(1, Math.floor(d / 60))] : d < 86400 ? ['h', Math.floor(d / 3600)] : d < 2592000 ? ['d', Math.floor(d / 86400)] : d < 31536000 ? ['mo', Math.floor(d / 2592000)] : ['y', Math.floor(d / 31536000)];
+			return S[u[0]].replace('%d', u[1]);
+		};
+		var show = function () {
+			var seen = +st.getAttribute('data-seen') || 0, now = (Date.now() + skew) / 1000, on = seen && now - seen < <?php echo (int) Y4APK_Social::ONLINE; ?>;
+			var text = on ? S.online : (seen ? S.active.replace('%s', ago(now - seen)) : S.offline);
+			st.classList.toggle('is-online', !!on); st.querySelector('[data-status-text]').textContent = text;
+			if (dot) { dot.classList.toggle('is-online', !!on); dot.title = text; }
+		};
+		var ask = function () {
+			if (document.visibilityState !== 'visible' || ++polls > 45) { return; } // half an hour at most
+			fetch(<?php echo wp_json_encode(get_template_directory_uri() . '/status.php'); ?>, {method: 'POST', body: JSON.stringify({u: +st.getAttribute('data-status')}), headers: {'Content-Type': 'application/json'}, cache: 'no-store'})
+				.then(function (r) { return r.json(); }).then(function (j) { st.setAttribute('data-seen', j.seen || 0); skew = j.now * 1000 - Date.now(); show(); }).catch(function () {});
+		};
+		show(); setInterval(show, 20000); setInterval(ask, 40000);
+		document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { ask(); } });
+	}
 	// Edit profile: the preview follows the form
 	var f = document.querySelector('[data-profile-form]'), pv = document.querySelector('[data-preview]');
 	if (f && pv) {
@@ -1063,6 +1110,32 @@ if ($screen === 'login') {
 			[].forEach.call(f.querySelectorAll('[data-counted]'), function (i) { var c = f.querySelector('[data-count-for="' + i.id + '"]'); if (c) { c.textContent = i.value.length + '/' + i.maxLength; } });
 		};
 		f.addEventListener('input', paint); f.addEventListener('change', paint); paint();
+		// The pictures: drop or pick, see them at once; too big is said here, before sending
+		var dropErr = f.querySelector('[data-drop-err]');
+		[].forEach.call(f.querySelectorAll('[data-drop]'), function (zone) {
+			var input = zone.querySelector('input[type=file]'), max = (+zone.getAttribute('data-max') || 4) * 1048576;
+			var use = function (file) {
+				if (!file) { return; }
+				if (file.size > max) { dropErr.textContent = <?php echo wp_json_encode(__('That file is too big.', 'y4apk')); ?>; dropErr.hidden = false; input.value = ''; return; }
+				dropErr.hidden = true;
+				var url = URL.createObjectURL(file);
+				zone.classList.add('has-image');
+				if (zone.getAttribute('data-drop') === 'banner') {
+					zone.querySelector('[data-drop-img]').style.backgroundImage = 'url(' + url + ')';
+					var b = pv.querySelector('[data-pv-banner]'); b.style.backgroundImage = 'url(' + url + ')'; pv.classList.add('has-banner');
+				} else {
+					var img = '<img class="acc-av acc-av-img" src="' + url + '" alt="" style="width:96px;height:96px">';
+					f.querySelector('[data-pic-now]').innerHTML = img;
+					var a = pv.querySelector('.prf-avatar'); a.innerHTML = img.replace(/96px/g, '72px');
+				}
+			};
+			input.addEventListener('change', function () { use(input.files[0]); });
+			['dragenter', 'dragover'].forEach(function (t) { zone.addEventListener(t, function (e) { e.preventDefault(); zone.classList.add('is-over'); }); });
+			['dragleave', 'drop'].forEach(function (t) { zone.addEventListener(t, function (e) { e.preventDefault(); zone.classList.remove('is-over'); }); });
+			zone.addEventListener('drop', function (e) {
+				if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; use(input.files[0]); }
+			});
+		});
 	}
 })();
 </script>

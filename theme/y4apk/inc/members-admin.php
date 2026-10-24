@@ -19,6 +19,7 @@ class Y4APK_Members_Admin {
 		add_action('admin_post_y4apk_members_save', [__CLASS__, 'save_settings']);
 		add_action('admin_post_y4apk_members_names', [__CLASS__, 'fix_names']);
 		add_action('admin_post_y4apk_members_checks', [__CLASS__, 'run_checks']);
+		add_action('admin_post_y4apk_drop_image', [__CLASS__, 'drop_image']);
 		add_action('admin_post_y4apk_members_testmail', [__CLASS__, 'test_mail']);
 		foreach (['approve', 'reject', 'ban', 'unban', 'dismiss', 'rereview'] as $a) {
 			add_action('admin_post_y4apk_review_' . $a, [__CLASS__, 'review_' . $a]);
@@ -130,7 +131,7 @@ class Y4APK_Members_Admin {
 		$user = get_userdata($post->post_author);
 		if ($user && Y4APK_Members::is_member($user)) {
 			Y4APK_Members::mail($user->user_email, __('Your script needs a change', 'y4apk'),
-				sprintf(__("Hi %s,\n\nWe could not publish “%s” yet.\n\nWhat to change: %s\n\nEdit it and send it again:\n%s", 'y4apk'), $user->user_login, get_the_title($id), $why, Y4APK_Members::url('edit/' . $id)));
+				Y4APK_Members::message('changes', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($id)), 'why' => $why, 'link' => Y4APK_Members::url('edit/' . $id)]));
 		}
 		self::back('y4apk-review', ['msg' => 'rejected']);
 	}
@@ -141,6 +142,7 @@ class Y4APK_Members_Admin {
 		$user = get_userdata($uid);
 		if ($user && Y4APK_Members::is_member($user)) {
 			update_user_meta($uid, Y4APK_Members::BANNED, 1);
+			Y4APK_Social::drop_images($uid); // a ban takes their pictures down too
 			WP_Session_Tokens::get_instance($uid)->destroy_all();
 			foreach (get_posts(['author' => $uid, 'post_type' => 'post', 'post_status' => ['pending', 'draft'], 'numberposts' => -1, 'fields' => 'ids']) as $pid) {
 				wp_trash_post($pid);
@@ -398,7 +400,7 @@ class Y4APK_Members_Admin {
 				update_post_meta($id, self::HOLD, 1);
 				wp_update_post(['ID' => $id, 'post_status' => 'pending']); // out of sight until the owner has looked
 				Y4APK_Members::mail(get_option('admin_email'), __('A script was hidden after reports', 'y4apk'),
-					sprintf(__("“%s” got %d reports and is back in review:\n%s", 'y4apk'), get_the_title($id), count($rep), admin_url('admin.php?page=y4apk-review')));
+					Y4APK_Members::message('reported', ['title' => wp_strip_all_tags(get_the_title($id)), 'count' => count($rep)]));
 			}
 		}
 		wp_send_json_success();
@@ -435,6 +437,13 @@ class Y4APK_Members_Admin {
 			'notify'      => empty($in['notify']) ? 0 : 1,
 			'from_name'   => trim(mb_substr(sanitize_text_field(isset($in['from_name']) ? (string) $in['from_name'] : 'Y4APK'), 0, 40)) ?: 'Y4APK',
 			'hosts'       => implode("\n", array_keys($hosts)),
+			'reply_to'    => is_email(isset($in['reply_to']) ? trim((string) $in['reply_to']) : '') ? sanitize_email($in['reply_to']) : '',
+			'smtp_on'     => empty($in['smtp_on']) ? 0 : 1,
+			'smtp_host'   => preg_replace('/[^a-z0-9.-]/i', '', isset($in['smtp_host']) ? (string) $in['smtp_host'] : '') ?: 'smtp.hostinger.com',
+			'smtp_port'   => in_array((int) (isset($in['smtp_port']) ? $in['smtp_port'] : 465), [25, 465, 587, 2525], true) ? (int) $in['smtp_port'] : 465,
+			'smtp_secure' => isset($in['smtp_secure']) && $in['smtp_secure'] === 'tls' ? 'tls' : 'ssl',
+			'smtp_user'   => is_email(isset($in['smtp_user']) ? trim((string) $in['smtp_user']) : '') ? sanitize_email($in['smtp_user']) : '',
+			'smtp_pass'   => isset($in['smtp_pass']) && (string) $in['smtp_pass'] !== '' ? Y4APK_Mail::hide((string) $in['smtp_pass']) : (isset($old['smtp_pass']) ? $old['smtp_pass'] : ''),
 		]), false);
 		if (!empty($in['clear_secret'])) {
 			$o = get_option(Y4APK_Members::OPTION);
@@ -454,12 +463,30 @@ class Y4APK_Members_Admin {
 		self::back('y4apk-members', ['names' => $n]);
 	}
 
+	/** Takes down a member's picture or banner (from R2 too). */
+	public static function drop_image() {
+		if (!current_user_can('manage_options')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'), 403);
+		}
+		check_admin_referer('y4apk_drop_image');
+		$kind = isset($_GET['kind']) && $_GET['kind'] === 'banner' ? 'banner' : 'pic';
+		Y4APK_Social::drop_image(isset($_GET['user']) ? absint($_GET['user']) : 0, $kind);
+		self::back('y4apk-members', ['dropped' => 1]);
+	}
+
 	public static function test_mail() {
 		if (!current_user_can('manage_options')) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'), 403);
 		}
 		check_admin_referer('y4apk_members_testmail');
-		$ok = Y4APK_Members::mail(get_option('admin_email'), __('Test email', 'y4apk'), __('If you can read this, members will get their confirmation emails.', 'y4apk'));
+		$c = Y4APK_Mail::smtp();
+		$how = Y4APK_Mail::plugin() !== '' ? Y4APK_Mail::plugin() : ($c ? sprintf(__('your mailbox %1$s through %2$s', 'y4apk'), $c['user'], $c['host']) : __('this web server (PHP mail), not your mailbox', 'y4apk'));
+		$ok = Y4APK_Members::mail(get_option('admin_email'), __('Test email', 'y4apk'), ['title' => __('Your emails work', 'y4apk'), 'preheader' => __('A test from Y4APK ▸ Members.', 'y4apk'),
+			'lines' => [__('If you can read this, members will get their confirmation emails.', 'y4apk')], 'card' => [__('Sent through', 'y4apk'), $how],
+			'note' => __('In Gmail, open ⋮ ▸ Show original: SPF, DKIM and DMARC should all say PASS for your domain.', 'y4apk'), 'why' => __('You sent this test from Y4APK ▸ Members.', 'y4apk')]);
+		if (!$ok) {
+			set_transient('y4apk_mail_error', Y4APK_Mail::$error, 5 * MINUTE_IN_SECONDS);
+		}
 		self::back('y4apk-members', ['mail' => $ok ? 'sent' : 'failed']);
 	}
 
@@ -558,7 +585,7 @@ class Y4APK_Members_Admin {
 			<h1><?php esc_html_e('Members', 'y4apk'); ?></h1>
 			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved.', 'y4apk'); ?></p></div><?php endif; ?>
 			<?php if (isset($_GET['names'])) : ?><div class="notice notice-success is-dismissible"><p><?php echo esc_html(sprintf(_n('%s account’s public name changed.', '%s accounts’ public names changed.', absint($_GET['names']), 'y4apk'), absint($_GET['names']))); ?></p></div><?php endif; ?>
-			<?php if (isset($_GET['mail'])) : ?><div class="notice <?php echo $_GET['mail'] === 'sent' ? 'notice-success' : 'notice-error'; ?> is-dismissible"><p><?php echo esc_html($_GET['mail'] === 'sent' ? sprintf(__('Test email sent to %s. If it does not arrive (check Spam), install an SMTP plugin: members need their confirmation emails.', 'y4apk'), get_option('admin_email')) : __('WordPress could not send the email. Install an SMTP plugin (like FluentSMTP) and try again.', 'y4apk')); ?></p></div><?php endif; ?>
+			<?php if (isset($_GET['mail'])) : $why = (string) get_transient('y4apk_mail_error'); ?><div class="notice <?php echo $_GET['mail'] === 'sent' ? 'notice-success' : 'notice-error'; ?> is-dismissible"><p><?php echo esc_html($_GET['mail'] === 'sent' ? sprintf(__('Test email sent to %s. If it does not arrive, look in Spam, and send it through your mailbox (below).', 'y4apk'), get_option('admin_email')) : __('The email could not be sent.', 'y4apk') . ($why !== '' ? ' ' . sprintf(__('The mail server said: %s', 'y4apk'), $why) : '') . ' ' . __('Check the mailbox address, its password, the server and the port.', 'y4apk')); ?></p></div><?php endif; ?>
 
 			<p style="max-width:780px"><?php esc_html_e('Members share Roblox scripts from pages of your site (/account/), without seeing WordPress. Every script waits in Y4APK ▸ Review until you approve it. Turn registration on only when the checks below are green.', 'y4apk'); ?>
 				<?php echo esc_html(sprintf(_n('%s member so far.', '%s members so far.', $total, 'y4apk'), number_format_i18n($total))); ?></p>
@@ -584,7 +611,30 @@ class Y4APK_Members_Admin {
 							<p class="description" style="max-width:640px"><?php esc_html_e('One per line. In Review, the addresses a code loads from are green when they are here and amber when they are not. It does not block anything: it tells you where to look first.', 'y4apk'); ?></p></td></tr>
 					<tr><th scope="row"><?php esc_html_e('Email', 'y4apk'); ?></th>
 						<td><p><label><?php esc_html_e('Sender name', 'y4apk'); ?> <input type="text" name="from_name" value="<?php echo esc_attr($s['from_name']); ?>" maxlength="40" class="regular-text"></label></p>
-							<p><label><input type="checkbox" name="notify" value="1" <?php checked($s['notify']); ?>> <?php echo esc_html(sprintf(__('Email %s when a script is waiting (at most one every 15 minutes)', 'y4apk'), get_option('admin_email'))); ?></label></p></td></tr>
+							<p><label><?php esc_html_e('Replies go to (optional)', 'y4apk'); ?> <input type="email" name="reply_to" value="<?php echo esc_attr($s['reply_to']); ?>" class="regular-text" placeholder="support@<?php echo esc_attr(preg_replace('~^www\.~', '', (string) wp_parse_url(home_url(), PHP_URL_HOST))); ?>"></label></p>
+							<p><label><input type="checkbox" name="notify" value="1" <?php checked($s['notify']); ?>> <?php echo esc_html(sprintf(__('Email %s when a script is waiting (at most one every 15 minutes)', 'y4apk'), get_option('admin_email'))); ?></label></p>
+							<p class="description" style="max-width:720px"><?php esc_html_e('Every email has the site’s design and a plain-text copy. See them:', 'y4apk'); ?>
+								<?php foreach (['verify' => __('Confirm email', 'y4apk'), 'reset' => __('New password', 'y4apk'), 'live' => __('Script live', 'y4apk'), 'changes' => __('Needs a change', 'y4apk'), 'waiting' => __('Waiting for review', 'y4apk')] as $k => $label) : ?>
+								<a href="<?php echo esc_url(admin_url('admin-post.php?action=y4apk_mail_preview&email=' . $k)); ?>" target="_blank" rel="noopener"><?php echo esc_html($label); ?></a><?php echo $k !== 'waiting' ? ' · ' : ''; ?>
+								<?php endforeach; ?></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Send through your mailbox', 'y4apk'); ?></th>
+						<td>
+							<?php $plugin = Y4APK_Mail::plugin(); $live = Y4APK_Mail::smtp(); ?>
+							<?php if ($plugin !== '') : ?>
+								<div class="notice notice-info inline"><p><?php echo esc_html(sprintf(__('%s sends the site’s mail, so these settings are not used. The emails still have the theme’s design.', 'y4apk'), $plugin)); ?></p></div>
+							<?php elseif ($live) : ?>
+								<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('Mail goes out from %1$s through %2$s, signed for your domain.', 'y4apk'), $live['user'], $live['host'])); ?></p></div>
+							<?php else : ?>
+								<div class="notice notice-warning inline"><p><?php esc_html_e('Mail goes out from the web server, so Gmail shows “via srv….main-hosting.eu” and it lands in Spam more often. Send it through a mailbox of your domain instead.', 'y4apk'); ?></p></div>
+							<?php endif; ?>
+							<p><label><input type="checkbox" name="smtp_on" value="1" <?php checked($s['smtp_on']); ?>> <?php esc_html_e('Send the site’s email through this mailbox (SMTP)', 'y4apk'); ?></label></p>
+							<p><label><?php esc_html_e('Mailbox', 'y4apk'); ?> <input type="email" name="smtp_user" value="<?php echo esc_attr($s['smtp_user']); ?>" class="regular-text" placeholder="noreply@<?php echo esc_attr(preg_replace('~^www\.~', '', (string) wp_parse_url(home_url(), PHP_URL_HOST))); ?>" autocomplete="off"></label></p>
+							<p><label><?php esc_html_e('Its password', 'y4apk'); ?> <input type="password" name="smtp_pass" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr(defined('Y4APK_SMTP_PASS') && Y4APK_SMTP_PASS ? __('set in wp-config.php', 'y4apk') : ($s['smtp_pass'] !== '' ? __('saved: leave empty to keep', 'y4apk') : '')); ?>"></label></p>
+							<p><label><?php esc_html_e('Server', 'y4apk'); ?> <input type="text" name="smtp_host" value="<?php echo esc_attr($s['smtp_host']); ?>" class="regular-text"></label>
+								<label><?php esc_html_e('Port', 'y4apk'); ?> <select name="smtp_port"><?php foreach ([465, 587, 2525, 25] as $port) : ?><option value="<?php echo (int) $port; ?>" <?php selected((int) $s['smtp_port'], $port); ?>><?php echo (int) $port; ?></option><?php endforeach; ?></select></label>
+								<label><select name="smtp_secure"><option value="ssl" <?php selected($s['smtp_secure'], 'ssl'); ?>>SSL</option><option value="tls" <?php selected($s['smtp_secure'], 'tls'); ?>>TLS</option></select></label></p>
+							<p class="description" style="max-width:720px"><?php esc_html_e('Hostinger: make the mailbox in hPanel ▸ Emails (for example noreply@ your domain), then use server smtp.hostinger.com, port 465, SSL, the mailbox address and its password. Mail then comes from your domain and is signed with its DKIM key, so Gmail shows no “via”. The password is kept encrypted; or put define( \'Y4APK_SMTP_PASS\', \'…\' ); in wp-config.php instead.', 'y4apk'); ?></p>
+						</td></tr>
 				</tbody></table>
 				<?php submit_button(__('Save', 'y4apk')); ?>
 			</form>
@@ -592,6 +642,28 @@ class Y4APK_Members_Admin {
 				<input type="hidden" name="action" value="y4apk_members_testmail"><?php wp_nonce_field('y4apk_members_testmail'); ?>
 				<button class="button"><?php esc_html_e('Send myself a test email', 'y4apk'); ?></button>
 			</form>
+
+			<?php
+			global $wpdb;
+			$pics = $wpdb->get_results($wpdb->prepare("SELECT user_id, meta_key, meta_value FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s) ORDER BY umeta_id DESC LIMIT 24", Y4APK_Social::PIC, Y4APK_Social::BANNER));
+			?>
+			<h2><?php esc_html_e('Members’ pictures', 'y4apk'); ?></h2>
+			<p class="description" style="max-width:720px"><?php esc_html_e('The newest profile pictures and banners members uploaded (kept in Cloudflare R2). Take down one that does not belong: it is removed from R2 too, and a ban removes all of a member’s.', 'y4apk'); ?></p>
+			<?php if (!empty($_GET['dropped'])) : ?><div class="notice notice-success inline"><p><?php esc_html_e('Picture removed.', 'y4apk'); ?></p></div><?php endif; ?>
+			<?php if ($pics) : ?>
+			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;max-width:980px;margin:12px 0 28px">
+				<?php foreach ($pics as $row) : $v = maybe_unserialize($row->meta_value); $pu = get_userdata((int) $row->user_id); if (!$pu || !is_array($v) || empty($v['url'])) { continue; } $is_banner = $row->meta_key === Y4APK_Social::BANNER; ?>
+				<div style="background:#fff;border:1px solid #dcdcde;border-radius:8px;overflow:hidden">
+					<a href="<?php echo esc_url($v['url']); ?>" target="_blank" rel="noopener"><img src="<?php echo esc_url($v['url']); ?>" alt="" style="display:block;width:100%;aspect-ratio:<?php echo $is_banner ? '3/1' : '1/1'; ?>;object-fit:cover;background:#f0f0f1"></a>
+					<div style="padding:8px 10px;font-size:12px;line-height:1.5">
+						<a href="<?php echo esc_url(Y4APK_Members::profile_url($pu)); ?>" target="_blank" rel="noopener">@<?php echo esc_html($pu->user_login); ?></a> · <?php echo esc_html($is_banner ? __('banner', 'y4apk') : __('picture', 'y4apk')); ?><br>
+						<span style="color:#646970"><?php echo esc_html(isset($v['at']) ? Y4APK_Roblox::ago((int) $v['at']) : ''); ?></span>
+						<a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_drop_image&user=' . (int) $pu->ID . '&kind=' . ($is_banner ? 'banner' : 'pic')), 'y4apk_drop_image')); ?>" style="float:right;color:#b32d2e" onclick="return confirm('<?php echo esc_js(__('Take this picture down?', 'y4apk')); ?>')"><?php esc_html_e('Take down', 'y4apk'); ?></a>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+			<?php else : ?><p><em><?php esc_html_e('No pictures yet.', 'y4apk'); ?></em></p><?php endif; ?>
 
 			<h2><?php esc_html_e('Privacy: what a stranger can learn about your accounts', 'y4apk'); ?></h2>
 			<p class="description" style="max-width:780px"><?php esc_html_e('WordPress shows the sign-in name of whoever wrote a post, in several places. The theme closes them. This looks at your site the way a stranger does.', 'y4apk'); ?></p>

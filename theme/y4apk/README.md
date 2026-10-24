@@ -498,8 +498,60 @@ minutes while a member is signed in. Signed-in pages now have the tabs My
 scripts · Following · Edit profile · Settings · Sign out; *My public page*
 opens in the same tab. In 10Web ▸ Cloudflare CDN ▸ Bypass Urls add `/@`.
 
+**Online now (2.40).** The light on a profile and its avatar pulses green
+while the member is on the site, and is grey — *Offline · Active 6m ago* —
+otherwise. Every page a signed-in member has open pings `admin-ajax.php`
+(`y4apk_ping`) every 90 seconds while visible, which writes `y4apk_seen` at most
+once a minute; seen in the last 3 minutes is online. A profile that is open asks
+`status.php` (SHORTINIT, one query; 0 for banned members) every 40 seconds while
+visible, for half an hour at most, so the light goes out soon after the member
+leaves and comes back when they return, without reloading.
+
+**Pictures members upload (2.40).** Edit profile has a **banner** (drag and
+drop or pick; PNG, JPG or WebP up to 5 MB; at least 600 × 200) and a **profile
+picture** (also GIF; up to 4 MB; at least 96 × 96), both previewed at once. On
+saving, the theme checks the file is really such a picture, refuses more than
+40 megapixels, turns phone photos the right way up, cuts the middle to 3:1 or
+1:1, scales to 1800 × 600 or 400 × 400 and writes a new WebP — which drops
+anything else a file carries — and puts it in Cloudflare R2 at
+`https://files.y4apk.net/members/<id>/…` (Y4APK ▸ App updates' R2 settings;
+nothing stays on this server). Twelve changes an hour. Replacing or removing a
+picture deletes the old one from R2; so do closing the account and a ban. A
+picture of their own comes before the Roblox avatar; a banner replaces the
+theme's. Y4APK ▸ Members ▸ *Members' pictures* shows the newest 24 with *Take
+down*.
+
 **Fixed with it:** short numbers dropped a zero from whole thousands — 20,215
 views showed as *2K* and 120,000 as *12K* (game pages, cards, profiles).
+
+## Emails (2.40)
+
+Every email the theme sends — confirm your email, new password, your script is
+live, your script needs a change, a script is waiting, a script was hidden after
+reports, the test — uses one design (`inc/mail.php`): the Y4Apk wordmark, a
+white card with a blue line on top, a title, the text, a card for the script, a
+highlighted reason, a big button and its link written out underneath, and a
+footer saying why the reader got it; with a preheader (the line inboxes show
+after the subject) and a plain-text copy for mail apps without HTML. It is built
+with tables and inline styles, as mail apps need. Y4APK ▸ Members ▸ Email links
+to a preview of each.
+
+**From the domain, not "via" the server.** PHP's `mail()` hands mail to the web
+server, which sends it as itself (Gmail: *via srv….main-hosting.eu*, *mailed-by*
+the server) and does not sign it for the domain — and such mail lands in Spam
+more often. Y4APK ▸ Members ▸ *Send through your mailbox* sends over SMTP as a
+mailbox of the domain (Hostinger: make `noreply@` in hPanel ▸ Emails, then
+`smtp.hostinger.com`, port 465, SSL): the mail server signs it with the domain's
+DKIM key and the envelope sender is the mailbox, so it shows only
+`noreply@y4apk.com`, mailed-by and signed-by the domain. The password is kept
+encrypted with a key from the site's salts, or in wp-config.php as
+`Y4APK_SMTP_PASS`. With an SMTP plugin active (FluentSMTP, WP Mail SMTP, Post
+SMTP, Easy WP SMTP) the theme leaves sending to it. Either way the theme drops
+PHPMailer's `X-Mailer` header and makes Message-IDs end in the domain. A mail
+server that does not answer is given 20 seconds, not PHPMailer's 300, so a
+sign-up page cannot hang. *Send myself a test email* says what it went through,
+and what the mail server said when it failed. An optional *Replies go to*
+address is set as Reply-To.
 
 ## The old Google Play importer, removed (2.33)
 

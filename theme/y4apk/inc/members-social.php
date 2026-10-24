@@ -5,9 +5,18 @@
  *
  *   Following      one usermeta row per follow: y4apk_follows = the followed member's ID
  *   Profile        y4apk_name, y4apk_bio, y4apk_theme, y4apk_links, y4apk_rbx (usermeta)
- *   Roblox avatar  found by Roblox username; the picture stays on Roblox's CDN (no uploads
- *                  here), and its address, which expires, is renewed every day
- *   Last seen      y4apk_seen, at most once every five minutes while a member is signed in
+ *   Pictures       a member's own profile picture and banner (2.40): checked, cropped and
+ *                  re-encoded here (which drops what a file carries besides the picture),
+ *                  then kept in Cloudflare R2 (https://files.y4apk.net/members/<id>/…);
+ *                  nothing stays on this server. Removed with the account, on a ban, or
+ *                  by the owner in Y4APK ▸ Members.
+ *   Roblox avatar  found by Roblox username; the picture stays on Roblox's CDN, and its
+ *                  address, which expires, is renewed every day (a picture of their own
+ *                  comes first)
+ *   Last seen      y4apk_seen: written when a signed-in member opens a page, and every 90
+ *                  seconds while one of their tabs is open (a ping); "Online now" means
+ *                  seen in the last 3 minutes, and a profile asks status.php again while
+ *                  it is open, so the light goes out soon after the member leaves
  */
 
 defined('ABSPATH') || exit;
@@ -20,15 +29,21 @@ class Y4APK_Social {
 	const LINKS   = 'y4apk_links';
 	const RBX     = 'y4apk_rbx';   // ['id', 'name', 'img', 'at']
 	const SEEN    = 'y4apk_seen';
+	const PIC     = 'y4apk_pic';    // ['key', 'url', 'at']
+	const BANNER  = 'y4apk_banner'; // ['key', 'url', 'at']
+	const ONLINE  = 180; // seconds since the last sign of life that still count as online
 	const HOOK    = 'y4apk_avatars';
 	const UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
 
 	public static function init() {
 		add_action('wp_ajax_y4apk_follow', [__CLASS__, 'ajax_follow']);
 		add_action('init', [__CLASS__, 'seen'], 20);
+		add_action('wp_ajax_y4apk_ping', [__CLASS__, 'ping']);
+		add_action('wp_footer', [__CLASS__, 'ping_script'], 50);
 		add_action(self::HOOK, [__CLASS__, 'refresh_avatars']);
 		add_action('init', [__CLASS__, 'schedule']);
 		add_action('deleted_user', [__CLASS__, 'forget']);
+		add_action('delete_user', [__CLASS__, 'drop_images']); // before the account goes: its pictures on R2 too
 	}
 
 	/** The profile themes: the banner, the accent, the swatches on the Edit profile page. */
@@ -162,37 +177,200 @@ class Y4APK_Social {
 		return wp_parse_args(is_array($r) ? $r : [], ['id' => '', 'name' => '', 'img' => '', 'at' => 0]);
 	}
 
-	/** The member's picture: their Roblox avatar, else a tile with their first letter. */
+	/** The member's picture: their own, else their Roblox avatar, else a tile with their first letter. */
 	public static function avatar($user, $size = 56) {
-		$r = self::roblox($user);
-		if ($r['img'] !== '' && Y4APK_Roblox::cdn_url($r['img'])) {
-			return '<img class="acc-av acc-av-img" src="' . esc_url($r['img']) . '" alt="" width="' . (int) $size . '" height="' . (int) $size . '" loading="lazy" decoding="async" style="width:' . (int) $size . 'px;height:' . (int) $size . 'px">';
+		$src = self::image_url($user, 'pic');
+		if ($src === '') {
+			$r = self::roblox($user);
+			$src = $r['img'] !== '' && Y4APK_Roblox::cdn_url($r['img']) ? $r['img'] : '';
+		}
+		if ($src !== '') {
+			return '<img class="acc-av acc-av-img" src="' . esc_url($src) . '" alt="" width="' . (int) $size . '" height="' . (int) $size . '" loading="lazy" decoding="async" style="width:' . (int) $size . 'px;height:' . (int) $size . 'px">';
 		}
 		return Y4APK_Members::avatar($user->user_login, $size);
 	}
 
-	/** "Online now" (in the last five minutes), "Active 3h ago", or '' (never seen). */
-	public static function seen_text($user) {
-		$t = (int) get_user_meta($user->ID, self::SEEN, true);
-		if (!$t) {
+	/* ---------------------------------------------------------------- *
+	 * Pictures a member uploads (R2)
+	 * ---------------------------------------------------------------- */
+
+	/** What each picture may be, and what it becomes. */
+	public static function image_rules($kind) {
+		return $kind === 'banner'
+			? ['meta' => self::BANNER, 'max' => 5 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], 'min' => [600, 200], 'out' => [1800, 600], 'label' => __('banner', 'y4apk')]
+			: ['meta' => self::PIC, 'max' => 4 * MB_IN_BYTES, 'types' => [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], 'min' => [96, 96], 'out' => [400, 400], 'label' => __('profile picture', 'y4apk')];
+	}
+
+	/** The address of the member's own picture ('pic') or banner on R2, or ''. */
+	public static function image_url($user, $kind) {
+		$v = get_user_meta($user->ID, self::image_rules($kind)['meta'], true);
+		if (!is_array($v) || empty($v['url']) || !class_exists('Y4APK_R2')) {
 			return '';
 		}
-		return time() - $t < 5 * MINUTE_IN_SECONDS ? __('Online now', 'y4apk') : sprintf(__('Active %s', 'y4apk'), Y4APK_Roblox::ago($t));
+		return strpos($v['url'], Y4APK_R2::settings()['public'] . '/') === 0 ? $v['url'] : '';
+	}
+
+	/** An uploaded file ($_FILES entry) → cropped, re-encoded, on R2, in the member's profile. True or a WP_Error. */
+	public static function store_image($user, $file, $kind) {
+		$rules = self::image_rules($kind);
+		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			return new WP_Error('y4', __('Picture uploads are not set up on this site yet.', 'y4apk'));
+		}
+		if (!is_array($file) || (int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+			$big = is_array($file) && in_array((int) $file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+			return new WP_Error('y4', $big ? sprintf(__('The %s is too big.', 'y4apk'), $rules['label']) : sprintf(__('The %s did not arrive. Try again.', 'y4apk'), $rules['label']));
+		}
+		if ((int) $file['size'] > $rules['max']) {
+			return new WP_Error('y4', sprintf(__('The %1$s is too big: up to %2$s MB.', 'y4apk'), $rules['label'], (int) ($rules['max'] / MB_IN_BYTES)));
+		}
+		$info = @getimagesize($file['tmp_name']);
+		if (!$info || !in_array($info[2], $rules['types'], true)) {
+			return new WP_Error('y4', $kind === 'banner' ? __('The banner must be a PNG, JPG or WebP picture.', 'y4apk') : __('The profile picture must be a PNG, JPG, WebP or GIF picture.', 'y4apk'));
+		}
+		list($w, $h) = $info;
+		if ($w < $rules['min'][0] || $h < $rules['min'][1]) {
+			return new WP_Error('y4', sprintf(__('The %1$s is too small: at least %2$d × %3$d pixels.', 'y4apk'), $rules['label'], $rules['min'][0], $rules['min'][1]));
+		}
+		if ($w * $h > 40000000) {
+			return new WP_Error('y4', sprintf(__('The %s has too many pixels.', 'y4apk'), $rules['label']));
+		}
+		if (!Y4APK_Members::hit('img_' . $user->ID, 12, HOUR_IN_SECONDS)) {
+			return new WP_Error('y4', __('You changed your pictures many times. Try again in an hour.', 'y4apk'));
+		}
+		$open = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp', IMAGETYPE_GIF => 'imagecreatefromgif'];
+		$src = function_exists($open[$info[2]]) ? @call_user_func($open[$info[2]], $file['tmp_name']) : false;
+		if (!$src) {
+			return new WP_Error('y4', sprintf(__('The %s could not be read.', 'y4apk'), $rules['label']));
+		}
+		// A phone's photo may be stored on its side, with a note saying which way is up.
+		if ($info[2] === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
+			$exif = @exif_read_data($file['tmp_name']);
+			$turn = [3 => 180, 6 => -90, 8 => 90];
+			if (!empty($exif['Orientation']) && isset($turn[(int) $exif['Orientation']])) {
+				$src = imagerotate($src, $turn[(int) $exif['Orientation']], 0) ?: $src;
+				$w = imagesx($src);
+				$h = imagesy($src);
+			}
+		}
+		// The middle of the picture, cut to the shape (1:1 or 3:1), no bigger than it needs to be.
+		$ratio = $rules['out'][0] / $rules['out'][1];
+		$cw = min($w, (int) round($h * $ratio));
+		$ch = (int) round($cw / $ratio);
+		$ow = min($rules['out'][0], $cw);
+		$oh = (int) round($ow / $ratio);
+		$dst = imagecreatetruecolor($ow, $oh);
+		imagealphablending($dst, false);
+		imagesavealpha($dst, true);
+		imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+		imagecopyresampled($dst, $src, 0, 0, (int) (($w - $cw) / 2), (int) (($h - $ch) / 2), $ow, $oh, $cw, $ch);
+		imagedestroy($src);
+		ob_start();
+		$webp = function_exists('imagewebp');
+		$webp ? imagewebp($dst, null, 82) : imagepng($dst, null, 8);
+		$bytes = (string) ob_get_clean();
+		imagedestroy($dst);
+		if ($bytes === '') {
+			return new WP_Error('y4', sprintf(__('The %s could not be saved.', 'y4apk'), $rules['label']));
+		}
+		$key = 'members/' . (int) $user->ID . '/' . ($kind === 'banner' ? 'banner' : 'picture') . '-' . strtolower(wp_generate_password(10, false, false)) . ($webp ? '.webp' : '.png');
+		$put = Y4APK_R2::put($key, $bytes, $webp ? 'image/webp' : 'image/png');
+		if (is_wp_error($put)) {
+			return new WP_Error('y4', sprintf(__('The %s could not be stored. Try again later.', 'y4apk'), $rules['label']));
+		}
+		self::drop_image($user->ID, $kind); // the one it replaces
+		update_user_meta($user->ID, $rules['meta'], ['key' => $key, 'url' => Y4APK_R2::public_url($key), 'at' => time()]);
+		return true;
+	}
+
+	/** Removes the member's picture ('pic') or banner, from R2 too. */
+	public static function drop_image($user_id, $kind) {
+		$meta = self::image_rules($kind)['meta'];
+		$v = get_user_meta($user_id, $meta, true);
+		if (is_array($v) && !empty($v['key']) && strpos($v['key'], 'members/' . (int) $user_id . '/') === 0 && class_exists('Y4APK_R2') && Y4APK_R2::can_store()) {
+			Y4APK_R2::remove($v['key']);
+		}
+		delete_user_meta($user_id, $meta);
+	}
+
+	public static function drop_images($user_id) {
+		self::drop_image($user_id, 'pic');
+		self::drop_image($user_id, 'banner');
+	}
+
+	/** When the member was last seen (a Unix time; 0: never). */
+	public static function seen_at($user) {
+		return (int) get_user_meta($user->ID, self::SEEN, true);
+	}
+
+	public static function is_online($user) {
+		$t = self::seen_at($user);
+		return $t && time() - $t < self::ONLINE;
+	}
+
+	/** "Online now", "Offline · Active 3h ago", or "Offline" (never seen). */
+	public static function seen_text($user) {
+		$t = self::seen_at($user);
+		if (self::is_online($user)) {
+			return __('Online now', 'y4apk');
+		}
+		return $t ? sprintf(__('Offline · Active %s', 'y4apk'), Y4APK_Roblox::ago($t)) : __('Offline', 'y4apk');
 	}
 
 	public static function seen() {
 		if (!is_user_logged_in() || wp_doing_ajax() || (defined('DOING_CRON') && DOING_CRON)) {
 			return;
 		}
-		$user = wp_get_current_user();
-		if (Y4APK_Members::is_member($user) && time() - (int) get_user_meta($user->ID, self::SEEN, true) > 5 * MINUTE_IN_SECONDS) {
+		self::touch(wp_get_current_user());
+	}
+
+	/** At most once a minute: enough for a 3-minute window, few writes. */
+	private static function touch($user) {
+		if (Y4APK_Members::is_member($user) && time() - self::seen_at($user) >= MINUTE_IN_SECONDS) {
 			update_user_meta($user->ID, self::SEEN, time());
 		}
 	}
 
+	/** The signed-in member's open tab says it is still there. */
+	public static function ping() {
+		self::touch(wp_get_current_user());
+		wp_send_json_success();
+	}
+
+	/** On every page a signed-in member has open (pages for signed-in people are never cached). */
+	public static function ping_script() {
+		if (!is_user_logged_in() || !Y4APK_Members::is_member(wp_get_current_user())) {
+			return;
+		}
+		?>
+<script id="y4apk-pwa-ping" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+	var url = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>, last = Date.now();
+	function ping() {
+		if (document.visibilityState !== 'visible') { return; }
+		last = Date.now();
+		var b = new FormData(); b.append('action', 'y4apk_ping');
+		fetch(url, {method: 'POST', body: b, credentials: 'same-origin', keepalive: true}).catch(function () {});
+	}
+	setInterval(ping, 90000);
+	document.addEventListener('visibilitychange', function () { if (Date.now() - last > 60000) { ping(); } });
+})();
+</script>
+		<?php
+	}
+
 	/** Reads the Edit profile form and saves what is right: a list of mistakes (empty when all saved). */
-	public static function save($user, $post) {
+	public static function save($user, $post, $files = []) {
 		$err = [];
+		foreach (['pic' => 'picture', 'banner' => 'banner'] as $kind => $field) {
+			if (!empty($post['remove_' . $field])) {
+				self::drop_image($user->ID, $kind);
+			} elseif (!empty($files[$field]) && (int) $files[$field]['error'] !== UPLOAD_ERR_NO_FILE) {
+				$r = self::store_image($user, $files[$field], $kind);
+				if (is_wp_error($r)) {
+					$err[] = $r->get_error_message();
+				}
+			}
+		}
 		$name = trim(preg_replace('/\s+/u', ' ', sanitize_text_field(wp_unslash(isset($post['display']) ? $post['display'] : ''))));
 		$bio = trim(sanitize_textarea_field(wp_unslash(isset($post['bio']) ? $post['bio'] : '')));
 		$theme = sanitize_key(isset($post['theme']) ? wp_unslash($post['theme']) : '');
