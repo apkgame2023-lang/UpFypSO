@@ -9,7 +9,7 @@ $text_domain = $theme_data->get('TextDomain');
 define('Y4APK_THEME_NAME', $theme_name);
 define('Y4APK_THEME_VERSION', $theme_version);
 define('Y4APK_TRANSLATE', $text_domain);
-define('Y4APK_MENU', 'y4apk-analytics'); // the Y4APK admin menu (its first page: Analytics)
+define('Y4APK_MENU', 'y4apk-dashboard'); // the Y4APK admin menu (its first page: Dashboard)
 
 require $theme_dir . '/inc/breadcrumbs.php';
 require $theme_dir . '/inc/core.php';
@@ -34,6 +34,9 @@ require $theme_dir . '/inc/push.php';
 require $theme_dir . '/inc/r2.php';
 require $theme_dir . '/inc/writer.php';
 require $theme_dir . '/inc/discover.php';
+require $theme_dir . '/inc/members.php';
+require $theme_dir . '/inc/members-admin.php';
+require $theme_dir . '/inc/dashboard.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';
 require $theme_dir . '/inc/rest-auth-debug.php';

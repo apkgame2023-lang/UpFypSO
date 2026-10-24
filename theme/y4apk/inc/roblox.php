@@ -593,6 +593,7 @@ class Y4APK_Roblox {
 						<?php endforeach; ?>
 					</ul>
 					<?php if ($url) : ?><a class="h-menu-roblox-all" href="<?php echo esc_url($url); ?>"><?php esc_html_e('All Roblox games', 'y4apk'); ?> →</a><?php endif; ?>
+					<?php if (class_exists('Y4APK_Members') && Y4APK_Members::open()) : ?><a class="h-menu-roblox-all" style="margin-left:1.25rem" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? 'submit' : 'register')); ?>"><?php esc_html_e('Share your script', 'y4apk'); ?> +</a><?php endif; ?>
 				</div>
 			</div>
 		</div>

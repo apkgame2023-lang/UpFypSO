@@ -307,3 +307,15 @@
 .y4-unlock:active { transform: scale(.99); }
 .y4-unlock-step { font-size: .9375rem; font-weight: 700; }
 .y4-unlock-count { flex: none; font-size: .8125rem; font-weight: 700; padding: .25rem .625rem; border-radius: 1rem; background: rgba(255, 255, 255, .22); }
+
+/* Script posts by members (2.35): who shared it, and the report link */
+.y4-byline { margin: -.5rem 0 .25rem; text-align: center; }
+.y4-by { font-size: .8125rem; font-weight: 700; color: #29b1d8; }
+.y4-report { margin-top: .875rem; text-align: center; font-size: .75rem; }
+.y4-report-open { padding: 0; border: 0; background: none; font: inherit; color: rgba(23, 32, 33, .5); text-decoration: underline; cursor: pointer; }
+.y4-report-open:hover { color: #e5484d; }
+.y4-report-form { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem; position: relative; }
+.y4-report-form[hidden] { display: none; }
+.y4-report-form select { height: 2rem; padding: 0 .5rem; border: 1px solid rgba(23, 32, 33, .15); border-radius: .5rem; font: inherit; font-size: .75rem; background: #fff; }
+.y4-report-form button { height: 2rem; padding: 0 .875rem; border: 0; border-radius: .5rem; font: inherit; font-size: .75rem; font-weight: 700; color: #fff; background: #172021; cursor: pointer; }
+.y4-report-form button:disabled { opacity: .5; cursor: default; }

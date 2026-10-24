@@ -328,6 +328,97 @@ download whose size is not known shows no "(—)" (`y4apk_size_label()`), and
 the Download Links box keeps each field on its own: a link used to be dropped
 on Save when the row had no size.
 
+## Members, Review and the Dashboard (2.35)
+
+People can share Roblox scripts on the site **without ever seeing WordPress**.
+Everything is on pages of the theme:
+
+| Page | What it is |
+| --- | --- |
+| `/account/login/` `/register/` `/forgot/` | Sign in, create an account (3–20 letters, numbers, `_`; email; a password of 10+ characters), reset a password |
+| `/account/` | The member's dashboard: scripts with *Live* / *In review* / *Needs changes* (with the reason), views, Edit and Delete |
+| `/account/submit/` | **Share a script**: 1 pick the game (or type its name), 2 name it and tick *No key needed*, 3 paste the code (up to three: *ENG*, *Thai*, *Mobile*), 4 a line about it (optional) |
+| `/account/settings/` | Change password; close the account (the scripts can go with it, or stay without the name) |
+| `/u/<name>/` | The member's public page: their live scripts and views |
+
+**What a member can do, and cannot.** The role *Script Author* has only the
+`read` capability. It cannot open wp-admin (it is sent back to `/account/`), has
+no admin bar, and over the REST API cannot write a post or upload a file (403)
+nor list users. The theme itself saves what the form sends, as plain text, as a
+*pending* post. Nothing a member sends shows until the owner approves it, and
+whatever they type is shown escaped: a `<script>` in a name or a code appears
+as text.
+
+**Getting in.** Registration is **closed until you open it** (Y4APK ▸ Members).
+A new account must confirm its email (a link, valid 48 hours) before it can sign
+in; the link works once and gives no hint about other accounts. The sign-up form
+says the same thing whether or not the email is already known. Against bots:
+Cloudflare **Turnstile** on sign in, sign up, reset and sharing (set the two keys
+in Members, or `Y4APK_TURNSTILE_SITE` / `Y4APK_TURNSTILE_SECRET` in
+`wp-config.php`), a hidden field bots fill in, a form that must have been open
+3 seconds, and limits: 20 tries and 4 new accounts an hour per address (150 for
+the whole site), 6 wrong passwords per name and 10 per address in 15 minutes
+(then even the right one waits), 5 scripts a day and 15 waiting per member (both
+changeable). Addresses are only kept as a keyed hash, behind Cloudflare the real
+visitor address is read only when the request came from Cloudflare's own ranges.
+Only the *Script Author* role can sign in through `/account/`; the people who run
+the site use the normal wp-login.php, with its own protections.
+
+**The code a member sends** must be at most 4,000 characters, plain text, and not
+already on the site (a deleted script's code can be sent again). Code that reads
+the Roblox cookie (`ROBLOSECURITY`), posts to a Discord webhook, or uses IP
+loggers is refused outright. The addresses the code loads from are listed in
+Review: green when they are on your list of trusted addresses (Members ▸ Trusted
+addresses), amber when not. That is a pointer for where to look first, not a
+guarantee: a loadstring loads code that can change after you approve it.
+
+**Y4APK ▸ Review.** The scripts waiting, each with the member (how long a member,
+how many live), the code, where it loads from, and: **Approve and publish** (pick
+the game, or type a new one or a roblox.com link; a game the member asked for is
+offered), **Send back** (the reason is emailed and shown to the member, who edits
+and sends it again), **Ban member** (closes the account, removes what waits and
+puts what is live back in review). Below, published scripts visitors **reported**:
+*Dismiss reports* or *Hide and review again*. A badge on the menu counts what
+waits. Approval emails the member that the script is live; a new script emails the
+owner (at most once in 15 minutes).
+
+**Reports.** Under the code on a Roblox script, *Report this script* (it does not
+work / harmful / spam / other). One report per visitor per script; once a
+member's script has as many reports as you set (5), it goes back in review by
+itself and you are emailed. Scripts you wrote yourself are never hidden by
+reports, only listed.
+
+**Shared by.** A script shared by a member says *Shared by @name* above its code,
+linking to their page. The unlock step (2.34) and *Copy* work the same.
+
+**Y4APK ▸ Dashboard** (the menu's first page): published posts and views; Roblox
+scripts and games; members (this week against last); scripts from members and what
+waits; ad opens and file downloads; charts for 30 days (new members, scripts sent,
+ad opens); the most read posts; the Roblox games with their scripts, views and
+players; the review queue; the newest members (unconfirmed, banned); and how the
+parts are doing: Write with AI (queue, paused, waiting for a limit), App updates
+(apps with a newer version), R2, Direct Link and the unlock, the app, and the
+privacy checks. Counted in the database and kept 5 minutes.
+
+**What the site tells strangers about its accounts** (also 2.35). `?author=1` used
+to redirect to `/author/<sign-in name>/`, and `/wp-json/wp/v2/users` listed every
+author's name, slug and Gravatar hash. Now: `?author=` goes home; `/author/…` is a
+404 (a member's goes to `/u/<name>/`); the users list answers 404 to anyone who
+cannot manage users; posts show author 0 in the REST API; oEmbed and feeds show the
+site's name; the users sitemap, the generator tag, XML-RPC and the pingback header
+are off; wp-login.php says the same words for a wrong name and a wrong password.
+Y4APK ▸ Members ▸ *Check my site now* looks at it the way a stranger does, and
+*Use the site's name* sets the team accounts' public name (display name,
+nickname, author slug) to the site's, which Rank Math prints in schema. What a
+plugin cannot change is the name you sign in with: if it was ever public (it was,
+through `?author=1`), make a new administrator with a name nobody can guess and
+delete the old one.
+
+**Page cache.** `/account/…` is sent with `no-cache` headers and
+`DONOTCACHEPAGE`, but exclude `/account/` and `/u/` in 10Web Booster as well: a
+cached form has a stale nonce. **Email** goes through `wp_mail()`: on shared
+hosting install an SMTP plugin (FluentSMTP) and use *Send myself a test email*.
+
 ## The old Google Play importer, removed (2.33)
 
 The vendor's importer — Y4APK ▸ *Google Play* (a Play URL → a post, its APK
@@ -344,8 +435,8 @@ under the URL's own file name. On the first admin visit its stored settings
 are deleted, with the Google Drive secret and token and the FTP login it kept in
 plain text; `at_mod_feature` stays (Write with AI's default MOD).
 
-The Y4APK menu now opens on Analytics; every Y4APK page is under it
-(`Y4APK_MENU`).
+Every Y4APK page is under one menu (`Y4APK_MENU`), which opens on the
+Dashboard (2.35).
 
 ## Roblox (2.32)
 

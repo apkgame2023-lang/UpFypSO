@@ -29,6 +29,10 @@ get_header();
 						<?php if ($latest) : ?><li><?php echo Y4APK_Roblox::icon('clock'); ?><?php echo esc_html(sprintf(__('Updated %s', 'y4apk'), Y4APK_Roblox::ago(get_post_modified_time('U', true, $latest)))); ?></li><?php endif; ?>
 					</ul>
 				</div>
+				<?php if (class_exists('Y4APK_Members') && Y4APK_Members::open()) : ?>
+				<div class="rbx-hero-actions"><a class="rbx-btn rbx-btn-play" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? 'submit' : 'register')); ?>"><?php esc_html_e('Share your script', 'y4apk'); ?></a>
+					<a class="rbx-btn rbx-btn-ghost" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? '' : 'login')); ?>"><?php echo esc_html(is_user_logged_in() ? __('My scripts', 'y4apk') : __('Sign in', 'y4apk')); ?></a></div>
+				<?php endif; ?>
 				<?php if (count($games) >= 3) : ?>
 				<div class="rbx-hero-art" aria-hidden="true">
 					<?php foreach (array_slice($games, 0, 3) as $g) : ?><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($g, 'medium'), ['http', 'https', 'data']); ?>" alt="" width="136" height="136"><?php endforeach; ?>

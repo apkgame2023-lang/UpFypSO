@@ -159,6 +159,7 @@ class Y4APK_Scripts {
 			<div class="block f-app-script">
 				<span class="muted"></span>
 				<div class="attachment-name"><?php esc_html_e('COPY SCRIPT', 'y4apk'); ?></div>
+				<?php if (class_exists('Y4APK_Members') && ($by = Y4APK_Members::byline($post_id)) !== '') : ?><div class="y4-byline"><?php echo $by; ?></div><?php endif; ?>
 				<?php foreach ($rows as $row) : ?>
 				<div class="y4-code">
 					<div class="y4-code-bar">
@@ -174,6 +175,7 @@ class Y4APK_Scripts {
 					<span class="y4-unlock-count"><span class="y4-unlock-n">0</span>/1</span>
 				</div>
 				<?php endif; ?>
+				<?php if (class_exists('Y4APK_Members_Admin') && Y4APK_Roblox::is_roblox_post($post_id)) { Y4APK_Members_Admin::report_ui($post_id); } ?>
 			</div>
 		</div>
 		<?php if ($gate) : ?>
