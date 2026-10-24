@@ -22,13 +22,31 @@ function set_post_views($post_id){
 }
 remove_action('wp_head', 'adjacent_posts_rel_link_wp_head', 10, 0);
 
-function track_post_views($post_id){
-	if (!is_single()) return;
-	if (empty($post_id)) {
-		global $post;
-		$post_id = $post->ID;
+/**
+ * Views (2.37): counted by the visitor's browser (views.php), so a page from the
+ * page cache counts too; WordPress counted only the visits it built, and twice
+ * (here and in header.php). Once an hour per post and browser; editors are not counted.
+ */
+function track_post_views() {
+	if (!is_single() || current_user_can('edit_posts')) {
+		return;
 	}
-	set_post_views($post_id);
+	// Named y4apk-pwa-…: the speed plugin's delay already leaves y4apk-pwa scripts alone.
+	?>
+<script id="y4apk-pwa-views" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+	var id = <?php echo (int) get_queried_object_id(); ?>, key = 'y4v' + id, now = Date.now();
+	try {
+		if (now - (+localStorage.getItem(key) || 0) < 3600000) { return; }
+		localStorage.setItem(key, now);
+	} catch (e) {}
+	var url = <?php echo wp_json_encode(get_template_directory_uri() . '/views.php'); ?>, body = JSON.stringify({p: id});
+	if (!(navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], {type: 'application/json'})))) {
+		fetch(url, {method: 'POST', body: body, keepalive: true, headers: {'Content-Type': 'application/json'}}).catch(function () {});
+	}
+})();
+</script>
+	<?php
 }
 add_action('wp_head', 'track_post_views');
 

@@ -514,7 +514,7 @@ beside the title, and its card on the game page uses one of them (a different
 one per post) instead of the square icon. They come from Roblox's thumbnails API
 (`multiget/thumbnails`, WebP 768×432, up to 50 games a call) and stay on
 Roblox's CDN: nothing is downloaded or resized on the server. Their addresses
-expire, so the daily refresh asks again; the first run is scheduled on the first
+expire, so the hourly refresh asks again; the first run is scheduled on the first
 admin visit after the update. Only `https://…rbxcdn.com/` addresses are kept.
 
 Name / Category / OS on a Roblox post became **Game** (icon and link to its
@@ -522,6 +522,18 @@ page), **Key** (No key needed / Key system, from the title), **Playing now**
 (with a Play link to Roblox; *Updated* when the game has no numbers) and
 **Views**. On the Share form, *Script name* explains itself (its maker's name
 for it, or your own) and shows the title the post will get as you type.
+
+**Views counted by the browser; Roblox numbers hourly (2.37).** Views were
+counted by WordPress while it built a post page, so a page from the page cache
+(10Web, Cloudflare: most visits) was not counted, and a page it did build was
+counted twice (`track_post_views()` on `wp_head` and again in `header.php`).
+Now a small script on each post (`y4apk-pwa-views`, which 10Web's JavaScript
+delay leaves alone) sends the post's ID to `views.php`, which adds one to
+`wpb_post_views_count` the way `stats.php` counts app events: WordPress with
+SHORTINIT, one SELECT and one UPDATE, nothing about the visitor kept. A browser
+counts a post once an hour; editors are not counted. Players, likes and
+screenshots from Roblox are fetched every hour instead of every day (one call
+per 50 games). A cached page still shows the numbers of when it was made.
 
 ## Script Code (2.31)
 

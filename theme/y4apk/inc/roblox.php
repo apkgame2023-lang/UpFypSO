@@ -99,8 +99,10 @@ class Y4APK_Roblox {
 			'meta_box_cb'       => false,
 			'rewrite'           => ['slug' => 'roblox', 'with_front' => false],
 		]);
-		if (!wp_next_scheduled(self::HOOK)) {
-			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', self::HOOK);
+		// Players and likes every hour (one call for 50 games); it was daily before 2.37.
+		if (wp_get_schedule(self::HOOK) !== 'hourly') {
+			wp_clear_scheduled_hook(self::HOOK);
+			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'hourly', self::HOOK);
 		}
 	}
 
@@ -765,7 +767,7 @@ class Y4APK_Roblox {
 	/**
 	 * Up to SHOTS screenshots of each universe, from one call for up to 50 games:
 	 * [universe => [URL, …]], or a WP_Error. They stay on Roblox's CDN (nothing to
-	 * download or resize here); its addresses expire, so the daily refresh asks again.
+	 * download or resize here); its addresses expire, so the hourly refresh asks again.
 	 */
 	private static function shots_of($universes) {
 		$r = self::get('https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=' . implode(',', array_map('rawurlencode', $universes))
@@ -900,7 +902,7 @@ class Y4APK_Roblox {
 		return (int) $att;
 	}
 
-	/** Daily: players, visits and likes of every game with a Roblox link; icons it still lacks. */
+	/** Hourly: players, visits and likes of every game with a Roblox link; screenshots; icons it still lacks. */
 	public static function refresh() {
 		$terms = get_terms(['taxonomy' => self::TAX, 'hide_empty' => false, 'meta_key' => self::M_UNIVERSE, 'meta_compare' => 'EXISTS']);
 		if (!is_array($terms) || !$terms) {
