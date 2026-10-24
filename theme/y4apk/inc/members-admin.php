@@ -479,7 +479,13 @@ class Y4APK_Members_Admin {
 		$rows[] = [__('Users list in the REST API', 'y4apk'), $r ? ($code >= 400) : null, $r ? sprintf(__('answers %d to a stranger', 'y4apk'), $code) : __('could not check', 'y4apk')];
 		$r = self::get_headers_of(home_url('/?y4=' . time()));
 		$html = $r ? (string) wp_remote_retrieve_body($r) : '';
-		$rows[] = [__('WordPress version in the page', 'y4apk'), $r ? !preg_match('/<meta name=["\']generator["\']/i', $html) : null, $r ? __('no generator tag', 'y4apk') : __('could not check', 'y4apk')];
+		$found = [];
+		if (preg_match_all(Y4APK_Members::GENERATOR, $html, $m)) {
+			foreach ($m[0] as $tag) {
+				$found[] = preg_match('/\bcontent\s*=\s*["\']([^"\']*)/i', $tag, $c) ? mb_substr($c[1], 0, 60) : trim($tag);
+			}
+		}
+		$rows[] = [__('Versions in the page (generator tags)', 'y4apk'), $r ? !$found : null, $r ? ($found ? sprintf(__('the page still says “%s”: clear the page cache and check again', 'y4apk'), implode('”, “', $found)) : __('no generator tag', 'y4apk')) : __('could not check', 'y4apk')];
 		$r = self::get_headers_of(home_url('/xmlrpc.php'));
 		$code = $r ? (int) wp_remote_retrieve_response_code($r) : 0;
 		$rows[] = [__('XML-RPC (a way to guess passwords)', 'y4apk'), $r ? ($code !== 200 || stripos((string) wp_remote_retrieve_body($r), 'XML-RPC server accepts') === false) : null, $r ? sprintf(__('answers %d', 'y4apk'), $code) : __('could not check', 'y4apk')];

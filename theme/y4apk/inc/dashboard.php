@@ -139,6 +139,7 @@ class Y4APK_Dashboard {
 		$usage = get_option(Y4APK_Writer::USAGE, []);
 		$d['ai'] = ['queue' => count(Y4APK_Writer::queue()), 'posts' => is_array($usage) && isset($usage['posts']) ? (int) $usage['posts'] : 0, 'tokens' => is_array($usage) ? (int) ($usage['in'] ?? 0) + (int) ($usage['out'] ?? 0) : 0,
 			'wait' => Y4APK_Writer::waiting(), 'paused' => Y4APK_Writer::settings()['paused'] !== ''];
+		set_transient(self::CACHE, $d, 5 * MINUTE_IN_SECONDS);
 		return $d;
 	}
 

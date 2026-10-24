@@ -414,6 +414,13 @@ plugin cannot change is the name you sign in with: if it was ever public (it was
 through `?author=1`), make a new administrator with a name nobody can guess and
 delete the old one.
 
+Plugins print generator tags of their own, with their version (Site Kit,
+Elementor, slider plugins): since 2.35.1 every `<meta name="generator">` printed
+in `wp_head` is taken out, whoever printed it, and *Check my site now* quotes
+any that are still in the page (a cached copy: clear the page cache and check
+again). The Dashboard's numbers are now really kept for 5 minutes (2.35.0
+counted them again on every visit).
+
 **Page cache.** `/account/…` is sent with `no-cache` headers and
 `DONOTCACHEPAGE`, but exclude `/account/` and `/u/` in 10Web Booster as well: a
 cached form has a stale nonce. **Email** goes through `wp_mail()`: on shared

@@ -38,6 +38,9 @@ class Y4APK_Members {
 	const HOSTS    = '_y4apk_hosts';       // addresses the code loads from
 	const HASHES   = '_y4apk_code_hash';
 	const MEMBER_POST = '_y4apk_member_post';
+	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
+
+	private static $head_level = null;
 
 	/** What this request is about: set by route(), read by template/account.php. */
 	public static $ctx = null;
@@ -194,6 +197,20 @@ class Y4APK_Members {
 		}
 	}
 
+	public static function head_start() {
+		self::$head_level = ob_get_level();
+		ob_start();
+	}
+
+	public static function head_end() {
+		// Another plugin's buffer on top of ours (or ours already closed): leave the page as it is.
+		if (self::$head_level === null || ob_get_level() !== self::$head_level + 1) {
+			return;
+		}
+		self::$head_level = null;
+		echo preg_replace(self::GENERATOR, '', (string) ob_get_clean());
+	}
+
 	public static function admin_bar($show) {
 		return self::is_member(wp_get_current_user()) ? false : $show;
 	}
@@ -212,6 +229,9 @@ class Y4APK_Members {
 		remove_action('wp_head', 'rsd_link');
 		remove_action('wp_head', 'wlwmanifest_link');
 		add_filter('the_generator', '__return_empty_string');
+		// Plugins print their own <meta name="generator"> with their version: take them out of the head.
+		add_action('wp_head', [__CLASS__, 'head_start'], -99999);
+		add_action('wp_head', [__CLASS__, 'head_end'], PHP_INT_MAX);
 		add_filter('xmlrpc_enabled', '__return_false');
 		add_filter('wp_headers', function ($h) {
 			unset($h['X-Pingback']);
