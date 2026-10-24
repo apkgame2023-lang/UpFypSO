@@ -662,6 +662,20 @@ class Y4APK_Roblox {
 		return '';
 	}
 
+	public static function name_from_link($input) {
+		return self::name_from_url($input);
+	}
+
+	/** The wide picture for a game: its first Roblox screenshot, its banner, or its icon. */
+	public static function artwork($term) {
+		$s = get_term_meta($term->term_id, self::M_SHOTS, true);
+		if (is_array($s) && !empty($s['urls'][0]) && self::cdn_url($s['urls'][0])) {
+			return $s['urls'][0];
+		}
+		$banner = self::banner_url($term);
+		return $banner !== '' ? $banner : self::icon_url($term, 'medium');
+	}
+
 	/** "roblox.com/games/2753915549/Blox-Fruits" → "Blox Fruits". */
 	private static function name_from_url($input) {
 		return preg_match('~/games/\d+/([^/?#]+)~', (string) $input, $m) ? self::clean_name(str_replace(['-', '_'], ' ', rawurldecode($m[1]))) : '';

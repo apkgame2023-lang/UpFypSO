@@ -5,7 +5,7 @@
  *
  *   /account/             the member's dashboard (scripts, status, views)
  *   /account/login/ …/register/ …/forgot/ …/reset/ …/verify/
- *   /account/submit/      share a script: game, name, code — one short form
+ *   /upload/              share a script: game, details, code, review (2.38; was /account/submit/)
  *   /account/edit/<id>/   change one of their scripts
  *   /account/settings/    password, closing the account
  *   /u/<handle>/          a member's public page, with the scripts they shared
@@ -30,7 +30,7 @@ class Y4APK_Members {
 
 	const ROLE     = 'y4apk_author';
 	const OPTION   = 'y4apk_members';
-	const VERSION  = '3';               // rewrite rules and the role, written again when this changes
+	const VERSION  = '4';               // rewrite rules and the role, written again when this changes
 	const VERIFIED = 'y4apk_email_ok';  // '0' until the email link is opened (absent: an older account, fine)
 	const BANNED   = 'y4apk_banned';
 	const REJECT   = '_y4apk_reject_reason';
@@ -119,6 +119,7 @@ class Y4APK_Members {
 
 	public static function setup() {
 		add_rewrite_rule('^account/?$', 'index.php?y4_acct=home', 'top');
+		add_rewrite_rule('^upload/?$', 'index.php?y4_acct=submit', 'top');
 		add_rewrite_rule('^account/edit/([0-9]+)/?$', 'index.php?y4_acct=edit&y4_id=$matches[1]', 'top');
 		add_rewrite_rule('^account/([a-z]+)/?$', 'index.php?y4_acct=$matches[1]', 'top');
 		add_rewrite_rule('^u/([a-z0-9_]{3,20})/page/([0-9]+)/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]&paged=$matches[2]', 'top');
@@ -136,7 +137,7 @@ class Y4APK_Members {
 	}
 
 	public static function url($view = '', $args = []) {
-		$url = home_url('/account/' . ($view !== '' && $view !== 'home' ? $view . '/' : ''));
+		$url = $view === 'submit' ? home_url('/upload/') : home_url('/account/' . ($view !== '' && $view !== 'home' ? $view . '/' : ''));
 		return $args ? add_query_arg($args, $url) : $url;
 	}
 
@@ -513,6 +514,10 @@ class Y4APK_Members {
 			status_header(404);
 			return;
 		}
+		if ($view === 'submit' && $_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('~^/account/submit~', (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH))) {
+			wp_safe_redirect(self::url('submit'), 301);
+			exit;
+		}
 		$wp_query->is_404 = false;
 		status_header(200);
 		nocache_headers();
@@ -543,7 +548,7 @@ class Y4APK_Members {
 			self::do_logout();
 		}
 		if (!$ctx['user'] && in_array($view, $members_only, true)) {
-			wp_safe_redirect(self::url('login'));
+			wp_safe_redirect(self::url('login', $view === 'submit' ? ['next' => 'upload'] : []));
 			exit;
 		}
 		if ($ctx['user'] && !$ctx['member'] && in_array($view, $members_only, true)) {
@@ -780,7 +785,7 @@ class Y4APK_Members {
 		wp_set_current_user($user->ID);
 		wp_set_auth_cookie($user->ID, !empty($_POST['remember']), is_ssl());
 		do_action('wp_login', $user->user_login, $user);
-		wp_safe_redirect(self::url());
+		wp_safe_redirect(isset($_GET['next']) && $_GET['next'] === 'upload' ? self::url('submit') : self::url());
 		exit;
 	}
 
@@ -1007,10 +1012,11 @@ class Y4APK_Members {
 					$desc = html_entity_decode(wp_strip_all_tags($m[1]), ENT_QUOTES, 'UTF-8');
 				}
 				$ctx['old'] = ['game' => $game ? $game->term_id : 0, 'game_new' => (string) get_post_meta($post->ID, self::WANTED, true), 'hub' => $hub,
-					'keyless' => Y4APK_Roblox::keyless($post->post_title) ? 1 : 0, 'desc' => $desc, 'codes' => Y4APK_Scripts::get($post->ID)];
+					'keyless' => Y4APK_Roblox::keyless($post->post_title) ? 1 : 0, 'desc' => $desc, 'codes' => Y4APK_Scripts::get($post->ID),
+					'scope' => $game && strtolower($game->name) === 'universal' ? 'universal' : 'game'];
 			}
 		} elseif (empty($ctx['old'])) {
-			$ctx['old'] = ['game' => 0, 'game_new' => '', 'hub' => '', 'keyless' => 1, 'desc' => '', 'codes' => [['label' => '', 'code' => '']]];
+			$ctx['old'] = ['game' => 0, 'game_new' => '', 'hub' => '', 'keyless' => 1, 'desc' => '', 'scope' => 'game', 'codes' => [['label' => '', 'code' => '']]];
 		}
 		if (!self::is_verified($user->ID)) {
 			$ctx['screen'] = 'unverified';
@@ -1023,10 +1029,12 @@ class Y4APK_Members {
 	private static function read_script_form($existing = null) {
 		$err = [];
 		$game = isset($_POST['game']) ? absint($_POST['game']) : 0;
-		$game_new = trim(mb_substr(sanitize_text_field(wp_unslash(isset($_POST['game_new']) ? $_POST['game_new'] : '')), 0, 60));
+		$game_new = trim(mb_substr(sanitize_text_field(wp_unslash(isset($_POST['game_new']) ? $_POST['game_new'] : '')), 0, 120)); // a name, or a roblox.com link
 		$hub = trim(mb_substr(sanitize_text_field(wp_unslash(isset($_POST['hub']) ? $_POST['hub'] : '')), 0, 40));
 		$desc = trim(mb_substr(sanitize_textarea_field(wp_unslash(isset($_POST['desc']) ? $_POST['desc'] : '')), 0, 600));
-		$keyless = !empty($_POST['keyless']) ? 1 : 0;
+		// The upload page's "Key system" chip (keysys), or the older form's "No key needed" switch (keyless).
+		$keyless = isset($_POST['keysys']) ? ((string) wp_unslash($_POST['keysys']) === '1' ? 0 : 1) : (!empty($_POST['keyless']) ? 1 : 0);
+		$scope = isset($_POST['scope']) && $_POST['scope'] === 'universal' ? 'universal' : 'game';
 		$labels = isset($_POST['label']) ? array_values((array) wp_unslash($_POST['label'])) : [];
 		$codes = isset($_POST['code']) ? array_values((array) wp_unslash($_POST['code'])) : [];
 		$rows = [];
@@ -1036,20 +1044,39 @@ class Y4APK_Members {
 				$rows[] = ['label' => trim(mb_substr(sanitize_text_field(isset($labels[$i]) ? (string) $labels[$i] : ''), 0, 30)), 'code' => $c];
 			}
 		}
-		$old = ['game' => $game, 'game_new' => $game_new, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'codes' => $rows ?: [['label' => '', 'code' => '']]];
+		$old = ['game' => $game, 'game_new' => $game_new, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'scope' => $scope, 'codes' => $rows ?: [['label' => '', 'code' => '']]];
+		$step = 4; // the wizard's step to open again: the first one with a mistake
 
-		$term = $game ? get_term($game, Y4APK_Roblox::TAX) : null;
+		$term = $game && $scope === 'game' ? get_term($game, Y4APK_Roblox::TAX) : null;
+		$game_label = $game_new;
+		if ($scope === 'universal') {
+			// One "game" for scripts that work in any game; save_script() makes it the first time.
+			$term = get_term_by('slug', 'universal', Y4APK_Roblox::TAX) ?: null;
+			$game_label = 'Universal';
+		} elseif ((!$term || is_wp_error($term)) && $game_new !== '') {
+			// A game already here, by its roblox.com link, place ID or name.
+			$place = Y4APK_Roblox::place_from($game_new);
+			$found = $place !== '' ? get_terms(['taxonomy' => Y4APK_Roblox::TAX, 'hide_empty' => false, 'number' => 1, 'meta_key' => Y4APK_Roblox::M_PLACE, 'meta_value' => $place]) : [];
+			$term = $found && !is_wp_error($found) ? $found[0] : (get_term_by('slug', sanitize_title($game_new), Y4APK_Roblox::TAX) ?: get_term_by('name', $game_new, Y4APK_Roblox::TAX));
+			if ((!$term || is_wp_error($term)) && $place !== '') {
+				$game_label = Y4APK_Roblox::name_from_link($game_new); // the title says the game's name, not its link
+				$game_label = $game_label !== '' ? $game_label : sprintf(__('Roblox game %s', 'y4apk'), $place);
+			}
+		}
 		if (!$term || is_wp_error($term)) {
 			$term = null;
-			if ($game_new === '') {
+			if ($game_new === '' && $scope !== 'universal') {
 				$err[] = __('Choose the game this script is for, or type its name.', 'y4apk');
+				$step = 1;
 			}
 		}
 		if (mb_strlen($hub) < 2) {
 			$err[] = __('Give the script a name: the one its maker gave it, like “Redz Hub”, or your own.', 'y4apk');
+			$step = min($step, 2);
 		}
 		if (!$rows) {
 			$err[] = __('Paste the script’s code.', 'y4apk');
+			$step = min($step, 3);
 		}
 		$hosts = [];
 		$hashes = [];
@@ -1057,14 +1084,17 @@ class Y4APK_Members {
 			$c = $row['code'];
 			if (strlen($c) > 4000) {
 				$err[] = __('A code is longer than 4,000 characters. Share the loadstring line, not the whole script.', 'y4apk');
+				$step = min($step, 3);
 				break;
 			}
 			if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $c)) {
 				$err[] = __('The code has characters that are not text.', 'y4apk');
+				$step = min($step, 3);
 				break;
 			}
 			if (preg_match('/ROBLOSECURITY|discord(?:app)?\.com\/api\/webhooks|webhook\.site|grabify|iplogger|ipgrabber|\.roblox\.com\/my\/settings/i', $c)) {
 				$err[] = __('This code looks like it steals accounts, so it cannot be shared here.', 'y4apk');
+				$step = min($step, 3);
 				break;
 			}
 			if (preg_match_all('~https?://([a-z0-9.-]+)~i', $c, $m)) {
@@ -1080,15 +1110,26 @@ class Y4APK_Members {
 				$dup = $wpdb->get_var($wpdb->prepare("SELECT m.post_id FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id WHERE m.meta_key = %s AND m.meta_value = %s AND p.post_status NOT IN ('trash', 'auto-draft') LIMIT 1", self::HASHES, $h)); // a deleted script's code can be shared again
 				if ($dup && (!$existing || (int) $dup !== (int) $existing->ID)) {
 					$err[] = __('This script is already on the site.', 'y4apk');
+					$step = min($step, 3);
 					break;
 				}
 			}
 		}
-		return [['game' => $term, 'game_new' => $game_new, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'rows' => $rows, 'hosts' => array_keys($hosts), 'hashes' => $hashes], $err, $old];
+		$old['step'] = $step;
+		if ($term) {
+			$old['game'] = (int) $term->term_id;
+			$old['game_new'] = '';
+		}
+		return [['game' => $term, 'universal' => $scope === 'universal', 'game_new' => $game_new, 'game_label' => $game_label, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'rows' => $rows, 'hosts' => array_keys($hosts), 'hashes' => $hashes], $err, $old];
 	}
 
 	private static function save_script($user, $d, $existing = null) {
-		$gname = $d['game'] ? $d['game']->name : $d['game_new'];
+		if (!$d['game'] && !empty($d['universal'])) {
+			$u = Y4APK_Roblox::find_or_create('Universal', false);
+			$d['game'] = is_wp_error($u) ? null : get_term($u, Y4APK_Roblox::TAX);
+			$d['game_new'] = $d['game'] ? '' : 'Universal';
+		}
+		$gname = $d['game'] ? $d['game']->name : $d['game_label'];
 		$title = trim($gname . ' Script ' . $d['hub'] . ($d['keyless'] ? ' (No Key)' : ''));
 		$text = $d['desc'] !== '' ? $d['desc'] : sprintf(__('Free %1$s script by %2$s for Roblox. Copy the loadstring and run it in your executor.', 'y4apk'), $gname, $d['hub']);
 		$content = '';
@@ -1136,6 +1177,8 @@ class Y4APK_Members {
 		if (!$ctx['member'] || !self::is_verified($user->ID)) {
 			return;
 		}
+		list($d, $err, $old) = self::read_script_form();
+		$ctx['old'] = $old; // kept on every answer below, so nothing typed is lost
 		$g = self::guard('submit');
 		if ($g !== true) {
 			$ctx['errors'][] = $g;
@@ -1158,8 +1201,6 @@ class Y4APK_Members {
 			$ctx['errors'][] = __('You have many scripts waiting for review. Wait for some to be checked.', 'y4apk');
 			return;
 		}
-		list($d, $err, $old) = self::read_script_form();
-		$ctx['old'] = $old;
 		if ($err) {
 			$ctx['errors'] = $err;
 			return;
@@ -1182,13 +1223,13 @@ class Y4APK_Members {
 			$ctx['screen'] = 'notfound';
 			return;
 		}
+		list($d, $err, $old) = self::read_script_form($post);
+		$ctx['old'] = $old;
 		$g = self::guard('edit');
 		if ($g !== true) {
 			$ctx['errors'][] = $g;
 			return;
 		}
-		list($d, $err, $old) = self::read_script_form($post);
-		$ctx['old'] = $old;
 		if ($err) {
 			$ctx['errors'] = $err;
 			return;

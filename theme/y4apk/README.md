@@ -337,9 +337,31 @@ Everything is on pages of the theme:
 | --- | --- |
 | `/account/login/` `/register/` `/forgot/` | Sign in, create an account (3–20 letters, numbers, `_`; email; a password of 10+ characters), reset a password |
 | `/account/` | The member's dashboard: scripts with *Live* / *In review* / *Needs changes* (with the reason), views, Edit and Delete |
-| `/account/submit/` | **Share a script**: 1 pick the game (or type its name), 2 name it and tick *No key needed*, 3 paste the code (up to three: *ENG*, *Thai*, *Mobile*), 4 a line about it (optional) |
+| `/upload/` | **Share a script** (2.38; `/account/submit/` redirects here): four steps, below |
 | `/account/settings/` | Change password; close the account (the scripts can go with it, or stay without the name) |
 | `/u/<name>/` | The member's public page: their live scripts and views |
+
+**The upload page (2.38).** One form in four steps, with the steps listed on the
+left (a row of four on phones) and each one checked before the next:
+
+1. *Where does your script work?* **One game**: search the site's games by name,
+   or paste a roblox.com link or place ID (a game already here is matched by its
+   place ID); popular games are one tap; a game not here yet is sent as typed and
+   waits for you in Review (a link's title uses the name in the link). **Any
+   game**: the script goes under a *Universal* game, made the first time.
+2. *Build your script page*: the game's artwork, the script's name (with a
+   counter), the game and the member, a *Key system* chip, *About this script*,
+   and the post's title as it will be made.
+3. *Add your code*: up to three codes with a name each (*PC*, *Mobile*, *Thai*).
+4. *Review and send*: the post as a card, Turnstile, and *Send for review*.
+
+Signed out, `/upload/` goes to sign-in and back. When the server refuses (a code
+already on the site, Turnstile), the page opens again on the step to fix with
+everything typed kept. Without JavaScript all four steps show on one page, with
+the plain game list. Its script is named `y4apk-pwa-upload`, which 10Web's
+JavaScript delay leaves alone. In 10Web ▸ Cloudflare CDN ▸ Bypass Urls add
+`/upload/` next to `/account/` and `/u/` (with both slashes: `/upload` alone
+would also match `/wp-content/uploads/`).
 
 **What a member can do, and cannot.** The role *Script Author* has only the
 `read` capability. It cannot open wp-admin (it is sent back to `/account/`), has
