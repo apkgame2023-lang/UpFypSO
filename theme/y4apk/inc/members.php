@@ -432,7 +432,7 @@ class Y4APK_Members {
 		$n = [];
 		foreach (array_slice((array) ($_POST['do'] ?? []), 0, 5) as $do) {
 			$do = sanitize_key(wp_unslash($do));
-			if (isset(self::ACTIONS[$do])) {
+			if (isset(self::ACTIONS[$do]) || $do === 'logout') {
 				$n[$do] = wp_create_nonce('y4apk_acct_' . $do);
 			}
 		}
@@ -605,7 +605,7 @@ class Y4APK_Members {
 			exit;
 		}
 		if ($view === 'logout') {
-			self::do_logout();
+			self::do_logout($ctx); // signs out, or asks first (screen 'logout')
 		}
 		if (!$ctx['user'] && in_array($view, $members_only, true)) {
 			wp_safe_redirect(self::url('login', $view === 'submit' ? ['next' => 'upload'] : []));
@@ -679,7 +679,7 @@ class Y4APK_Members {
 		}
 		$names = ['home' => __('My scripts', 'y4apk'), 'login' => __('Sign in', 'y4apk'), 'register' => __('Create an account', 'y4apk'), 'forgot' => __('Reset your password', 'y4apk'),
 			'reset' => __('Choose a new password', 'y4apk'), 'verify' => __('Confirm your email', 'y4apk'), 'submit' => __('Share a script', 'y4apk'), 'edit' => __('Edit your script', 'y4apk'),
-			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk')];
+			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk'), 'logout' => __('Sign out', 'y4apk')];
 		$v = self::$ctx['view'];
 		if ($v === 'profile' && !empty(self::$ctx['profile'])) {
 			$p = self::$ctx['profile'];
@@ -859,9 +859,18 @@ class Y4APK_Members {
 		exit;
 	}
 
-	private static function do_logout() {
-		if (isset($_GET['_y4n']) && wp_verify_nonce(sanitize_key(wp_unslash($_GET['_y4n'])), 'y4apk_acct_logout')) {
+	/**
+	 * Signs out with a good token (in the link, or from the form below). Without one
+	 * (the header's menu is on cached pages, which cannot carry one) a signed-in
+	 * member is asked first, on a page that has a fresh token.
+	 */
+	private static function do_logout(&$ctx) {
+		$n = isset($_REQUEST['_y4n']) ? sanitize_key(wp_unslash($_REQUEST['_y4n'])) : '';
+		if ($n !== '' && wp_verify_nonce($n, 'y4apk_acct_logout')) {
 			wp_logout();
+		} elseif (is_user_logged_in()) {
+			$ctx['screen'] = 'logout';
+			return;
 		}
 		wp_safe_redirect(self::url('login', ['ok' => 'out']));
 		exit;
@@ -1127,13 +1136,11 @@ class Y4APK_Members {
 	}
 
 	/** The scripts' address list on a post written by a member: "by @handle". */
-	public static function byline($post_id) {
+	/** The member who shared a post, when they have a public page; else null (the site's own posts). */
+	public static function author($post_id) {
 		$post = get_post($post_id);
 		$user = $post ? get_userdata($post->post_author) : false;
-		if (!$user || !self::is_public($user)) {
-			return '';
-		}
-		return '<a class="y4-by" href="' . esc_url(self::profile_url($user)) . '">' . esc_html(sprintf(__('Shared by @%s', 'y4apk'), $user->user_login)) . '</a>';
+		return $user && self::is_public($user) ? $user : null;
 	}
 
 	/* ---- the submit / edit form ---- */

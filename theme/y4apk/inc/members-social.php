@@ -17,6 +17,12 @@
  *                  seconds while one of their tabs is open (a ping); "Online now" means
  *                  seen in the last 3 minutes, and a profile asks status.php again while
  *                  it is open, so the light goes out soon after the member leaves
+ *   Header menu    the y4apk_me cookie (2.41): login, display name, picture address and
+ *                  letter colour (all on the member's public page anyway), for the header
+ *                  to show them signed in. Pages are the same for everyone, so a cached
+ *                  page stays right: the header's script reads the cookie in the browser.
+ *                  Set with the sign-in cookie, kept up to date while signed in, removed
+ *                  on sign-out.
  */
 
 defined('ABSPATH') || exit;
@@ -33,6 +39,7 @@ class Y4APK_Social {
 	const BANNER  = 'y4apk_banner'; // ['key', 'url', 'at']
 	const ONLINE  = 180; // seconds since the last sign of life that still count as online
 	const HOOK    = 'y4apk_avatars';
+	const ME      = 'y4apk_me';
 	const UA      = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
 
 	public static function init() {
@@ -44,6 +51,9 @@ class Y4APK_Social {
 		add_action('init', [__CLASS__, 'schedule']);
 		add_action('deleted_user', [__CLASS__, 'forget']);
 		add_action('delete_user', [__CLASS__, 'drop_images']); // before the account goes: its pictures on R2 too
+		add_action('set_logged_in_cookie', [__CLASS__, 'me_on_login'], 10, 4);
+		add_action('clear_auth_cookie', [__CLASS__, 'me_clear']);
+		add_action('template_redirect', [__CLASS__, 'me_sync'], 2);
 	}
 
 	/** The profile themes: the banner, the accent, the swatches on the Edit profile page. */
@@ -177,17 +187,73 @@ class Y4APK_Social {
 		return wp_parse_args(is_array($r) ? $r : [], ['id' => '', 'name' => '', 'img' => '', 'at' => 0]);
 	}
 
-	/** The member's picture: their own, else their Roblox avatar, else a tile with their first letter. */
-	public static function avatar($user, $size = 56) {
+	/** The address of the member's picture: their own, else their Roblox avatar; '' for none. */
+	public static function picture($user) {
 		$src = self::image_url($user, 'pic');
 		if ($src === '') {
 			$r = self::roblox($user);
 			$src = $r['img'] !== '' && Y4APK_Roblox::cdn_url($r['img']) ? $r['img'] : '';
 		}
+		return $src;
+	}
+
+	/** The member's picture: their own, else their Roblox avatar, else a tile with their first letter. */
+	public static function avatar($user, $size = 56) {
+		$src = self::picture($user);
 		if ($src !== '') {
 			return '<img class="acc-av acc-av-img" src="' . esc_url($src) . '" alt="" width="' . (int) $size . '" height="' . (int) $size . '" loading="lazy" decoding="async" style="width:' . (int) $size . 'px;height:' . (int) $size . 'px">';
 		}
 		return Y4APK_Members::avatar($user->user_login, $size);
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * The header's "signed in as" cookie
+	 * ---------------------------------------------------------------- */
+
+	/** What the header shows: public things only. */
+	public static function me_value($user) {
+		return wp_json_encode(['l' => $user->user_login, 'n' => self::name($user), 'a' => self::picture($user), 'h' => abs(crc32($user->user_login)) % 360], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+	}
+
+	private static function me_set($value, $expire) {
+		if (headers_sent()) {
+			return;
+		}
+		// Raw, %-encoded: the header's script reads it with decodeURIComponent. Not HttpOnly: that script is its reader.
+		setrawcookie(self::ME, rawurlencode($value), ['expires' => $expire, 'path' => COOKIEPATH ?: '/', 'domain' => COOKIE_DOMAIN ?: '', 'secure' => is_ssl(), 'httponly' => false, 'samesite' => 'Lax']);
+		$_COOKIE[self::ME] = $value;
+	}
+
+	/** With the sign-in cookie, and as long-lived (a session cookie when "remember me" was not ticked). */
+	public static function me_on_login($cookie, $expire, $expiration, $user_id) {
+		$user = get_userdata($user_id);
+		if ($user && Y4APK_Members::is_member($user)) {
+			self::me_set(self::me_value($user), (int) $expire);
+		}
+	}
+
+	public static function me_clear() {
+		if (isset($_COOKIE[self::ME])) {
+			self::me_set('', time() - YEAR_IN_SECONDS);
+			unset($_COOKIE[self::ME]);
+		}
+	}
+
+	/** A new name or picture, a member signed in before 2.41, or signed out elsewhere: brought up to date. */
+	public static function me_sync() {
+		$user = wp_get_current_user();
+		if (!$user->exists()) {
+			self::me_clear();
+			return;
+		}
+		if (!Y4APK_Members::is_member($user)) {
+			return;
+		}
+		$value = self::me_value($user);
+		if (!isset($_COOKIE[self::ME]) || wp_unslash($_COOKIE[self::ME]) !== $value) {
+			$auth = wp_parse_auth_cookie('', 'logged_in');
+			self::me_set($value, $auth && !empty($auth['expiration']) ? (int) $auth['expiration'] : 0);
+		}
 	}
 
 	/* ---------------------------------------------------------------- *

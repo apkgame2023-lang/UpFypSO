@@ -485,14 +485,19 @@ class Y4APK_Roblox {
 	}
 
 	/** A script card: wide picture with views and age, the title, the game or the script hub. */
-	public static function card($post_id, $show_game = true) {
-		$title = get_the_title($post_id);
+	/** A script's wide picture: its first screenshot, else one of its game's (not the same on every card of a game). */
+	public static function thumb($post_id) {
 		$shots = get_post_meta($post_id, 'ss_images', true);
 		if (!is_array($shots) || empty($shots[0]['ss_url'])) {
 			$shots = self::game_shots($post_id);
-			$shots = $shots ? array_slice($shots, $post_id % count($shots), 1) : []; // not the same picture on every card of a game
+			$shots = $shots ? array_slice($shots, $post_id % count($shots), 1) : [];
 		}
-		$img = !empty($shots[0]['ss_url']) ? $shots[0]['ss_url'] : y4apk_icon_url($post_id, 'medium_large');
+		return !empty($shots[0]['ss_url']) ? $shots[0]['ss_url'] : y4apk_icon_url($post_id, 'medium_large');
+	}
+
+	public static function card($post_id, $show_game = true) {
+		$title = get_the_title($post_id);
+		$img = self::thumb($post_id);
 		$views = (int) get_post_meta($post_id, 'wpb_post_views_count', true);
 		$game = $show_game ? self::game_of($post_id) : null;
 		$hub = self::hub_name($post_id);

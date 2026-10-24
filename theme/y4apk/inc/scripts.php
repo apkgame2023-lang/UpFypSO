@@ -145,7 +145,7 @@ class Y4APK_Scripts {
 	 * On the post page
 	 * ---------------------------------------------------------------- */
 
-	/** The codes, in the download section (#download-now). */
+	/** The codes, in the download section (#download-now): a code editor's look (2.41). */
 	public static function render($post_id) {
 		$rows = self::get($post_id);
 		if (!$rows) {
@@ -154,28 +154,72 @@ class Y4APK_Scripts {
 		// The unlock gate (Y4APK ▸ Direct Link ▸ Lock the script): tap the ad once, then the code shows.
 		$gate = class_exists('Y4APK_Direct_Link') ? Y4APK_Direct_Link::script_gate() : null;
 		$locked = $gate ? ' is-locked' : '';
+		$rbx = class_exists('Y4APK_Roblox') && Y4APK_Roblox::is_roblox_post($post_id);
+		$game = $rbx ? Y4APK_Roblox::game_of($post_id) : null;
+		$hub = $rbx ? Y4APK_Roblox::hub_name($post_id) : '';
+		$by = class_exists('Y4APK_Members') ? Y4APK_Members::author($post_id) : null;
+		$tabs = count($rows) > 1;
+		$i = function ($d) { return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' . $d . '</svg>'; };
+		$copy_i = $i('<path d="M8 3h11a2 2 0 0 1 2 2v11h-2V5H8V3Zm-3 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm0 2v10h10V9H5Z"/>');
 		?>
 		<div class="y4-scripts<?php echo $locked; ?>"<?php if ($gate) : ?> data-y4-url="<?php echo esc_attr($gate[0]); ?>" data-y4-every="<?php echo esc_attr($gate[1]); ?>"<?php endif; ?>>
 			<div class="block f-app-script">
-				<span class="muted"></span>
-				<div class="attachment-name"><?php esc_html_e('COPY SCRIPT', 'y4apk'); ?></div>
-				<?php if (class_exists('Y4APK_Members') && ($by = Y4APK_Members::byline($post_id)) !== '') : ?><div class="y4-byline"><?php echo $by; ?></div><?php endif; ?>
-				<?php foreach ($rows as $row) : ?>
-				<div class="y4-code">
-					<div class="y4-code-bar">
-						<span class="y4-code-label"><?php echo esc_html($row['label']); ?></span>
-						<button type="button" class="y4-code-copy" data-done="<?php esc_attr_e('Copied!', 'y4apk'); ?>"><?php esc_html_e('Copy', 'y4apk'); ?></button>
+				<div class="y4s-head">
+					<span class="y4s-ico"><?php echo $i('<path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/>'); ?></span>
+					<div class="y4s-title">
+						<div class="attachment-name"><?php esc_html_e('COPY SCRIPT', 'y4apk'); ?></div>
+						<p class="y4s-name"><?php echo esc_html($hub !== '' ? $hub : ($game ? sprintf(__('%s script', 'y4apk'), $game->name) : __('Script', 'y4apk'))); ?></p>
+						<?php if ($rbx) : ?>
+						<p class="y4s-meta">
+							<?php if ($game) : ?><a href="<?php echo esc_url(get_term_link($game)); ?>"><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($game), ['http', 'https', 'data']); ?>" alt="" width="18" height="18" loading="lazy"><?php echo esc_html($game->name); ?></a><?php endif; ?>
+							<?php if (Y4APK_Roblox::keyless(get_the_title($post_id))) : ?><span class="y4s-key"><?php echo Y4APK_Roblox::icon('key'); ?><?php esc_html_e('No key', 'y4apk'); ?></span><?php endif; ?>
+							<span><?php echo Y4APK_Roblox::icon('clock'); ?><?php echo esc_html(sprintf(__('Updated %s', 'y4apk'), Y4APK_Roblox::ago(get_post_modified_time('U', true, $post_id)))); ?></span>
+						</p>
+						<?php endif; ?>
 					</div>
-					<pre class="y4-code-text"><code><?php echo esc_html($row['code']); ?></code></pre>
+					<?php if ($by) : ?>
+					<a class="y4s-by" href="<?php echo esc_url(Y4APK_Members::profile_url($by)); ?>">
+						<?php echo Y4APK_Social::avatar($by, 36); ?>
+						<span><small><?php esc_html_e('Shared by', 'y4apk'); ?></small><b><?php echo esc_html(Y4APK_Social::name($by)); ?></b></span>
+					</a>
+					<?php endif; ?>
 				</div>
-				<?php endforeach; ?>
-				<?php if ($gate) : ?>
-				<div class="y4-unlock" role="button" tabindex="0" aria-label="<?php esc_attr_e('Unlock the script', 'y4apk'); ?>">
-					<span class="y4-unlock-step"><?php esc_html_e('Almost there — 1 step to unlock', 'y4apk'); ?></span>
-					<span class="y4-unlock-count"><span class="y4-unlock-n">0</span>/1</span>
+				<?php if ($tabs) : ?>
+				<div class="y4s-tabs" role="tablist">
+					<?php foreach ($rows as $n => $row) : ?><button type="button" role="tab" class="y4s-tab<?php echo $n ? '' : ' is-on'; ?>" aria-selected="<?php echo $n ? 'false' : 'true'; ?>" data-tab="<?php echo (int) $n; ?>"><?php echo esc_html($row['label'] !== '' ? $row['label'] : sprintf(__('Script %d', 'y4apk'), $n + 1)); ?></button><?php endforeach; ?>
 				</div>
 				<?php endif; ?>
-				<?php if (class_exists('Y4APK_Members_Admin') && Y4APK_Roblox::is_roblox_post($post_id)) { Y4APK_Members_Admin::report_ui($post_id); } ?>
+				<div class="y4s-codes">
+					<?php foreach ($rows as $n => $row) : $lines = substr_count($row['code'], "\n") + 1; ?>
+					<div class="y4-code<?php echo $n ? '' : ' is-on'; ?>" data-panel="<?php echo (int) $n; ?>">
+						<div class="y4-code-bar">
+							<span class="y4-code-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+							<span class="y4-code-label"><?php echo esc_html($row['label'] !== '' ? $row['label'] : 'script.lua'); ?></span>
+							<button type="button" class="y4-code-copy" data-done="<?php esc_attr_e('Copied!', 'y4apk'); ?>"><?php echo $copy_i; ?><span><?php esc_html_e('Copy', 'y4apk'); ?></span></button>
+						</div>
+						<div class="y4-code-body">
+							<span class="y4-code-ln" aria-hidden="true"><?php echo esc_html(implode("\n", range(1, min($lines, 999)))); ?></span>
+							<pre class="y4-code-text"><code><?php echo esc_html($row['code']); ?></code></pre>
+						</div>
+					</div>
+					<?php endforeach; ?>
+					<?php if ($gate) : ?>
+					<div class="y4-unlock" role="button" tabindex="0" aria-label="<?php esc_attr_e('Unlock the script', 'y4apk'); ?>">
+						<span class="y4-unlock-lock" aria-hidden="true"><?php echo $i('<path d="M17 9h-1V7a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-5 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm2-9h-4V7a2 2 0 1 1 4 0v2Z"/>'); ?></span>
+						<span class="y4-unlock-step"><?php esc_html_e('Almost there — 1 step to unlock', 'y4apk'); ?></span>
+						<span class="y4-unlock-bar" aria-hidden="true"><i></i></span>
+						<span class="y4-unlock-go"><?php esc_html_e('Unlock script', 'y4apk'); ?> <span class="y4-unlock-count"><span class="y4-unlock-n">0</span>/1</span></span>
+					</div>
+					<?php endif; ?>
+				</div>
+				<?php if ($rbx) : ?>
+				<ol class="y4s-how">
+					<li><b>1</b><span><?php esc_html_e('Copy the script', 'y4apk'); ?></span></li>
+					<li><b>2</b><span><?php esc_html_e('Open your executor in Roblox', 'y4apk'); ?></span></li>
+					<li><b>3</b><span><?php esc_html_e('Paste it and press Execute', 'y4apk'); ?></span></li>
+				</ol>
+				<?php endif; ?>
+				<?php if (class_exists('Y4APK_Members_Admin') && $rbx) { Y4APK_Members_Admin::report_ui($post_id); } ?>
 			</div>
 		</div>
 		<?php if ($gate) : ?>
@@ -241,17 +285,44 @@ class Y4APK_Scripts {
 				document.body.removeChild(t);
 				return ok;
 			}
+			// Colours for Lua, as in a code editor: spans around the same text, so what is copied does not change
+			var RX = /(--\[(=*)\[[\s\S]*?\]\2\]|--[^\n]*)|("(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*'|\[(=*)\[[\s\S]*?\]\4\])|\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\b|\b(0x[\da-fA-F]+|\d+(?:\.\d+)?)\b|\b(loadstring|game|workspace|require|getgenv|script|print|wait|task|pcall|spawn|HttpGet|HttpGetAsync)\b/g;
+			function paint(code) {
+				var t = code.textContent, f = document.createDocumentFragment(), last = 0, m;
+				if (t.length > 20000 || code.y4p) { return; }
+				code.y4p = 1;
+				RX.lastIndex = 0;
+				while ((m = RX.exec(t))) {
+					if (m.index > last) { f.appendChild(document.createTextNode(t.slice(last, m.index))); }
+					var sp = document.createElement('span');
+					sp.className = 'y4-t' + (m[1] ? 'c' : m[3] ? 's' : m[5] ? 'k' : m[6] ? 'n' : 'b');
+					sp.textContent = m[0];
+					f.appendChild(sp);
+					last = RX.lastIndex;
+				}
+				if (last < t.length) { f.appendChild(document.createTextNode(t.slice(last))); }
+				code.textContent = '';
+				code.appendChild(f);
+			}
+			[].forEach.call(document.querySelectorAll('.y4-code-text code'), paint);
 			document.addEventListener('click', function (e) {
+				var tab = e.target.closest ? e.target.closest('.y4s-tab') : null;
+				if (tab) {
+					var box = tab.closest('.y4-scripts'), n = tab.getAttribute('data-tab');
+					[].forEach.call(box.querySelectorAll('.y4s-tab'), function (x) { x.classList.toggle('is-on', x === tab); x.setAttribute('aria-selected', x === tab ? 'true' : 'false'); });
+					[].forEach.call(box.querySelectorAll('.y4-code'), function (x) { x.classList.toggle('is-on', x.getAttribute('data-panel') === n); });
+					return;
+				}
 				var b = e.target.closest ? e.target.closest('.y4-code-copy') : null,
 					code = b && b.closest('.y4-code') ? b.closest('.y4-code').querySelector('code') : null;
 				if (!code) { return; }
-				var text = code.textContent, label = b.getAttribute('data-label') || b.textContent;
+				var out = b.querySelector('span') || b, text = code.textContent, label = b.getAttribute('data-label') || out.textContent;
 				b.setAttribute('data-label', label);
 				function done() {
-					b.textContent = b.getAttribute('data-done');
+					out.textContent = b.getAttribute('data-done');
 					b.classList.add('is-done');
 					clearTimeout(b.y4t);
-					b.y4t = setTimeout(function () { b.textContent = label; b.classList.remove('is-done'); }, 2000);
+					b.y4t = setTimeout(function () { out.textContent = label; b.classList.remove('is-done'); }, 2000);
 				}
 				function failed() {
 					if (fallback(text)) { done(); } else { select(code); } // copied by hand from the selection

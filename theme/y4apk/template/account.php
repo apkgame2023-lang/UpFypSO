@@ -77,14 +77,146 @@ $form_open = function ($do, $extra = '') {
 	echo '<input type="hidden" name="y4_do" value="' . esc_attr($do) . '">' . Y4APK_Members::nonce($do);
 };
 
-/** The signed-in member's tabs. */
-$tabs = function ($on) {
-	$items = ['home' => __('My scripts', 'y4apk'), 'following' => __('Following', 'y4apk'), 'customize' => __('Edit profile', 'y4apk'), 'settings' => __('Settings', 'y4apk')];
-	echo '<nav class="acc-tabs">';
-	foreach ($items as $k => $label) {
-		echo '<a' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . ' href="' . esc_url(Y4APK_Members::url($k === 'home' ? '' : $k)) . '">' . esc_html($label) . '</a>';
+/** The icons the account pages use. */
+$si = function ($name) {
+	$p = [
+		'cal'    => '<path d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2Zm12 8H5v9h14v-9Z"/>',
+		'plus'   => '<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>',
+		'check'  => '<path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4-9.6 9.6Z"/>',
+		'share'  => '<path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7c0 .3 0 .5.1.8L8.4 11.2a3 3 0 1 0 0 3.6l6.7 3.4A3 3 0 1 0 18 16Z"/>',
+		'edit'   => '<path d="M3 17.3V21h3.8l11-11.1-3.7-3.7L3 17.3Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8 1.9-1.8Z"/>',
+		'yt'     => '<path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.8 15V9l5.8 3-5.8 3Z"/>',
+		'dc'     => '<path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.3 18.3 0 0 0-5.5 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1a19.9 19.9 0 0 0 6 3l1.3-2.1a13 13 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.7ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4S9.2 15.3 8 15.3Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/>',
+		'code'   => '<path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/>',
+		'pulse'  => '<path d="M3 12h4l3-8 4 16 3-8h4v2h-2.6L14 22 10 6l-1.6 6H3v-0Z"/>',
+		'chart'  => '<path d="M4 20h16v2H2V3h2v17Zm3-3V10h3v7H7Zm5 0V5h3v12h-3Zm5 0v-5h3v5h-3Z"/>',
+		'search' => '<path d="M10.5 3a7.5 7.5 0 0 1 6 12l4.7 4.8-1.4 1.4-4.8-4.7A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/>',
+		'eye'    => '<path d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Zm0-2.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>',
+		'star'   => '<path d="m12 2 3 6.6 7.2.7-5.4 4.8 1.6 7.1L12 17.5l-6.4 3.7 1.6-7.1L1.8 9.3 9 8.6 12 2Z"/>',
+		'users'  => '<path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-7 1.7-7 4v2h14v-2c0-2.3-3.7-4-7-4Zm7.5-2a3.5 3.5 0 1 0-1.3-6.7 6 6 0 0 1 0 6.4c.4.2.8.3 1.3.3Zm1.6 2.1c1.2.9 1.9 2.1 1.9 3.9v2h3v-2c0-2-2.4-3.4-4.9-3.9Z"/>',
+		'gear'   => '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5-2.2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
+		'camera' => '<path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Z"/>',
+		'image'  => '<path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/>',
+		'out'    => '<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.6 4.4-1.4 1.4 2.2 2.2H9v2h8.4l-2.2 2.2 1.4 1.4L21.2 12l-4.6-4.6Z"/>',
+		'trash'  => '<path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h1.5v-8H10Zm2.5 0v8H14v-8h-1.5Z"/>',
+		'clock'  => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7Z"/>',
+		'link'   => '<path d="M3.9 12A3.1 3.1 0 0 1 7 8.9h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12ZM8 13h8v-2H8v2Zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10Z"/>',
+		'open'   => '<path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3ZM5 5h6v2H5v12h12v-6h2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/>',
+		'copy'   => '<path d="M8 3h11a2 2 0 0 1 2 2v11h-2V5H8V3Zm-3 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm0 2v10h10V9H5Z"/>',
+		'more'   => '<path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>',
+	];
+	return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' . $p[$name] . '</svg>';
+};
+
+/** The signed-in member's tabs: under their page's head, like on their public page. */
+$tabs = function ($on) use ($si) {
+	$items = ['home' => [__('My scripts', 'y4apk'), 'code'], 'following' => [__('Following', 'y4apk'), 'users'], 'customize' => [__('Edit profile', 'y4apk'), 'edit'], 'settings' => [__('Settings', 'y4apk'), 'gear']];
+	echo '<nav class="prf-tabs acc-nav">';
+	foreach ($items as $k => $t) {
+		echo '<a' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . ' href="' . esc_url(Y4APK_Members::url($k === 'home' ? '' : $k)) . '">' . $si($t[1]) . esc_html($t[0]) . '</a>';
 	}
-	echo '<a href="' . esc_url(Y4APK_Members::logout_url()) . '">' . esc_html__('Sign out', 'y4apk') . '</a></nav>';
+	echo '<a class="acc-nav-out" href="' . esc_url(Y4APK_Members::logout_url()) . '">' . $si('out') . esc_html__('Sign out', 'y4apk') . '</a></nav>';
+};
+
+/**
+ * The head of the member's own pages (2.41): their banner and picture as others see
+ * them, with the controls only they have. Full on My scripts ($st: the numbers),
+ * slim on the others.
+ */
+$owner_head = function ($u, $st = null) use ($M, $si) {
+	$full = $st !== null;
+	$name = Y4APK_Social::name($u);
+	$banner = Y4APK_Social::image_url($u, 'banner');
+	$r2 = class_exists('Y4APK_R2') && Y4APK_R2::can_store();
+	$links = Y4APK_Social::links($u);
+	?>
+	<section class="prf prf-own<?php echo $full ? '' : ' prf-slim'; ?> prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?><?php echo $banner !== '' ? ' has-banner' : ''; ?>">
+		<div class="prf-banner"<?php echo $banner !== '' ? ' style="background-image:url(' . esc_url($banner) . ')"' : ''; ?>>
+			<span class="prf-fx" aria-hidden="true"></span><span class="prf-word" aria-hidden="true"><?php echo esc_html($name); ?></span>
+			<a class="prf-chip" href="<?php echo esc_url($M::profile_url($u)); ?>"><?php echo $si('eye'); ?><span><?php esc_html_e('View public page', 'y4apk'); ?></span></a>
+			<?php if ($full && $r2) : ?><a class="prf-chip prf-chip-end" href="<?php echo esc_url($M::url('customize')); ?>#banner"><?php echo $si('image'); ?><span><?php esc_html_e('Change banner', 'y4apk'); ?></span></a><?php endif; ?>
+		</div>
+		<div class="prf-body">
+			<div class="prf-top">
+				<div class="prf-avatar"><?php echo Y4APK_Social::avatar($u, $full ? 112 : 72); ?><a class="prf-cam" href="<?php echo esc_url($M::url('customize')); ?>#picture" title="<?php esc_attr_e('Change picture', 'y4apk'); ?>"><?php echo $si('camera'); ?><span class="sr-only"><?php esc_html_e('Change picture', 'y4apk'); ?></span></a></div>
+				<?php if ($full) : ?>
+				<div class="prf-actions">
+					<button type="button" class="prf-btn prf-btn-icon" data-open="prf-share" title="<?php esc_attr_e('Share my page', 'y4apk'); ?>"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
+					<a class="prf-btn" href="<?php echo esc_url($M::url('customize')); ?>"><?php echo $si('edit'); ?><span><?php esc_html_e('Edit profile', 'y4apk'); ?></span></a>
+					<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('submit')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Share a script', 'y4apk'); ?></span></a>
+				</div>
+				<?php endif; ?>
+			</div>
+			<<?php echo $full ? 'h1' : 'p'; ?> class="prf-name"><?php echo esc_html($name); ?></<?php echo $full ? 'h1' : 'p'; ?>>
+			<p class="prf-meta">
+				<span>@<?php echo esc_html($u->user_login); ?></span>
+				<span><?php echo $si('cal'); ?><?php echo esc_html(sprintf(__('Joined %s', 'y4apk'), mysql2date('M Y', $u->user_registered))); ?></span>
+				<?php if ($full) : ?><span class="prf-seen is-online"><i aria-hidden="true"></i><span><?php esc_html_e('Online now', 'y4apk'); ?></span></span><?php endif; ?>
+			</p>
+			<?php if ($full) : ?>
+				<?php if (Y4APK_Social::bio($u) !== '') : ?><p class="prf-bio"><?php echo nl2br(esc_html(Y4APK_Social::bio($u))); ?></p><?php endif; ?>
+				<?php if ($links['youtube'] !== '' || $links['discord'] !== '') : ?>
+				<p class="prf-links">
+					<?php if ($links['youtube'] !== '') : ?><a class="prf-link prf-link-yt" href="<?php echo esc_url($links['youtube']); ?>" target="_blank" rel="nofollow ugc noopener"><?php echo $si('yt'); ?>YouTube</a><?php endif; ?>
+					<?php if ($links['discord'] !== '') : ?><a class="prf-link prf-link-dc" href="<?php echo esc_url($links['discord']); ?>" target="_blank" rel="nofollow ugc noopener"><?php echo $si('dc'); ?>Discord</a><?php endif; ?>
+				</p>
+				<?php endif; ?>
+				<ul class="prf-stats">
+					<li><span><?php echo $si('users'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($st['followers'])); ?></b> <?php esc_html_e('Followers', 'y4apk'); ?></span></li>
+					<li><a href="<?php echo esc_url($M::url('following')); ?>"><?php echo $si('star'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($st['following'])); ?></b> <?php esc_html_e('Following', 'y4apk'); ?></a></li>
+					<li><span><?php echo $si('code'); ?><b><?php echo esc_html(number_format_i18n($st['live'])); ?></b> <?php echo esc_html(_n('Script', 'Scripts', $st['live'], 'y4apk')); ?></span></li>
+					<li><span><?php echo $si('eye'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($st['views'])); ?></b> <?php esc_html_e('Views', 'y4apk'); ?></span></li>
+				</ul>
+			<?php endif; ?>
+		</div>
+	</section>
+	<?php
+};
+
+/**
+ * Share a member's page (2.41): the link to copy and the apps people share in, in a
+ * dialog of the site's own. The browser's share sheet (on Windows a bare system box)
+ * is one choice in it, where there is one.
+ */
+$share = function ($u) use ($M, $si) {
+	$url = $M::profile_url($u);
+	$name = Y4APK_Social::name($u);
+	$text = sprintf(__('%1$s (@%2$s) on Y4APK', 'y4apk'), $name, $u->user_login);
+	$e = rawurlencode($url);
+	$t = rawurlencode($text);
+	$apps = [
+		'facebook' => ['Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' . $e, '<path d="M14 8h3V4h-3a5 5 0 0 0-5 5v2H7v4h2v9h4v-9h3l1-4h-4V9a1 1 0 0 1 1-1Z"/>'],
+		'x'        => ['X', 'https://twitter.com/intent/tweet?url=' . $e . '&text=' . $t, '<path d="M18.9 1.2h3.7l-8 9.2L24 22.8h-7.4l-5.8-7.6-6.6 7.6H.5l8.6-9.8L0 1.2h7.6l5.2 6.9 6.1-6.9Zm-1.3 19.5h2L6.5 3.2H4.3l13.3 17.5Z"/>'],
+		'whatsapp' => ['WhatsApp', 'https://wa.me/?text=' . rawurlencode($text . ' ' . $url), '<path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2l-.5-.3Z"/>'],
+		'telegram' => ['Telegram', 'https://t.me/share/url?url=' . $e . '&text=' . $t, '<path d="M21.9 4.3 18.7 19.4c-.2 1-.9 1.3-1.7.8l-4.8-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.9 8.9-8c.4-.3-.1-.5-.6-.2L6.5 13.2l-4.7-1.5c-1-.3-1-1 .2-1.5L20.6 3c.9-.3 1.6.2 1.3 1.3Z"/>'],
+		'line'     => ['LINE', 'https://social-plugins.line.me/lineit/share?url=' . $e, '<path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 .9l-.1.9c0 .3-.2 1 .9.5s5.9-3.5 8.1-6A7.3 7.3 0 0 0 22 11c0-4.4-4.5-8-10-8Zm-3.8 10.4H6.3a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 1 0v3.4h1.4a.5.5 0 0 1 0 1Zm2-.5a.5.5 0 0 1-1 0V9a.5.5 0 0 1 1 0v3.9Zm4.7 0a.5.5 0 0 1-.9.3l-2-2.7v2.4a.5.5 0 0 1-1 0V9a.5.5 0 0 1 .9-.3l2 2.7V9a.5.5 0 0 1 1 0v3.9Zm3.1-2.5a.5.5 0 0 1 0 1h-1.4v.9h1.4a.5.5 0 0 1 0 1h-1.9a.5.5 0 0 1-.5-.5V9c0-.3.2-.5.5-.5h1.9a.5.5 0 0 1 0 1h-1.4v.9h1.4Z"/>'],
+		'email'    => [__('Email', 'y4apk'), 'mailto:?subject=' . $t . '&body=' . rawurlencode($text . "\n" . $url), '<path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/>'],
+	];
+	?>
+	<dialog class="prf-dialog prf-share" id="prf-share" aria-label="<?php esc_attr_e('Share', 'y4apk'); ?>">
+		<div class="prf-dialog-head"><h2><?php esc_html_e('Share profile', 'y4apk'); ?></h2><button type="button" class="prf-dialog-x" data-close aria-label="<?php esc_attr_e('Close', 'y4apk'); ?>">×</button></div>
+		<div class="prf-share-body">
+			<div class="prf-share-card prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?>">
+				<span class="prf-fx" aria-hidden="true"></span>
+				<?php echo Y4APK_Social::avatar($u, 56); ?>
+				<span class="prf-share-who"><b><?php echo esc_html($name); ?></b><small><?php echo esc_html(preg_replace('~^https?://(www\.)?~', '', $url)); ?></small></span>
+			</div>
+			<label class="prf-share-label" for="prf-share-url"><?php esc_html_e('Link to the page', 'y4apk'); ?></label>
+			<div class="prf-share-link">
+				<?php echo $si('link'); ?>
+				<input id="prf-share-url" type="text" value="<?php echo esc_attr($url); ?>" readonly data-share-url>
+				<button type="button" class="prf-share-copy" data-copy data-done="<?php esc_attr_e('Copied', 'y4apk'); ?>"><?php echo $si('copy'); ?><span><?php esc_html_e('Copy', 'y4apk'); ?></span></button>
+			</div>
+			<p class="prf-share-label"><?php esc_html_e('Share to', 'y4apk'); ?></p>
+			<div class="prf-share-apps">
+				<?php foreach ($apps as $k => $a) : ?>
+				<a class="prf-share-app prf-share-<?php echo esc_attr($k); ?>" href="<?php echo esc_url($a[1], ['https', 'mailto']); ?>" target="_blank" rel="noopener nofollow"><span class="prf-share-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><?php echo $a[2]; ?></svg></span><small><?php echo esc_html($a[0]); ?></small></a>
+				<?php endforeach; ?>
+				<button type="button" class="prf-share-app prf-share-more" data-native data-title="<?php echo esc_attr($text); ?>" hidden><span class="prf-share-ico"><?php echo $si('more'); ?></span><small><?php esc_html_e('More', 'y4apk'); ?></small></button>
+			</div>
+		</div>
+	</dialog>
+	<?php
 };
 
 get_header();
@@ -224,6 +356,22 @@ if ($screen === 'login') {
 	$shell_close();
 
 /* ======================================================= not for these visitors */
+} elseif ($screen === 'logout') {
+	$u = $c['user'];
+	$shell_open();
+	?>
+	<div class="acc-out">
+		<?php echo $c['member'] ? Y4APK_Social::avatar($u, 72) : $M::avatar($u->user_login, 72); ?>
+		<h1><?php esc_html_e('Sign out?', 'y4apk'); ?></h1>
+		<p class="acc-lead"><?php echo esc_html(sprintf(__('You are signed in as @%s.', 'y4apk'), $u->user_login)); ?></p>
+	</div>
+	<?php $form_open('logout'); ?>
+		<button class="acc-btn acc-btn-primary acc-btn-wide" type="submit"><?php esc_html_e('Sign out', 'y4apk'); ?></button>
+	</form>
+	<p class="acc-alt"><a href="<?php echo esc_url($c['member'] ? $M::url() : home_url('/')); ?>"><?php esc_html_e('Stay signed in', 'y4apk'); ?></a></p>
+	<?php
+	$shell_close();
+
 } elseif ($screen === 'staff') {
 	$shell_open();
 	?>
@@ -252,31 +400,14 @@ if ($screen === 'login') {
 } elseif ($screen === 'home') {
 	$u = $c['user'];
 	$st = $c['stats'];
+	$counts = ['all' => count($c['scripts']), 'live' => 0, 'review' => 0, 'changes' => 0, 'draft' => 0];
+	foreach ($c['scripts'] as $s) {
+		$counts[$s['key']]++;
+	}
+	$owner_head($u, $st);
+	$tabs('home');
+	$messages();
 	?>
-	<section class="acc-hero prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?>">
-		<div class="acc-hero-who">
-			<?php echo Y4APK_Social::avatar($u, 64); ?>
-			<div>
-				<h1><?php echo esc_html(Y4APK_Social::name($u)); ?></h1>
-				<p>@<?php echo esc_html($u->user_login); ?> · <?php echo esc_html(sprintf(__('Member since %s', 'y4apk'), mysql2date(get_option('date_format'), $u->user_registered))); ?></p>
-			</div>
-		</div>
-		<div class="acc-hero-actions">
-			<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg><?php esc_html_e('Share a script', 'y4apk'); ?></a>
-			<a class="acc-btn acc-btn-ghost" href="<?php echo esc_url($M::profile_url($u)); ?>"><?php esc_html_e('My public page', 'y4apk'); ?></a>
-			<a class="acc-btn acc-btn-ghost" href="<?php echo esc_url($M::url('customize')); ?>"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.3V21h3.8l11-11.1-3.7-3.7L3 17.3Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8 1.9-1.8Z"/></svg><?php esc_html_e('Edit profile', 'y4apk'); ?></a>
-		</div>
-		<ul class="acc-stats">
-			<li><b><?php echo esc_html(number_format_i18n($st['all'])); ?></b> <?php esc_html_e('Scripts', 'y4apk'); ?></li>
-			<li><b><?php echo esc_html(number_format_i18n($st['live'])); ?></b> <?php esc_html_e('Live', 'y4apk'); ?></li>
-			<li><b><?php echo esc_html(number_format_i18n($st['review'])); ?></b> <?php esc_html_e('In review', 'y4apk'); ?></li>
-			<li><b><?php echo esc_html(Y4APK_Roblox::short_number($st['views'])); ?></b> <?php esc_html_e('Views', 'y4apk'); ?></li>
-			<li><b><?php echo esc_html(Y4APK_Roblox::short_number($st['followers'])); ?></b> <?php esc_html_e('Followers', 'y4apk'); ?></li>
-			<li><b><?php echo esc_html(Y4APK_Roblox::short_number($st['following'])); ?></b> <?php esc_html_e('Following', 'y4apk'); ?></li>
-		</ul>
-	</section>
-	<?php $tabs('home'); ?>
-	<?php $messages(); ?>
 	<?php if (!$c['scripts']) : ?>
 		<div class="acc-card acc-empty">
 			<div class="acc-big-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/></svg></div>
@@ -285,40 +416,50 @@ if ($screen === 'login') {
 			<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Share your first script', 'y4apk'); ?></a>
 		</div>
 	<?php else : ?>
-		<div class="acc-list">
-			<?php foreach ($c['scripts'] as $s) : $p = $s['post']; ?>
-			<article class="acc-item">
+		<div class="prf-bar">
+			<h2><?php esc_html_e('My scripts', 'y4apk'); ?> <span><?php echo esc_html(number_format_i18n($counts['all'])); ?></span></h2>
+			<div class="prf-sort acc-filter" data-filter>
+				<?php foreach (['all' => __('All', 'y4apk'), 'live' => $statuses['live'], 'review' => $statuses['review'], 'changes' => $statuses['changes'], 'draft' => $statuses['draft']] as $k => $label) : if ($k !== 'all' && $k !== 'live' && !$counts[$k]) { continue; } ?>
+				<button type="button" data-f="<?php echo esc_attr($k); ?>"<?php echo $k === 'all' ? ' class="is-on"' : ''; ?>><?php echo esc_html($label); ?> <i><?php echo esc_html(number_format_i18n($counts[$k])); ?></i></button>
+				<?php endforeach; ?>
+			</div>
+			<label class="prf-search"><?php echo $si('search'); ?><input type="search" maxlength="60" placeholder="<?php esc_attr_e('Search my scripts…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search my scripts', 'y4apk'); ?>" data-find></label>
+		</div>
+		<div class="acc-list" data-list>
+			<?php foreach ($c['scripts'] as $s) : $p = $s['post']; $title = wp_strip_all_tags(get_the_title($p)); $g = Y4APK_Roblox::game_of($p->ID); $live = $s['key'] === 'live'; $go = $live ? get_permalink($p) : $M::url('edit/' . $p->ID); ?>
+			<article class="acc-item acc-item-<?php echo esc_attr($s['key']); ?>" data-state="<?php echo esc_attr($s['key']); ?>" data-title="<?php echo esc_attr(mb_strtolower($title . ' ' . $s['game'])); ?>">
+				<a class="acc-item-art" href="<?php echo esc_url($go); ?>" tabindex="-1" aria-hidden="true"><img src="<?php echo esc_url(Y4APK_Roblox::thumb($p->ID), ['http', 'https', 'data']); ?>" alt="" width="320" height="180" loading="lazy" decoding="async"></a>
 				<div class="acc-item-main">
-					<span class="acc-badge acc-badge-<?php echo esc_attr($s['key']); ?>"><?php echo esc_html($statuses[$s['key']]); ?></span>
-					<h3><?php echo $s['key'] === 'live' ? '<a href="' . esc_url(get_permalink($p)) . '">' . esc_html(wp_strip_all_tags(get_the_title($p))) . '</a>' : esc_html(wp_strip_all_tags(get_the_title($p))); ?></h3>
+					<p class="acc-item-top"><span class="acc-badge acc-badge-<?php echo esc_attr($s['key']); ?>"><i aria-hidden="true"></i><?php echo esc_html($statuses[$s['key']]); ?></span><span><?php echo $si('clock'); ?><?php echo esc_html(sprintf(__('Updated %s', 'y4apk'), Y4APK_Roblox::ago(get_post_datetime($p, 'modified')->getTimestamp()))); ?></span></p>
+					<h3><a href="<?php echo esc_url($go); ?>"><?php echo esc_html($title); ?></a></h3>
 					<p class="acc-item-meta">
-						<?php if ($s['game'] !== '') : ?><span><?php echo esc_html($s['game']); ?></span><?php endif; ?>
-						<span><?php echo esc_html(sprintf(__('Updated %s', 'y4apk'), Y4APK_Roblox::ago(get_post_datetime($p, 'modified')->getTimestamp()))); ?></span>
-						<?php if ($s['key'] === 'live') : ?><span><?php echo esc_html(sprintf(_n('%s view', '%s views', $s['views'], 'y4apk'), Y4APK_Roblox::short_number($s['views']))); ?></span><?php endif; ?>
+						<?php if ($g) : ?><span><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($g), ['http', 'https', 'data']); ?>" alt="" width="18" height="18" loading="lazy"><?php echo esc_html($g->name); ?></span><?php elseif ($s['game'] !== '') : ?><span><?php echo $si('code'); ?><?php echo esc_html($s['game']); ?></span><?php endif; ?>
+						<?php if ($live) : ?><span><?php echo $si('eye'); ?><?php echo esc_html(sprintf(_n('%s view', '%s views', $s['views'], 'y4apk'), Y4APK_Roblox::short_number($s['views']))); ?></span><?php endif; ?>
 					</p>
 					<?php if ($s['key'] === 'changes' && $s['reason'] !== '') : ?><p class="acc-reason"><b><?php esc_html_e('What to change:', 'y4apk'); ?></b> <?php echo esc_html($s['reason']); ?></p><?php endif; ?>
 				</div>
 				<div class="acc-item-actions">
-					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php esc_html_e('Edit', 'y4apk'); ?></a>
+					<?php if ($live) : ?><a class="acc-ico" href="<?php echo esc_url(get_permalink($p)); ?>" title="<?php esc_attr_e('Open', 'y4apk'); ?>"><?php echo $si('open'); ?><span class="sr-only"><?php esc_html_e('Open', 'y4apk'); ?></span></a><?php endif; ?>
+					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php echo $si('edit'); ?><?php esc_html_e('Edit', 'y4apk'); ?></a>
 					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js(__('Delete this script?', 'y4apk')); ?>')">
 						<input type="hidden" name="y4_do" value="delete"><input type="hidden" name="id" value="<?php echo esc_attr($p->ID); ?>"><?php echo $M::nonce('delete'); ?>
-						<button class="acc-btn acc-btn-small acc-btn-danger" type="submit"><?php esc_html_e('Delete', 'y4apk'); ?></button>
+						<button class="acc-ico acc-ico-danger" type="submit" title="<?php esc_attr_e('Delete', 'y4apk'); ?>"><?php echo $si('trash'); ?><span class="sr-only"><?php esc_html_e('Delete', 'y4apk'); ?></span></button>
 					</form>
 				</div>
 			</article>
 			<?php endforeach; ?>
 		</div>
+		<p class="acc-card acc-empty acc-none" data-none hidden><?php esc_html_e('No scripts match.', 'y4apk'); ?></p>
 		<?php if ($st['live'] && $st['review']) : ?><p class="acc-hint"><?php esc_html_e('A script you change goes back in review; until it is checked again it is not shown.', 'y4apk'); ?></p><?php endif; ?>
-	<?php endif;
+	<?php endif; ?>
+	<?php $share($u);
 
 /* ======================================================= the members you follow, and their new scripts */
 } elseif ($screen === 'following') {
 	$u = $c['user'];
 	?>
-	<section class="acc-hero acc-hero-slim prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?>">
-		<div class="acc-hero-who"><?php echo Y4APK_Social::avatar($u, 52); ?><div><h1><?php esc_html_e('Following', 'y4apk'); ?></h1><p><?php esc_html_e('New scripts from the members you follow', 'y4apk'); ?></p></div></div>
-	</section>
-	<?php $tabs('following'); ?>
+	<?php $owner_head($u); $tabs('following'); ?>
+	<h1 class="acc-h2"><?php esc_html_e('Following', 'y4apk'); ?></h1>
 	<?php if (!$c['people']) : ?>
 		<div class="acc-card acc-empty">
 			<div class="acc-big-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-7 1.7-7 4v2h14v-2c0-2.3-3.7-4-7-4Zm9-5V5h-2v3h-3v2h3v3h2v-3h3V8h-3Z"/></svg></div>
@@ -351,17 +492,15 @@ if ($screen === 'login') {
 	$stored = get_user_meta($u->ID, Y4APK_Social::NAME, true);
 	$theme = $v('theme', Y4APK_Social::theme($u));
 	?>
-	<section class="acc-hero acc-hero-slim prf-theme-<?php echo esc_attr(Y4APK_Social::theme($u)); ?>">
-		<div class="acc-hero-who"><?php echo Y4APK_Social::avatar($u, 52); ?><div><h1><?php esc_html_e('Edit profile', 'y4apk'); ?></h1><p>@<?php echo esc_html($u->user_login); ?></p></div></div>
-	</section>
-	<?php $tabs('customize'); ?>
+	<?php $owner_head($u); $tabs('customize'); ?>
+	<h1 class="acc-h2"><?php esc_html_e('Edit profile', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
 	<div class="acc-prof">
 		<div class="acc-card">
 			<?php $form_open('customize', ' data-profile-form enctype="multipart/form-data"'); ?>
 				<?php $pic = Y4APK_Social::image_url($u, 'pic'); $ban = Y4APK_Social::image_url($u, 'banner'); $r2 = class_exists('Y4APK_R2') && Y4APK_R2::can_store(); ?>
 				<?php if ($r2) : ?>
-				<h2><?php esc_html_e('Profile banner', 'y4apk'); ?></h2>
+				<h2 id="banner"><?php esc_html_e('Profile banner', 'y4apk'); ?></h2>
 				<p class="acc-hint acc-hint-top"><?php esc_html_e('A wide picture across the top of your page. Best at 2400 × 800 (3:1).', 'y4apk'); ?></p>
 				<label class="acc-drop acc-drop-wide<?php echo $ban !== '' ? ' has-image' : ''; ?>" data-drop="banner" data-max="5">
 					<input type="file" name="banner" accept="image/png,image/jpeg,image/webp">
@@ -370,7 +509,7 @@ if ($screen === 'login') {
 				</label>
 				<?php if ($ban !== '') : ?><label class="acc-check acc-drop-remove"><input type="checkbox" name="remove_banner" value="1"> <span><?php esc_html_e('Remove my banner (use the theme’s)', 'y4apk'); ?></span></label><?php endif; ?>
 
-				<h2><?php esc_html_e('Profile picture', 'y4apk'); ?></h2>
+				<h2 id="picture"><?php esc_html_e('Profile picture', 'y4apk'); ?></h2>
 				<div class="acc-pic-row">
 					<span class="acc-pic-now" data-pic-now><?php echo Y4APK_Social::avatar($u, 96); ?></span>
 					<label class="acc-drop<?php echo $pic !== '' ? ' has-image' : ''; ?>" data-drop="picture" data-max="4">
@@ -387,14 +526,14 @@ if ($screen === 'login') {
 					<label for="f-display"><?php esc_html_e('Display name', 'y4apk'); ?></label>
 					<div class="acc-input"><input id="f-display" type="text" name="display" value="<?php echo esc_attr($v('display', (string) $stored)); ?>" maxlength="30" placeholder="<?php echo esc_attr($u->user_login); ?>" data-pv="name"></div>
 				</div>
-				<p class="acc-hint"><?php esc_html_e('Shown big on your page. Your @username stays the same.', 'y4apk'); ?></p>
+				<p class="acc-hint"><?php echo esc_html(sprintf(__('Shown big on your page just as you type it: capitals, spaces and Thai are fine (for example %1$s or %2$s). Your @username stays the same, in small letters.', 'y4apk'), ucfirst($u->user_login), strtoupper($u->user_login))); ?></p>
 				<div class="acc-field acc-wiz-about">
 					<label for="f-bio"><?php esc_html_e('Bio', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
 					<div class="acc-input"><textarea id="f-bio" name="bio" rows="3" maxlength="200" placeholder="<?php esc_attr_e('What you make: keyless hubs for Blox Fruits, tested on mobile…', 'y4apk'); ?>" data-pv="bio" data-counted><?php echo esc_textarea($v('bio', Y4APK_Social::bio($u))); ?></textarea></div>
 					<span class="acc-wiz-count" data-count-for="f-bio"></span>
 				</div>
 
-				<h2><?php echo esc_html($r2 ? __('Or your Roblox avatar', 'y4apk') : __('Avatar', 'y4apk')); ?></h2>
+				<h2<?php echo $r2 ? '' : ' id="picture"'; ?>><?php echo esc_html($r2 ? __('Or your Roblox avatar', 'y4apk') : __('Avatar', 'y4apk')); ?></h2>
 				<div class="acc-field">
 					<label for="f-roblox"><?php esc_html_e('Your Roblox username', 'y4apk'); ?></label>
 					<div class="acc-input"><input id="f-roblox" type="text" name="roblox" value="<?php echo esc_attr($v('roblox', $rbx['name'])); ?>" maxlength="20" placeholder="Builderman" autocomplete="off" spellcheck="false"></div>
@@ -440,10 +579,8 @@ if ($screen === 'login') {
 } elseif ($screen === 'settings') {
 	$u = $c['user'];
 	?>
-	<section class="acc-hero acc-hero-slim">
-		<div class="acc-hero-who"><?php echo Y4APK_Social::avatar($u, 52); ?><div><h1><?php esc_html_e('Account settings', 'y4apk'); ?></h1><p>@<?php echo esc_html($u->user_login); ?></p></div></div>
-	</section>
-	<?php $tabs('settings'); ?>
+	<?php $owner_head($u); $tabs('settings'); ?>
+	<h1 class="acc-h2"><?php esc_html_e('Account settings', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
 	<div class="acc-two">
 		<div class="acc-card">
@@ -825,24 +962,6 @@ if ($screen === 'login') {
 	$tab_url = function ($t) use ($base) {
 		return $t === 'scripts' ? $base : add_query_arg('tab', $t, $base);
 	};
-	$si = function ($name) {
-		$p = [
-			'cal'    => '<path d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2Zm12 8H5v9h14v-9Z"/>',
-			'plus'   => '<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>',
-			'check'  => '<path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4-9.6 9.6Z"/>',
-			'share'  => '<path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7c0 .3 0 .5.1.8L8.4 11.2a3 3 0 1 0 0 3.6l6.7 3.4A3 3 0 1 0 18 16Z"/>',
-			'edit'   => '<path d="M3 17.3V21h3.8l11-11.1-3.7-3.7L3 17.3Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8 1.9-1.8Z"/>',
-			'yt'     => '<path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8ZM9.8 15V9l5.8 3-5.8 3Z"/>',
-			'dc'     => '<path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.3 18.3 0 0 0-5.5 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1a19.9 19.9 0 0 0 6 3l1.3-2.1a13 13 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.7ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4S9.2 15.3 8 15.3Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/>',
-			'code'   => '<path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/>',
-			'pulse'  => '<path d="M3 12h4l3-8 4 16 3-8h4v2h-2.6L14 22 10 6l-1.6 6H3v-0Z"/>',
-			'chart'  => '<path d="M4 20h16v2H2V3h2v17Zm3-3V10h3v7H7Zm5 0V5h3v12h-3Zm5 0v-5h3v5h-3Z"/>',
-			'search' => '<path d="M10.5 3a7.5 7.5 0 0 1 6 12l4.7 4.8-1.4 1.4-4.8-4.7A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/>',
-			'eye'    => '<path d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Zm0-2.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>',
-			'star'   => '<path d="m12 2 3 6.6 7.2.7-5.4 4.8 1.6 7.1L12 17.5l-6.4 3.7 1.6-7.1L1.8 9.3 9 8.6 12 2Z"/>',
-		];
-		return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' . $p[$name] . '</svg>';
-	};
 	$people = function ($id, $title, $list) use ($M, $si) {
 		?>
 		<dialog class="prf-dialog" id="<?php echo esc_attr($id); ?>" aria-label="<?php echo esc_attr($title); ?>">
@@ -872,7 +991,7 @@ if ($screen === 'login') {
 					<?php elseif (!$c['user']) : ?>
 						<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('register')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Follow', 'y4apk'); ?></span></a>
 					<?php endif; ?>
-					<button type="button" class="prf-btn" data-share="<?php echo esc_attr($base); ?>" data-copied="<?php esc_attr_e('Link copied', 'y4apk'); ?>"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
+					<button type="button" class="prf-btn" data-open="prf-share"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 				</div>
 			</div>
 			<h1 class="prf-name"><?php echo esc_html($name); ?></h1>
@@ -971,7 +1090,7 @@ if ($screen === 'login') {
 			</div>
 		</div>
 	<?php endif; ?>
-	<?php $people('prf-followers', __('Followers', 'y4apk'), $c['followers_list']); $people('prf-following', __('Following', 'y4apk'), $c['following_list']);
+	<?php $people('prf-followers', __('Followers', 'y4apk'), $c['followers_list']); $people('prf-following', __('Following', 'y4apk'), $c['following_list']); $share($u);
 }
 ?>
 	</div>
@@ -1036,7 +1155,7 @@ if ($screen === 'login') {
 	});
 })();
 </script>
-<?php if (in_array($screen, ['profile', 'following', 'customize'], true)) : // Named y4apk-pwa-…: the speed plugin's delay leaves it alone. ?>
+<?php if (in_array($screen, ['profile', 'following', 'customize', 'home'], true)) : // Named y4apk-pwa-…: the speed plugin's delay leaves it alone. ?>
 <script id="y4apk-pwa-social" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
 (function () {
 	var T = <?php echo wp_json_encode(['follow' => __('Follow', 'y4apk'), 'following' => __('Following', 'y4apk'), 'unfollow' => __('Unfollow', 'y4apk'), 'error' => __('Could not do that. Try again.', 'y4apk')]); ?>;
@@ -1065,15 +1184,46 @@ if ($screen === 'login') {
 		if (o) { var d = document.getElementById(o.getAttribute('data-open')); if (d && d.showModal) { d.showModal(); } return; }
 		if (e.target.closest && e.target.closest('[data-close]')) { e.target.closest('dialog').close(); return; }
 		if (e.target.tagName === 'DIALOG') { e.target.close(); return; } // a click on the backdrop
-		var sh = e.target.closest && e.target.closest('[data-share]');
-		if (sh) {
-			var url = sh.getAttribute('data-share');
-			if (navigator.share) { navigator.share({title: document.title, url: url}).catch(function () {}); return; }
-			(navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () {
-				var s = sh.querySelector('span'), was = s.textContent; s.textContent = sh.getAttribute('data-copied'); setTimeout(function () { s.textContent = was; }, 1800);
-			}).catch(function () { prompt('', url); });
+		// Share: copy the link, or the device's own share sheet ("More")
+		var cp = e.target.closest && e.target.closest('[data-copy]');
+		if (cp) {
+			var inp = document.querySelector('[data-share-url]'), done = function () {
+				var s = cp.querySelector('span'); cp.classList.add('is-done'); s.textContent = cp.getAttribute('data-done');
+				clearTimeout(cp.t); cp.t = setTimeout(function () { cp.classList.remove('is-done'); s.textContent = cp.was; }, 1800);
+			};
+			cp.was = cp.was || cp.querySelector('span').textContent;
+			(navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(inp.value) : Promise.reject()).then(done).catch(function () {
+				inp.select(); try { if (document.execCommand('copy')) { done(); } } catch (x) {}
+			});
+			return;
 		}
+		var nat = e.target.closest && e.target.closest('[data-native]');
+		if (nat) { navigator.share({title: nat.getAttribute('data-title'), url: document.querySelector('[data-share-url]').value}).catch(function () {}); }
 	});
+	var more = document.querySelector('[data-native]');
+	if (more && navigator.share) { more.hidden = false; }
+	var su = document.querySelector('[data-share-url]');
+	if (su) { su.addEventListener('focus', function () { su.select(); }); }
+	// My scripts: show one status, or what matches the search
+	var list = document.querySelector('[data-list]');
+	if (list) {
+		var find = document.querySelector('[data-find]'), none = document.querySelector('[data-none]'), want = 'all';
+		var apply = function () {
+			var q = (find.value || '').trim().toLowerCase(), shown = 0;
+			[].forEach.call(list.children, function (it) {
+				var ok = (want === 'all' || it.getAttribute('data-state') === want) && (!q || it.getAttribute('data-title').indexOf(q) !== -1);
+				it.hidden = !ok; shown += ok ? 1 : 0;
+			});
+			none.hidden = shown > 0;
+		};
+		document.querySelector('[data-filter]').addEventListener('click', function (e) {
+			var b = e.target.closest('[data-f]'); if (!b) { return; }
+			want = b.getAttribute('data-f');
+			[].forEach.call(this.querySelectorAll('[data-f]'), function (x) { x.classList.toggle('is-on', x === b); });
+			apply();
+		});
+		find.addEventListener('input', apply);
+	}
 	// A profile's light: online in the last 3 minutes; asked again every 40 seconds while the page is open
 	var st = document.querySelector('[data-status]');
 	if (st) {

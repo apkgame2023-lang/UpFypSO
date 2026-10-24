@@ -559,6 +559,50 @@ size they are shown at so they stay sharp on phones. The wordmark has a faint
 white edge: Gmail's dark mode darkens the background but not images, and the
 edge keeps the black *Y4* readable there.
 
+## A member's own pages, the header menu, sharing, the script box (2.41)
+
+**My scripts is the member's own page.** /account/ opens with the same head as
+their public page — banner (theirs, or the theme's), big picture, name, @handle,
+"Online now", bio, links, followers, following, scripts, views — with what only
+they have: *View public page* on the banner, *Change banner*, a camera on the
+picture (both to Edit profile), *Share*, *Edit profile* and *Share a script*.
+Following, Edit profile and Settings have a slim version of it. The tabs are the
+public page's (with icons, Sign out at the end). Each script is a card with its
+picture, status (Live, In review, Needs changes, Draft), when it changed, its
+game, its views, and Open / Edit / Delete; the status buttons and a search box
+above narrow the list in the page.
+
+**The header knows who is signed in.** Next to the search: *Sign in* for
+visitors; for a member their picture and name, opening a menu — their page, My
+scripts, Share a script, Following, Edit profile, Account settings, Sign out.
+Pages are cached and the same for everyone, so the HTML always has *Sign in*,
+and a small script swaps in the member from the `y4apk_me` cookie: their login,
+display name, picture address and letter colour, all of it on their public page
+anyway. The cookie is set with the sign-in cookie (as long-lived), kept up to
+date on each page a signed-in member opens (a new name or picture, or members
+signed in before 2.41), and removed on sign-out or when a page finds nobody
+signed in. Not for administrators: they have the admin bar. *Sign out* gets a
+fresh token first and signs out in one click; /account/logout/ without a token
+asks "Sign out?" instead of signing out from a stale link.
+
+**Share.** The Share button on a profile and on My scripts opens the site's own
+dialog instead of the browser's share sheet (on Windows a bare system box asking
+for "more information"): a card of the page, the link with *Copy*, and
+Facebook, X, WhatsApp, Telegram, LINE and Email, each a plain link (no
+third-party script on the page). Where the device has a share sheet (phones), a
+*More* button opens it.
+
+**The script box.** COPY SCRIPT on a script post looks like a code editor: the
+hub's name with the game, *No key* and when it was updated; who shared it (their
+picture and name, to their page); tabs when there is more than one code (ENG,
+ภาษาไทย…); a dark panel with line numbers and Lua colours (the colouring wraps
+the same text in spans, so what *Copy* copies is unchanged); then three steps —
+copy, open your executor, paste and execute. Locked, the code is blurred under a
+card with a lock, the one step and an *Unlock script* button.
+
+**Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
+small letters. The Edit profile page says so.
+
 ## The old Google Play importer, removed (2.33)
 
 The vendor's importer — Y4APK ▸ *Google Play* (a Play URL → a post, its APK

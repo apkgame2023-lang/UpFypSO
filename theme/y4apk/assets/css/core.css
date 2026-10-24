@@ -570,3 +570,44 @@ textarea#dle-promt-text { width: 100% !important; }
   .ui-dialog-buttonset .ui-button { width: 100%; }
   .ui-dialog-buttonset .ui-button + .ui-button { margin-top: .25rem; }
 }
+/* ---------------------------------------------------------------- The account button and menu in the header (2.41) */
+.h-acct { position: relative; flex: none; }
+.h-acct-btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; height: 2.5rem; padding: 0 1rem; border: 0; border-radius: 2rem; font: inherit; font-size: .9375rem; font-weight: 700; color: #172021 !important; background: #fff; box-shadow: 0 .5rem 1rem -.5rem rgba(0, 0, 0, .18), 0 0 0 1px rgba(0, 0, 0, .06); cursor: pointer; transition: box-shadow .2s ease, transform .1s ease; }
+.h-acct-btn:hover { box-shadow: 0 .75rem 1.5rem -.5rem rgba(41, 177, 216, .45), 0 0 0 1px rgba(41, 177, 216, .4); }
+.h-acct-btn:active { transform: scale(.98); }
+.h-acct-btn.is-in { padding: 0 .375rem 0 .25rem; gap: .5rem; }
+.h-acct-av { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; object-fit: cover; font-weight: 700; color: #fff; background: #dfe7ea; }
+.h-acct-name { max-width: 8.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.h-acct-caret { display: grid; color: rgba(23, 32, 33, .55); transition: transform .2s ease; }
+.h-acct.open .h-acct-caret { transform: rotate(180deg); }
+.h-acct-menu { position: absolute; z-index: 60; right: 0; top: calc(100% + .625rem); width: 17.5rem; padding: .5rem; border-radius: 1.125rem; color: #172021; background: #fff; box-shadow: 0 1.5rem 3rem -1rem rgba(10, 20, 30, .35), 0 0 0 1px rgba(0, 0, 0, .06); animation: h-acct-in .16s ease-out; }
+.h-acct-menu[hidden] { display: none; }
+@keyframes h-acct-in { from { opacity: 0; transform: translateY(-.375rem) scale(.98); } }
+.h-acct-me { display: flex; align-items: center; gap: .75rem; padding: .625rem; margin-bottom: .375rem; border-radius: .875rem; color: inherit !important; background: #f3f7f8; }
+.h-acct-me:hover { background: #e9f4f8; }
+.h-acct-me .h-acct-av { width: 2.75rem; height: 2.75rem; font-size: 1.25rem; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(41, 177, 216, .35); }
+.h-acct-who { flex: 1; min-width: 0; }
+.h-acct-who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; }
+.h-acct-who small { display: block; font-size: .8125rem; color: #29b1d8; }
+.h-acct-me > svg { flex: none; color: rgba(23, 32, 33, .4); }
+.h-acct-list { display: grid; padding: .25rem 0; border-bottom: 1px solid rgba(23, 32, 33, .08); margin-bottom: .375rem; }
+.h-acct-list a, .h-acct-out { display: flex; align-items: center; gap: .75rem; padding: .625rem .75rem; border-radius: .75rem; font-size: .9375rem; font-weight: 700; color: #172021 !important; }
+.h-acct-list a svg, .h-acct-out svg { flex: none; color: rgba(23, 32, 33, .5); transition: color .2s ease; }
+.h-acct-list a:hover { background: #f3f7f8; }
+.h-acct-list a:hover svg { color: #29b1d8; }
+.h-acct-out:hover { color: #e5484d !important; background: #fdeeee; }
+.h-acct-out:hover svg { color: #e5484d; }
+@media (min-width: 62rem) {
+  .h-acct { margin-left: .75rem; }
+}
+@media (max-width: 61.9375rem) {
+  .h-acct-btn { position: fixed; z-index: 40; top: .5rem; right: 3.75rem; width: 3rem; height: 3rem; padding: 0; border-radius: 50%; background: #fbfdfd80; box-shadow: none; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .h-acct-btn.is-in { padding: 0; }
+  .h-acct-btn .h-acct-label, .h-acct-name, .h-acct-caret { display: none; }
+  .h-acct-btn .h-acct-av { width: 2.125rem; height: 2.125rem; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(41, 177, 216, .5); }
+  .h-acct-menu { position: fixed; top: 4rem; right: .5rem; left: auto; width: min(20rem, calc(100vw - 1rem)); }
+  html.mm .h-acct-btn { display: none; }
+}
+@media (max-width: 26rem) {
+  .header .logotype { transform: translateX(-1rem); } /* room for the account button beside it */
+}
