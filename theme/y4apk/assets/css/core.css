@@ -626,3 +626,55 @@ h1, h2, h3, h4, h5, h6, .heading, .speedbar, .text p, .text li, .text a, .text b
 .str-main, .colomns > .content, .f-app-main, .f-app-main-text { min-width: 0; }
 .text pre, .f-app-main-text pre { max-width: 100%; }
 .text pre code, .f-app-main-text pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------- 2.44: search suggestions */
+.y4sg { position: relative; margin-top: .75rem; max-height: min(34rem, calc(100vh - 13rem)); overflow: auto; overscroll-behavior: contain; padding: .5rem; border-radius: 1.25rem; text-align: left; background: #fff; box-shadow: 0 1.5rem 3rem -1rem rgba(0, 0, 0, .18), 0 0 0 1px rgba(0, 0, 0, .05); -webkit-overflow-scrolling: touch; animation: y4sg-in .18s ease-out; }
+.y4sg[hidden] { display: none; }
+@keyframes y4sg-in { from { opacity: 0; transform: translateY(-.375rem); } }
+.y4sg.is-busy::before { content: ""; position: absolute; left: 1.25rem; right: 1.25rem; top: 0; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #29b1d8, transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: y4sg-busy 1s linear infinite; }
+@keyframes y4sg-busy { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+.y4sg-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .625rem .75rem .375rem; font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(23, 32, 33, .5); }
+.y4sg-head span { display: inline-flex; align-items: center; gap: .375rem; }
+.y4sg-head svg { color: #f06a35; }
+.y4sg-clear { padding: .25rem .5rem; border: 0; border-radius: .5rem; font: inherit; font-size: .75rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: #29b1d8; background: none; cursor: pointer; }
+.y4sg-clear:hover { background: rgba(41, 177, 216, .1); }
+.y4sg-chips { display: flex; flex-wrap: wrap; gap: .375rem; padding: .125rem .75rem .5rem; }
+.y4sg-chip { display: inline-flex; align-items: center; max-width: 100%; border-radius: 2rem; background: #f2f7f8; box-shadow: inset 0 0 0 1px rgba(23, 32, 33, .06); transition: background-color .15s ease; }
+.y4sg-chip:hover { background: #e6f4f8; }
+.y4sg-chip a { display: inline-flex; align-items: center; gap: .375rem; min-width: 0; padding: .4375rem .25rem .4375rem .75rem; font-size: .875rem; font-weight: 600; color: #172021; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.y4sg-chip a svg { flex: none; color: rgba(23, 32, 33, .4); }
+.y4sg-chip a.is-act { color: #1aa1c7; }
+.y4sg-chip button { flex: none; width: 1.75rem; height: 1.75rem; margin-right: .25rem; padding: 0; border: 0; border-radius: 50%; font-size: 1.125rem; line-height: 1; color: rgba(23, 32, 33, .45); background: none; cursor: pointer; }
+.y4sg-chip button:hover { color: #e5484d; background: rgba(229, 72, 77, .1); }
+.y4sg-item { display: flex; align-items: center; gap: .875rem; min-width: 0; padding: .5rem .75rem; border-radius: .875rem; color: #172021; transition: background-color .12s ease; }
+.y4sg-item:hover, .y4sg-item.is-act { color: #172021; background: #eef8fb; }
+.y4sg-rank { flex: none; width: 1.25rem; font-size: .875rem; font-weight: 800; text-align: center; color: rgba(23, 32, 33, .3); font-variant-numeric: tabular-nums; }
+.y4sg-item:nth-child(-n+4) .y4sg-rank { color: #f06a35; }
+.y4sg-ico { flex: none; width: 2.75rem; height: 2.75rem; border-radius: 22%; overflow: hidden; background: #e8eff1; box-shadow: 0 .25rem .625rem -.25rem rgba(0, 0, 0, .3); }
+.y4sg-ico img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.y4sg-letter { display: grid; place-items: center; width: 100%; height: 100%; font-size: 1.125rem; font-weight: 800; color: #fff; }
+.y4sg-text { flex: 1; min-width: 0; }
+.y4sg-text b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9375rem; font-weight: 700; line-height: 1.35; }
+.y4sg-text mark { padding: 0; border-radius: .1875rem; color: inherit; background: rgba(41, 177, 216, .2); box-shadow: 0 0 0 1px rgba(41, 177, 216, .2); }
+.y4sg-text small { display: flex; align-items: center; flex-wrap: nowrap; gap: .375rem; margin-top: .125rem; overflow: hidden; white-space: nowrap; font-size: .75rem; color: rgba(23, 32, 33, .55); }
+.y4sg-text small i { font-style: normal; opacity: .5; }
+.y4sg-kind { flex: none; padding: .0625rem .4375rem; border-radius: .375rem; font-size: .625rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #1c5cab; background: #e8f1fb; }
+.y4sg-kind-app { color: #6a3fc8; background: #f1ebfd; }
+.y4sg-kind-script, .y4sg-kind-rbx { color: #14602a; background: #e4f7ea; }
+.y4sg-kind-y4apk_executor { color: #fff; background: #172021; }
+.y4sg-kind-articles, .y4sg-kind-news { color: #7a4d00; background: #fff4de; }
+.y4sg-go { flex: none; color: rgba(23, 32, 33, .25); transition: transform .15s ease, color .15s ease; }
+.y4sg-item:hover .y4sg-go, .y4sg-item.is-act .y4sg-go { color: #29b1d8; transform: translateX(2px); }
+.y4sg-none { margin: 0; padding: 1rem .75rem .5rem; font-size: .875rem; color: rgba(23, 32, 33, .55); }
+.y4sg-all { display: flex; align-items: center; gap: .625rem; margin-top: .375rem; padding: .75rem; border-top: 1px solid rgba(23, 32, 33, .07); border-radius: 0 0 .875rem .875rem; font-size: .875rem; color: #1aa1c7; }
+.y4sg-all:hover, .y4sg-all.is-act { color: #1aa1c7; background: #eef8fb; }
+.y4sg-all span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.y4sg-all b { color: #172021; }
+.y4sg-all kbd { flex: none; padding: .125rem .4375rem; border-radius: .375rem; font: inherit; font-size: .6875rem; font-weight: 700; color: rgba(23, 32, 33, .5); background: #f2f7f8; box-shadow: inset 0 -1px 0 rgba(23, 32, 33, .12); }
+@media (hover: none) { .y4sg-all kbd { display: none; } }
+@media (max-width: 35.99rem) {
+	.y4sg { margin-top: .5rem; max-height: calc(100vh - 11rem); border-radius: 1rem; }
+	.y4sg-item { gap: .75rem; padding: .5rem; }
+	.y4sg-ico { width: 2.5rem; height: 2.5rem; }
+	.y4sg-text b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; font-size: .875rem; line-height: 1.3; overflow-wrap: anywhere; }
+}

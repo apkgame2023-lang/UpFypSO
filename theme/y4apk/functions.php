@@ -39,6 +39,8 @@ require $theme_dir . '/inc/members-social.php';
 require $theme_dir . '/inc/members-insights.php';
 require $theme_dir . '/inc/members-pictures.php';
 require $theme_dir . '/inc/members-share.php';
+require $theme_dir . '/inc/suggest.php';
+require $theme_dir . '/inc/executors.php';
 require $theme_dir . '/inc/mail.php';
 require $theme_dir . '/inc/members-admin.php';
 require $theme_dir . '/inc/dashboard.php';

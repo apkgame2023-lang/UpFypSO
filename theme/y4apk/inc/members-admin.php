@@ -301,6 +301,7 @@ class Y4APK_Members_Admin {
 			</div>
 			<?php if ($desc !== '') : ?><p class="y4rv-desc"><?php echo esc_html($desc); ?></p><?php endif; ?>
 			<?php self::codes($p->ID); ?>
+			<?php $xs = class_exists('Y4APK_Executors') ? array_filter(array_map('intval', (array) get_post_meta($p->ID, Y4APK_Executors::ON_SCRIPT, true))) : []; if ($xs) : ?><p class="y4rv-hosts"><?php esc_html_e('Works with:', 'y4apk'); ?> <?php echo esc_html(implode(', ', array_map('get_the_title', $xs))); ?></p><?php endif; ?>
 			<div class="y4rv-decide">
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4rv-approve">
 					<input type="hidden" name="action" value="y4apk_review_approve"><input type="hidden" name="post" value="<?php echo esc_attr($p->ID); ?>">

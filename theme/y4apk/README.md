@@ -638,6 +638,82 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Share a game or app, search suggestions, executors (2.44)
+
+**Share a game or app.** Members share a game's or app's file at
+`/upload/game/` and `/upload/app/` (a Script / Game / App switch sits on top of
+both wizards; "Share a game or app" is in the header's member menu and on My
+uploads). Five steps:
+
+1. *Find it*: a Google Play link, package or name finds it on Google Play
+   (name, icon, developer, rating, version) and on the site. If the site has it
+   already, the member sends a newer version of that post. If it is not on
+   Google Play, it is added by hand with an icon.
+2. *Category*: the Games or Apps categories of the header's menu, picked from
+   Google Play's genre when they match.
+3. *Details*: version, what is modded (chips, or "Original"), Android version, a
+   few words.
+4. *The file*: APK, XAPK, APKS, APKM, ZIP or OBB, up to 10 GB, plus an optional
+   OBB or data file. Files go from the browser straight to R2 (S3 multipart:
+   16 MB+ parts, four at a time, through links the server signs), so they never
+   pass through Hostinger. A failed part is tried again. Pause and Resume work,
+   and a stopped upload carries on after the page was closed: the browser
+   remembers the parts that arrived, and choosing the same file again resumes.
+   The server checks the size, and that an APK, XAPK, APKS, APKM or ZIP really
+   is a ZIP inside (a renamed .exe is refused and deleted).
+5. *Review and send*: a preview of the post. The member ticks that the file is
+   safe and fine to share.
+
+It waits, hidden, in Y4APK ▸ Review, with *Download to check* for each file.
+**Approve** makes the post like the site's own: a download folder in
+`files/up` pointing at each file on R2 (as App updates makes them), the
+download rows, App Information and the category. Then it either goes live at
+once (Write with AI then fetches the icon and screenshots in the background),
+or Write with AI writes the article first and publishes it when done. A newer
+version goes into the existing post instead: its download folder now points at
+the new file, and the version follows in the title and Rank Math's titles.
+**Send back** emails the member what to change; they edit it from My uploads
+and send it again. The member is emailed when it is live, and the post shows
+"Shared by @name".
+
+My uploads (the member's dashboard) lists scripts, games and apps together, with
+their state (In review, Approved, going live, Live, Needs changes), Edit,
+*Newer version* for a live one, and Delete. Files uploaded but never used, and
+uploads never finished, are removed from R2 after two days. A waiting upload
+that is deleted, or belongs to a banned member, takes its files with it.
+Settings (Y4APK ▸ Members): sharing on/off, biggest file (10 GB), per member
+per day (3), waiting at most (5), and whether Write with AI is the default.
+
+**Search suggestions.** As visitors type in the search box, matching games,
+apps, scripts, Roblox games, executors and articles show under it, with icons,
+kind, category and version, and the typed words highlighted. Arrow keys and
+Enter work, and "See all results" leads to the usual search page. Before they
+type, the box shows their recent searches (kept only in their browser, each
+removable) and the six most read posts. It asks `suggest.php` in the theme's
+folder: WordPress with SHORTINIT (database only, like `views.php`), a LIKE on
+published titles, answered with `Cache-Control` so Cloudflare keeps each answer
+for a while. Addresses, categories and the popular list are prepared hourly
+(and when posts or categories change) in the `y4apk_suggest_cfg` and
+`y4apk_suggest_top` options. Searches are not stored on the server.
+
+**Executors.** Y4APK ▸ Executors keeps the Roblox executors: name, maker,
+logo (the featured image), banner, the systems it runs on (Windows, Mac,
+Android, iOS), status (Working, updated for current Roblox / Outdated / Status
+unknown), price, key system or keyless, sUNC %, version, and a page of text.
+Each download row is a file uploaded from the browser straight to R2 (APK, ZIP,
+EXE, MSI, DMG, IPA, 7Z, RAR; it gets a download folder in `files/up` on Save)
+or a link to the maker's site. `/executors/` lists them as cards, working ones
+first, with filters for system and status and a search. Each one has its page
+at `/executors/<name>/`, with the download buttons (the Direct Link ad opens on
+the tap, as on game pages), how to use it, and the scripts tested with it.
+Downloads are counted with the site's analytics (`executor_dl`). When members
+share a script, they tick the executors it works with. Admins can set them in
+the post editor's "Tested with executors" box. The script's page shows them as
+"Tested with" chips with a status dot, and step 2, "Open your executor",
+leads to `/executors/`. The Roblox menu and the Roblox page link there too.
+Both pages carry a note that executors are other people's apps, that Roblox
+does not allow them, and that they are used at your own risk.
+
 ## The Dashboard, where members come from, Pictures, phones (2.43)
 
 **The Dashboard** (Y4APK ▸ Dashboard) is the whole width of the screen and in

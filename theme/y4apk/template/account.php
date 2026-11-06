@@ -783,6 +783,14 @@ if ($screen === 'login') {
 								<input type="hidden" name="keysys" value="0">
 								<label class="acc-chip"><input type="checkbox" name="keysys" value="1" <?php checked($keysys); ?>><span><?php echo $icon('key'); ?><?php esc_html_e('Key system', 'y4apk'); ?></span></label>
 							</div>
+							<?php $execs = class_exists('Y4APK_Executors') ? Y4APK_Executors::all() : []; if ($execs) : $on_x = array_map('intval', (array) $v('executors', [])); ?>
+							<p class="acc-wiz-small"><?php esc_html_e('Which executors does it work with? Tick the ones you tried (optional).', 'y4apk'); ?></p>
+							<div class="acc-wiz-chips acc-execs">
+								<?php foreach ($execs as $x) : $xd = Y4APK_Executors::data($x->ID); ?>
+								<label class="acc-chip acc-exec"><input type="checkbox" name="executors[]" value="<?php echo esc_attr($x->ID); ?>" <?php checked(in_array((int) $x->ID, $on_x, true)); ?>><span><?php echo Y4APK_Executors::mark($x->ID, 20); ?><?php echo esc_html($x->post_title); ?><i class="acc-exec-dot is-<?php echo esc_attr($xd['status']); ?>" title="<?php echo esc_attr(Y4APK_Executors::statuses()[$xd['status']][0]); ?>"></i></span></label>
+								<?php endforeach; ?>
+							</div>
+							<?php endif; ?>
 						</div>
 					</div>
 					<div class="acc-field acc-wiz-about">

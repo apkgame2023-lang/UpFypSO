@@ -31,7 +31,8 @@ get_header();
 				</div>
 				<?php if (class_exists('Y4APK_Members') && Y4APK_Members::open()) : ?>
 				<div class="rbx-hero-actions"><a class="rbx-btn rbx-btn-play" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? 'submit' : 'register')); ?>"><?php esc_html_e('Share your script', 'y4apk'); ?></a>
-					<a class="rbx-btn rbx-btn-ghost" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? '' : 'login')); ?>"><?php echo esc_html(is_user_logged_in() ? __('My scripts', 'y4apk') : __('Sign in', 'y4apk')); ?></a></div>
+					<a class="rbx-btn rbx-btn-ghost" href="<?php echo esc_url(Y4APK_Members::url(is_user_logged_in() ? '' : 'login')); ?>"><?php echo esc_html(is_user_logged_in() ? __('My scripts', 'y4apk') : __('Sign in', 'y4apk')); ?></a>
+					<?php if (class_exists('Y4APK_Executors') && Y4APK_Executors::all()) : ?><a class="rbx-btn rbx-btn-ghost" href="<?php echo esc_url(get_post_type_archive_link(Y4APK_Executors::CPT)); ?>"><?php esc_html_e('Executors', 'y4apk'); ?></a><?php endif; ?></div>
 				<?php endif; ?>
 				<?php if (count($games) >= 3) : ?>
 				<div class="rbx-hero-art" aria-hidden="true">

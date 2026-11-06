@@ -215,10 +215,11 @@ class Y4APK_Scripts {
 				<?php if ($rbx) : ?>
 				<ol class="y4s-how">
 					<li><b>1</b><span><?php esc_html_e('Copy the script', 'y4apk'); ?></span></li>
-					<li><b>2</b><span><?php esc_html_e('Open your executor in Roblox', 'y4apk'); ?></span></li>
+					<li><b>2</b><span><?php if (class_exists('Y4APK_Executors') && Y4APK_Executors::all()) : ?><a href="<?php echo esc_url(get_post_type_archive_link(Y4APK_Executors::CPT)); ?>"><?php esc_html_e('Open your executor in Roblox', 'y4apk'); ?></a><?php else : esc_html_e('Open your executor in Roblox', 'y4apk'); endif; ?></span></li>
 					<li><b>3</b><span><?php esc_html_e('Paste it and press Execute', 'y4apk'); ?></span></li>
 				</ol>
 				<?php endif; ?>
+				<?php if (class_exists('Y4APK_Executors')) { echo Y4APK_Executors::tested_with($post_id); } // the executors it works with (2.44) ?>
 				<?php if (class_exists('Y4APK_Members_Admin') && $rbx) { Y4APK_Members_Admin::report_ui($post_id); } ?>
 			</div>
 		</div>

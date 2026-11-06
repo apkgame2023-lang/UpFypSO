@@ -1196,10 +1196,11 @@ class Y4APK_Members {
 				}
 				$ctx['old'] = ['game' => $game ? $game->term_id : 0, 'game_new' => (string) get_post_meta($post->ID, self::WANTED, true), 'hub' => $hub,
 					'keyless' => Y4APK_Roblox::keyless($post->post_title) ? 1 : 0, 'desc' => $desc, 'codes' => Y4APK_Scripts::get($post->ID),
+					'executors' => class_exists('Y4APK_Executors') ? array_map('intval', (array) get_post_meta($post->ID, Y4APK_Executors::ON_SCRIPT, true)) : [],
 					'scope' => $game && strtolower($game->name) === 'universal' ? 'universal' : 'game'];
 			}
 		} elseif (empty($ctx['old'])) {
-			$ctx['old'] = ['game' => 0, 'game_new' => '', 'hub' => '', 'keyless' => 1, 'desc' => '', 'scope' => 'game', 'codes' => [['label' => '', 'code' => '']]];
+			$ctx['old'] = ['game' => 0, 'game_new' => '', 'hub' => '', 'keyless' => 1, 'desc' => '', 'scope' => 'game', 'codes' => [['label' => '', 'code' => '']], 'executors' => []];
 		}
 		if (!self::is_verified($user->ID)) {
 			$ctx['screen'] = 'unverified';
@@ -1227,7 +1228,8 @@ class Y4APK_Members {
 				$rows[] = ['label' => trim(mb_substr(sanitize_text_field(isset($labels[$i]) ? (string) $labels[$i] : ''), 0, 30)), 'code' => $c];
 			}
 		}
-		$old = ['game' => $game, 'game_new' => $game_new, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'scope' => $scope, 'codes' => $rows ?: [['label' => '', 'code' => '']]];
+		$execs = array_slice(array_values(array_unique(array_filter(array_map('absint', isset($_POST['executors']) ? (array) wp_unslash($_POST['executors']) : [])))), 0, 20); // the executors it works with (2.44)
+		$old = ['game' => $game, 'game_new' => $game_new, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'scope' => $scope, 'codes' => $rows ?: [['label' => '', 'code' => '']], 'executors' => $execs];
 		$step = 4; // the wizard's step to open again: the first one with a mistake
 
 		$term = $game && $scope === 'game' ? get_term($game, Y4APK_Roblox::TAX) : null;
@@ -1303,7 +1305,7 @@ class Y4APK_Members {
 			$old['game'] = (int) $term->term_id;
 			$old['game_new'] = '';
 		}
-		return [['game' => $term, 'universal' => $scope === 'universal', 'game_new' => $game_new, 'game_label' => $game_label, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'rows' => $rows, 'hosts' => array_keys($hosts), 'hashes' => $hashes], $err, $old];
+		return [['game' => $term, 'universal' => $scope === 'universal', 'game_new' => $game_new, 'game_label' => $game_label, 'hub' => $hub, 'desc' => $desc, 'keyless' => $keyless, 'rows' => $rows, 'hosts' => array_keys($hosts), 'hashes' => $hashes, 'executors' => $execs], $err, $old];
 	}
 
 	private static function save_script($user, $d, $existing = null) {
@@ -1337,6 +1339,9 @@ class Y4APK_Members {
 		update_post_meta($id, self::MEMBER_POST, 1);
 		delete_post_meta($id, self::REJECT);
 		Y4APK_Scripts::put($id, $d['rows']);
+		if (class_exists('Y4APK_Executors')) {
+			Y4APK_Executors::put_on_script($id, isset($d['executors']) ? $d['executors'] : []);
+		}
 		update_post_meta($id, self::HOSTS, $d['hosts']);
 		delete_post_meta($id, self::HASHES);
 		foreach ($d['hashes'] as $h) {

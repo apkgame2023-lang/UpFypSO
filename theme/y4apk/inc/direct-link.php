@@ -152,7 +152,8 @@ class Y4APK_Direct_Link {
 	}
 
 	public static function front() {
-		if (!is_singular('post') || get_query_var('download', null) !== null) {
+		$exec = is_singular('y4apk_executor'); // an executor's page (2.44): its download buttons too
+		if ((!is_singular('post') && !$exec) || get_query_var('download', null) !== null) {
 			return; // game pages only, not their download pages
 		}
 		$s = self::settings();
@@ -160,7 +161,7 @@ class Y4APK_Direct_Link {
 		if (!$links || $s['mode'] === 'off') {
 			return;
 		}
-		if ($s['mode'] === 'unlock') {
+		if ($s['mode'] === 'unlock' && !$exec) {
 			self::unlock_box($links, (string) $s['image']);
 		} else {
 			self::download_script($links, (string) $s['every']);
@@ -196,7 +197,7 @@ class Y4APK_Direct_Link {
 	}
 	document.addEventListener('click', function (e) {
 		var a = e.target.closest && e.target.closest('a[href]');
-		if (!a || a.host !== location.host || !/\/download\/\d+\/?$/.test(a.pathname)) return;
+		if (!a || !(a.hasAttribute('data-y4x-dl') || (a.host === location.host && /\/download\/\d+\/?$/.test(a.pathname)))) return;
 		if (<?php echo self::in_app_js(); ?> || !due()) return; // never inside the installed app
 		done();
 		if (window.y4apkTrack) window.y4apkTrack('direct_link', 'download');

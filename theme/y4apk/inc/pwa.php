@@ -793,7 +793,7 @@ class Y4APK_PWA {
 		if (c.ga && typeof window.gtag === 'function') window.gtag('event', 'y4apk_' + event, { y4apk_detail: detail || '' });
 		// Taps that lead straight to another page or tab go out now, while the
 		// page is still here; everything else waits to share one request.
-		if (/^(banner_tap|direct_link|file_download|pwa_accepted)$/.test(event)) return flush();
+		if (/^(banner_tap|direct_link|file_download|pwa_accepted|executor_dl)$/.test(event)) return flush();
 		clearTimeout(flushTimer);
 		flushTimer = setTimeout(flush, 3000);
 	};

@@ -18,4 +18,5 @@ return [
 	'file_download' => 'Download button on a download page',
 	'direct_link'   => 'Direct Link ad opened',
 	'direct_link_n' => 'Direct Link ad opened, by link',
+	'executor_dl'   => 'Executor download, by executor',
 ];
