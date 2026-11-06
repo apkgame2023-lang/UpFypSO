@@ -467,7 +467,13 @@ class Y4APK_Executors {
 		$d = self::data($id);
 		if ($col === 'y4x_status') {
 			$s = self::statuses()[$d['status']] ?? ['', ''];
-			echo '<span style="font-weight:600;color:' . ($d['status'] === 'working' ? '#0a7a2f' : ($d['status'] === 'outdated' ? '#b32d2e' : '#646970')) . '">● ' . esc_html($s[0]) . '</span>';
+			static $css = false;
+			if (!$css) {
+				$css = true; // the live dot (2.48), once for the list
+				echo '<style>.y4x-st{display:inline-flex;align-items:center;gap:7px;font-weight:600}.y4x-st i{position:relative;width:8px;height:8px;border-radius:50%;background:#8c8f94}.y4x-st.is-working{color:#0a7a2f}.y4x-st.is-working i{background:#1faa55}.y4x-st.is-outdated{color:#b32d2e}.y4x-st.is-outdated i{background:#e5484d}'
+					. '.y4x-st.is-working i::after,.y4x-st.is-outdated i::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:y4pulse 1.8s ease-out infinite}.y4x-st.is-outdated i::after{animation-duration:1.4s}@keyframes y4pulse{0%{transform:scale(1);opacity:.75}80%,100%{transform:scale(2.8);opacity:0}}@media (prefers-reduced-motion:reduce){.y4x-st i::after{animation:none;opacity:0}}</style>';
+			}
+			echo '<span class="y4x-st is-' . esc_attr($d['status']) . '"><i aria-hidden="true"></i>' . esc_html($s[0]) . '</span>';
 		} elseif ($col === 'y4x_on') {
 			echo esc_html(implode(', ', array_map(function ($p) { return self::platforms()[$p]; }, $d['platforms'])));
 		} elseif ($col === 'y4x_dl') {

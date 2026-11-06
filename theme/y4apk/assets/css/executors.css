@@ -169,3 +169,10 @@ html.y4x-lock { overflow: hidden; }
 	@keyframes y4x-up { from { transform: translateY(100%); } }
 }
 .y4x-tested, .y4x-sheet { --x-ink: #172021; --x-mute: rgba(23, 32, 33, .58); --x-line: rgba(23, 32, 33, .09); --x-blue: #29b1d8; --x-green: #1faa55; --x-red: #e5484d; --x-gray: #8a979a; }
+
+/* Live status (2.48): a green (working) or red (outdated) dot keeps sending out a ring, as the post's "Updated" dot does — on every page and panel */
+@keyframes y4pulse { 0% { transform: scale(1); opacity: .75; } 80%, 100% { transform: scale(2.8); opacity: 0; } }
+.y4x-dot.is-working, .y4x-dot.is-outdated { position: relative; }
+.y4x-dot.is-working::after, .y4x-dot.is-outdated::after, .y4x-chip.is-working i::after, .y4x-chip.is-outdated i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: inherit; animation: y4pulse 1.8s ease-out infinite; pointer-events: none; }
+.y4x-dot.is-outdated::after, .y4x-chip.is-outdated i::after { animation-duration: 1.4s; }
+@media (prefers-reduced-motion: reduce) { .y4x-dot::after, .y4x-chip i::after { animation: none; opacity: 0; } }

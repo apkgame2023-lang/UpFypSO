@@ -638,6 +638,22 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Live status dots (2.48)
+
+Every green (working, live, online) and red (outdated, needs changes) dot now
+pulses: it keeps sending out a ring of its own colour, as the post's
+"Updated …" dot does. That covers:
+- executors: the pills on the executors page and on each executor's page, the
+  ribbon on each card, the Working / Outdated filters, *At a glance*, the
+  *Get Executors* chips and their panel on a script's page, the executors in
+  the script form, and the Status column in the admin list;
+- My uploads: LIVE and *Needs changes*, and "v… is out";
+- admin: the Dashboard's dots (good, bad, online now) and *Online* on the
+  Members page.
+
+Amber and grey dots stay still. Red pulses a little faster than green. With
+"reduce motion" set on the device, the dots stay still.
+
 ## Versions from members: short links, a paged grid, new-version emails (2.47)
 
 **Short links.** A member's version has a short, random address:
