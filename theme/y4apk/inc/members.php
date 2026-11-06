@@ -159,6 +159,24 @@ class Y4APK_Members {
 		return $args ? add_query_arg($args, $url) : $url;
 	}
 
+	/** ?next= on the sign-in page: 'upload', or 'game' / 'app' (with ?newer=, 2.46: "Share your version" on a post). */
+	public static function next_args() {
+		$next = isset($_GET['next']) ? sanitize_key(wp_unslash($_GET['next'])) : '';
+		if (!in_array($next, ['upload', 'game', 'app'], true)) {
+			return [];
+		}
+		return array_filter(['next' => $next, 'newer' => $next !== 'upload' ? absint($_GET['newer'] ?? 0) : 0]);
+	}
+
+	/** Where signing in goes: back to the upload the visitor started, or My uploads. */
+	public static function next_url() {
+		$a = self::next_args();
+		if (!$a) {
+			return self::url();
+		}
+		return $a['next'] === 'upload' ? self::url('submit') : self::url('share/' . $a['next'], !empty($a['newer']) ? ['newer' => $a['newer']] : []);
+	}
+
 	public static function profile_url($user) {
 		return home_url('/@' . rawurlencode($user->user_login));
 	}
@@ -631,7 +649,8 @@ class Y4APK_Members {
 			self::do_logout($ctx); // signs out, or asks first (screen 'logout')
 		}
 		if (!$ctx['user'] && in_array($view, $members_only, true)) {
-			wp_safe_redirect(self::url('login', $view === 'submit' || $view === 'share' ? ['next' => 'upload'] : []));
+			$next = $view === 'share' ? array_filter(['next' => get_query_var('y4_kind') === 'app' ? 'app' : 'game', 'newer' => absint($_GET['newer'] ?? 0)]) : ['next' => 'upload'];
+			wp_safe_redirect(self::url('login', $view === 'submit' || $view === 'share' ? $next : []));
 			exit;
 		}
 		if ($ctx['user'] && !$ctx['member'] && in_array($view, $members_only, true)) {
@@ -893,7 +912,7 @@ class Y4APK_Members {
 		wp_set_current_user($user->ID);
 		wp_set_auth_cookie($user->ID, !empty($_POST['remember']), is_ssl());
 		do_action('wp_login', $user->user_login, $user);
-		wp_safe_redirect(isset($_GET['next']) && $_GET['next'] === 'upload' ? self::url('submit') : self::url());
+		wp_safe_redirect(self::next_url());
 		exit;
 	}
 
@@ -1482,6 +1501,9 @@ class Y4APK_Members {
 		$d = ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($post->ID)), 'link' => get_permalink($post->ID)];
 		if (class_exists('Y4APK_Share') && Y4APK_Share::is_share($post->ID)) {
 			delete_post_meta($post->ID, Y4APK_Share::OK);
+			if (class_exists('Y4APK_Versions') && ($parent = Y4APK_Versions::parent_of($post->ID))) {
+				$d['under'] = Y4APK_Versions::app_name($parent); // a version under a main post (2.46)
+			}
 			self::mail($user->user_email, __('Your upload is live', 'y4apk'), Y4APK_Share::message('live', $d));
 			return;
 		}

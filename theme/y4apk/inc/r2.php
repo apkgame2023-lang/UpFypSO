@@ -290,6 +290,30 @@ HTML;
 	 * Multipart steps for other uploaders (members' games and apps, 2.44)
 	 * ---------------------------------------------------------------- */
 
+	/**
+	 * The files on R2 whose names start with $prefix (2.46, to find a post's own
+	 * file again): [['key', 'size', 'time'], …] newest first, or a WP_Error.
+	 */
+	public static function list_keys($prefix, $max = 100) {
+		$r = self::call('GET', '', ['list-type' => '2', 'prefix' => (string) $prefix, 'max-keys' => (string) max(1, min(1000, (int) $max))]);
+		if (is_wp_error($r) || $r[0] !== 200) {
+			return self::r2_error($r, __('Listing the files', 'y4apk'));
+		}
+		$out = [];
+		if (preg_match_all('~<Contents>(.*?)</Contents>~s', $r[1], $m)) {
+			foreach ($m[1] as $c) {
+				if (preg_match('~<Key>(.*?)</Key>~s', $c, $k)) {
+					$out[] = ['key' => html_entity_decode($k[1], ENT_QUOTES | ENT_XML1, 'UTF-8'), 'size' => preg_match('~<Size>(\d+)</Size>~', $c, $z) ? (float) $z[1] : 0,
+						'time' => preg_match('~<LastModified>(.*?)</LastModified>~', $c, $t) ? (int) strtotime($t[1]) : 0];
+				}
+			}
+		}
+		usort($out, function ($a, $b) {
+			return $b['time'] <=> $a['time'];
+		});
+		return $out;
+	}
+
 	/** Starts a multipart upload at $key: its upload ID, or a WP_Error. */
 	public static function mp_start($key, $type = 'application/octet-stream') {
 		$r = self::call('POST', $key, ['uploads' => ''], '', ['Content-Type' => $type]);

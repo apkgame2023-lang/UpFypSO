@@ -93,7 +93,8 @@ class Y4APK_Suggest {
 		// Popular: the most read posts of the last year, and the Roblox games by their scripts
 		global $wpdb;
 		$ids = $wpdb->get_col($wpdb->prepare("SELECT p.ID FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} v ON v.post_id = p.ID AND v.meta_key = 'wpb_post_views_count'
-			WHERE p.post_type = 'post' AND p.post_status = 'publish' AND p.post_modified > %s ORDER BY CAST(v.meta_value AS UNSIGNED) DESC LIMIT 8", gmdate('Y-m-d H:i:s', time() - YEAR_IN_SECONDS)));
+			LEFT JOIN {$wpdb->postmeta} k ON k.post_id = p.ID AND k.meta_key = '_y4apk_parent'
+			WHERE p.post_type = 'post' AND p.post_status = 'publish' AND k.post_id IS NULL AND p.post_modified > %s ORDER BY CAST(v.meta_value AS UNSIGNED) DESC LIMIT 8", gmdate('Y-m-d H:i:s', time() - YEAR_IN_SECONDS)));
 		$top = [];
 		foreach ($ids as $id) {
 			$top[] = self::item((int) $id, $cfg);

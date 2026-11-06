@@ -638,6 +638,58 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Versions from members (2.46)
+
+A member who shares a game or app the site already has no longer changes the
+site's post. Their upload is **their own post**, linked to the site's post
+(the *main post*). It is listed on the main post's page, the way a Roblox game
+lists its scripts.
+
+**On the main post's page**, under the downloads, *Versions from members*:
+- each version as a card: the member's picture and name, the version, MOD or
+  Original with what is modded, the date, views, the file type and size;
+- newest first, ten shown and *Show N more* for the rest (up to 100);
+- *Share your version*, which opens the game (or app) wizard with this post
+  already picked. With no versions yet, the box only invites members to share.
+
+**A member's version** is a post of its own:
+- its title ends with "by <name>", and *Shared by* shows who it is;
+- the breadcrumb is Home → … → *Chicken Gun* → *v6.0.32 by Dez*;
+- *More versions of Chicken Gun* lists the main post first (*Main post*), then
+  the other members' versions;
+- it has its own download folders, pointing at the member's file on R2;
+- it takes the main post's icon, category, developer and Android version, and
+  never Google Play's ID, so App updates and Write with AI leave it alone;
+- it has no *Notify me when updated* (people follow the main post).
+
+The site's lists show main posts only: home, categories, tags, search, feeds,
+*Similar*, and the search box's suggestions. A member's profile and My uploads
+still list their own versions. A version of a version goes under the same main
+post. If a main post is deleted for good, its versions become posts on their own.
+
+**Review.** A version says "A member's own version of <post>: approving
+publishes it as their post, listed on that page. Your post and its file stay as
+they are." The button is *Approve: publish under <name>*. There is no category
+choice and no Write with AI: it goes live as the member wrote it, and the
+member's email says which page lists it.
+
+**What 2.44–2.45 did, undone.** Then, approving a newer version pointed the main
+post's download at the member's file and put the member's version into its
+title and size. On the first admin page after the update:
+- each version approved that way comes back to Review, as the member's own post
+  under that main post;
+- versions still waiting become versions under their post.
+
+Review also shows **Put your post's own file back**. For each main post whose
+download still gives a member's file, it lists the post's other files on R2
+(the same name, newest first, APK and OBB apart). *Use this file* points the
+download page back at it, with the row's size and version. The version is read
+from the file's name, and the title and Rank Math titles get it back. The
+"Updated" date does not move. You can also paste a file's address and version,
+or press *Keep it as it is*. If you cannot tell which file was there, Hostinger's
+backups have each download page (`files/up/<folder>/default.php`), and the box
+names the folders.
+
 ## Members' accounts, Analytics, Get Executors, fixes (2.45)
 
 **Y4APK ▸ Members ▸ Accounts** lists every member account, 50 a page. Tiles at

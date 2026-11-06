@@ -520,7 +520,7 @@ class Y4APK_Push {
 
 	public static function button($post_id) {
 		$vapid = self::ready() && get_post_status($post_id) === 'publish' ? self::vapid() : null;
-		if (!$vapid) {
+		if (!$vapid || get_post_meta($post_id, '_y4apk_parent', true)) { // a member's version (2.46) is not updated: people follow the main post
 			return;
 		}
 		$config = [

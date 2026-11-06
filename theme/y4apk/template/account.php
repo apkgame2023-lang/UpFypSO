@@ -92,7 +92,7 @@ $shell_close = function () {
 	echo '</div></div>';
 };
 $form_open = function ($do, $extra = '') {
-	$args = isset($_GET['next']) && $_GET['next'] === 'upload' ? ['next' => 'upload'] : []; // sign in, then back to /upload/
+	$args = Y4APK_Members::next_args(); // sign in, then back to /upload/ (or the game wizard, with its post)
 	echo '<form class="acc-form" method="post" action="' . esc_url(Y4APK_Members::url(Y4APK_Members::$ctx['view'] === 'edit' ? 'edit/' . absint(get_query_var('y4_id')) : Y4APK_Members::$ctx['view'], $args)) . '"' . $extra . '>';
 	echo '<input type="hidden" name="y4_do" value="' . esc_attr($do) . '">' . Y4APK_Members::nonce($do);
 };
@@ -481,7 +481,7 @@ if ($screen === 'login') {
 				<div class="acc-item-actions">
 					<?php if ($live) : ?><a class="acc-ico" href="<?php echo esc_url(get_permalink($p)); ?>" title="<?php esc_attr_e('Open', 'y4apk'); ?>"><?php echo $si('open'); ?><span class="sr-only"><?php esc_html_e('Open', 'y4apk'); ?></span></a><?php endif; ?>
 					<?php if ($sd && $live) : ?>
-					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('share/' . $sd['kind'], ['newer' => $p->ID])); ?>"><?php echo $si('plus'); ?><?php esc_html_e('Newer version', 'y4apk'); ?></a>
+					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('share/' . $sd['kind'], ['newer' => $p->ID])); ?>"><?php echo $si('plus'); ?><?php esc_html_e('Add a version', 'y4apk'); ?></a>
 					<?php elseif ($can_edit || !$sd) : ?>
 					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php echo $si('edit'); ?><?php esc_html_e('Edit', 'y4apk'); ?></a>
 					<?php endif; ?>

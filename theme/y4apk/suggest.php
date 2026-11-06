@@ -85,7 +85,8 @@ foreach ($words as $w) {
 $in = implode(',', array_fill(0, count($types), '%s'));
 $rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_title, p.post_name, p.post_type, CAST(v.meta_value AS UNSIGNED) AS views FROM {$wpdb->posts} p
 	LEFT JOIN {$wpdb->postmeta} v ON v.post_id = p.ID AND v.meta_key = 'wpb_post_views_count'
-	WHERE p.post_status = 'publish' AND p.post_type IN ($in) AND " . implode(' AND ', $where) . ' ORDER BY views DESC LIMIT 60', array_merge($types, $args)));
+	LEFT JOIN {$wpdb->postmeta} k ON k.post_id = p.ID AND k.meta_key = '_y4apk_parent'
+	WHERE p.post_status = 'publish' AND p.post_type IN ($in) AND k.post_id IS NULL AND " . implode(' AND ', $where) . ' ORDER BY views DESC LIMIT 60', array_merge($types, $args)));
 $scored = [];
 foreach ((array) $rows as $r) {
 	$t = $low(html_entity_decode($r->post_title, ENT_QUOTES, 'UTF-8'));

@@ -197,8 +197,12 @@ class Y4APK_Members_Admin {
 			'nogame' => __('Choose the game (or type a new one) before approving.', 'y4apk'), 'noreason' => __('Write what the member should change.', 'y4apk'),
 			'shared' => __('Approved: it is live with its download, and the member was told.', 'y4apk'), 'writing' => __('Approved: Write with AI writes its article, icon and screenshots, then it goes live and the member is told.', 'y4apk'),
 			'merged' => __('Approved: the newer version is in that post now, and the member was told.', 'y4apk'),
+			'under' => __('Approved: it is live as the member’s own post, listed on the main post’s page, and the member was told.', 'y4apk'),
 			'sharefail' => __('Could not approve it:', 'y4apk') . ' ' . (isset($_GET['why']) ? sanitize_text_field(rawurldecode(wp_unslash($_GET['why']))) : '')];
 		$msg = isset($_GET['msg'], $msgs[$_GET['msg']]) ? $msgs[$_GET['msg']] : '';
+		if (isset($_GET['restored']) && in_array($_GET['restored'], ['ok', 'kept'], true)) {
+			$msg = $_GET['restored'] === 'ok' ? __('Your post’s download gives its own file again.', 'y4apk') : __('Kept as it is.', 'y4apk');
+		}
 		$bad = isset($_GET['msg']) && in_array($_GET['msg'], ['nogame', 'noreason', 'gone', 'sharefail'], true);
 		$pending = get_posts(['post_type' => 'post', 'post_status' => 'pending', 'meta_key' => Y4APK_Members::MEMBER_POST, 'numberposts' => 50, 'orderby' => 'date', 'order' => 'ASC']);
 		$reported = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => self::REPORTS, 'numberposts' => 50]);
@@ -211,6 +215,9 @@ class Y4APK_Members_Admin {
 			<?php if ($msg) : ?><div class="notice <?php echo $bad ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($msg); ?></p></div><?php endif; ?>
 			<p class="description"><?php esc_html_e('Scripts, games and apps members sent. Nothing shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'); ?></p>
 
+			<?php if (class_exists('Y4APK_Versions')) {
+				Y4APK_Versions::restore_box(); // 2.46: a post a 2.44–2.45 approval pointed at a member's file
+			} ?>
 			<h2><?php echo esc_html(sprintf(_n('%s waiting for review', '%s waiting for review', count($pending), 'y4apk'), number_format_i18n(count($pending)))); ?></h2>
 			<?php if (!$pending) : ?><div class="y4rv-empty"><?php esc_html_e('Nothing is waiting. 🎉', 'y4apk'); ?></div><?php endif; ?>
 			<?php foreach ($pending as $p) {

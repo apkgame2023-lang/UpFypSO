@@ -12,6 +12,7 @@
 	  get_template_part('components/single/single-meta');
 	  get_template_part('components/single/single-whatsnew');
 	  get_template_part('components/single/single-download-links');
+	  get_template_part('components/single/single-member-versions'); // 2.46: members' own versions of this game or app
 	  get_template_part('components/single/single-install');
 	  get_template_part('components/single/single-info');
 	  ?>

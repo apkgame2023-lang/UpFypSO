@@ -100,7 +100,20 @@ function breadcrumbsX() {
 				}
 			}
 			
-			if($is_current_page) echo $sep . $before . sprintf( $current, $app_name ) . $after;
+			// A member's version (2.46): Home → Games → Action → Chicken Gun → v6.0.32 by Dez
+			$y4_parent = class_exists('Y4APK_Versions') ? Y4APK_Versions::parent_of($post_id) : 0;
+			if ($y4_parent) {
+				echo $sep . $before . sprintf( $link, esc_url(get_permalink($y4_parent)), esc_html(Y4APK_Versions::app_name($y4_parent)) ) . $after;
+				$item_list[] = array(
+					"@type" => "ListItem",
+					"position" => count($item_list) + 1,
+					"name" => Y4APK_Versions::app_name($y4_parent),
+					"item" => get_permalink($y4_parent)
+				);
+				$app_name = Y4APK_Versions::label($post_id);
+			}
+
+			if($is_current_page) echo $sep . $before . sprintf( $current, esc_html($app_name) ) . $after;
 			
 			$item_list[] = array(
 				"@type" => "ListItem",
