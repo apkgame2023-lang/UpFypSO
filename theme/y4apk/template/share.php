@@ -120,13 +120,9 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 
 			<!-- 1. What -->
 			<section class="acc-wiz-step" data-step="1">
-				<h2 class="acc-wiz-title"><?php esc_html_e('What are you sharing?', 'y4apk'); ?></h2>
+				<h2 class="acc-wiz-title"><?php echo esc_html($kind === 'app' ? __('Which app is it?', 'y4apk') : __('Which game is it?', 'y4apk')); ?></h2>
 				<p class="acc-wiz-lead"><?php esc_html_e('Paste its Google Play link, or type its name. We fill in the rest.', 'y4apk'); ?></p>
-				<div class="acc-wiz-scope">
-					<label class="acc-wiz-opt"><input type="radio" name="kind" value="game" <?php checked($kind !== 'app'); ?> <?php disabled($editing); ?>><span class="acc-wiz-opt-text"><b><?php esc_html_e('A game', 'y4apk'); ?></b><small><?php esc_html_e('MOD or original, with its OBB if it has one', 'y4apk'); ?></small></span><span class="acc-wiz-opt-art"><?php echo $ic('pad'); ?></span></label>
-					<label class="acc-wiz-opt"><input type="radio" name="kind" value="app" <?php checked($kind === 'app'); ?> <?php disabled($editing); ?>><span class="acc-wiz-opt-text"><b><?php esc_html_e('An app', 'y4apk'); ?></b><small><?php esc_html_e('Premium, Pro or original apps', 'y4apk'); ?></small></span><span class="acc-wiz-opt-art"><?php echo $ic('app'); ?></span></label>
-					<?php if ($editing) : ?><input type="hidden" name="kind" value="<?php echo esc_attr($kind); ?>"><?php endif; ?>
-				</div>
+				<input type="hidden" name="kind" value="<?php echo esc_attr($kind === 'app' ? 'app' : 'game'); ?>" data-f="kind"><?php // game or app: the switch above the wizard (2.45) ?>
 				<div class="acc-wiz-search shr-find" data-findbox>
 					<?php echo $ic('search'); ?>
 					<input type="text" data-q autocomplete="off" spellcheck="false" maxlength="200" placeholder="<?php esc_attr_e('play.google.com/store/apps/details?id=… or a name', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Find the game or app', 'y4apk'); ?>">
@@ -238,7 +234,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 					<li><?php esc_html_e('We check every file before it goes live, and email you when it does.', 'y4apk'); ?></li>
 					<li><?php esc_html_e('No viruses, no files that steal accounts, nothing you may not share: accounts that send them are closed.', 'y4apk'); ?></li>
 				</ul>
-				<label class="shr-agree"><input type="checkbox" name="agree" value="1" data-agree><span><?php esc_html_e('I checked this file: it is safe, and it is fine to share it.', 'y4apk'); ?></span></label>
+				<label class="shr-agree"><input type="checkbox" name="agree" value="1" data-agree <?php checked((bool) $v('agree', false)); ?>><span><?php esc_html_e('I checked this file: it is safe, and it is fine to share it.', 'y4apk'); ?></span></label>
 				<?php echo $M::trap_fields(); $M::turnstile_widget(); ?>
 				<div class="acc-wiz-nav"><button type="button" class="acc-btn acc-btn-ghost" data-back><?php echo $ic('back'); ?> <?php esc_html_e('Back', 'y4apk'); ?></button><button class="acc-btn acc-btn-primary" type="submit" data-send><?php echo esc_html($editing ? __('Save and send for review', 'y4apk') : __('Send for review', 'y4apk')); ?></button></div>
 			</section>
@@ -264,7 +260,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 	};
 	w.classList.add('is-js');
 	var err = $('[data-wiz-err]'), steps = $$('[data-step]'), cur = 1, reached = 1, pick = C.pick;
-	var kind = function () { var r = $('input[name="kind"]:checked'); return r ? r.value : 'game'; };
+	var kind = function () { return field('kind').value === 'app' ? 'app' : 'game'; };
 
 	/* ---- step 1: finding it ---- */
 	var q = $('[data-q]'), res = $('[data-results]'), chosen = $('[data-chosen]'), spin = $('[data-spin]'), manual = $('[data-manual]'), timer = 0, asked = '';
@@ -325,7 +321,6 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		else if (t.hasAttribute('data-cat')) { field('cat').value = t.getAttribute('data-cat'); cats(); }
 		else if (t.hasAttribute('data-add2')) { slots[1].el.hidden = false; t.hidden = true; }
 	});
-	$$('input[name="kind"]').forEach(function (r) { r.addEventListener('change', function () { asked = ''; field('cat').value = '0'; opts(); head(); cats(); if (q.value.trim()) { find(); } }); });
 	var iconFile = $('[data-icon-file]'), iconPrev = $('[data-icon-preview]');
 	iconFile.addEventListener('change', function () {
 		var fl = iconFile.files[0];
@@ -482,7 +477,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		n = Math.max(1, Math.min(5, n)); cur = n; reached = Math.max(reached, n);
 		steps.forEach(function (s) { s.hidden = +s.getAttribute('data-step') !== n; });
 		$$('.acc-wiz-steps li').forEach(function (li) { var k = +li.getAttribute('data-goto'); li.classList.toggle('is-on', k === n); li.classList.toggle('is-done', k < reached && k !== n && !problem(k)); li.classList.toggle('can-go', k <= reached); });
-		if (n === 5) { review(); }
+		if (n === 5) { review(); tsFresh(); }
 		head();
 		var top = w.getBoundingClientRect().top + window.pageYOffset - 80; if (window.pageYOffset > top) { window.scrollTo({ top: top, behavior: 'smooth' }); }
 	}
@@ -510,12 +505,26 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		var m = mods(); $('[data-r-mod]').textContent = m.length ? 'MOD: ' + m.join(' · ') : <?php echo wp_json_encode(__('Original, no mod', 'y4apk')); ?>;
 		$('[data-r-files]').innerHTML = slots.filter(function (s) { return s.state === 'done'; }).map(function (s) { return '<li><span class="shr-type">' + esc(s.label) + '</span><span>' + esc(s.name) + '</span><b>' + esc(s.sizeText) + '</b></li>'; }).join('');
 	}
-	function opts() { $$('.acc-wiz-opt').forEach(function (o) { o.classList.toggle('is-on', $('input', o).checked); }); var b = $('[data-head-title]'); if (b && !<?php echo $editing ? 'true' : 'false'; ?>) { b.textContent = kind() === 'app' ? <?php echo wp_json_encode(__('Share an app', 'y4apk')); ?> : <?php echo wp_json_encode(__('Share a game', 'y4apk')); ?>; } }
+	/* ---- Cloudflare's check: a token lives 5 minutes and an upload can take longer, so a fresh one at the last step ---- */
+	var ts = function () { return w.querySelector('.cf-turnstile'); }, tsAt = Date.now();
+	var tsToken = function () { var i = f.querySelector('[name="cf-turnstile-response"]'); return i ? i.value : ''; };
+	function tsFresh() { var el = ts(); if (el && window.turnstile && Date.now() - tsAt > 200000) { try { window.turnstile.reset(el); tsAt = Date.now(); } catch (e) {} } }
+	var sending = false;
 	f.addEventListener('submit', function (e) {
 		for (var n = 1; n <= 5; n++) { var p = problem(n); if (p) { e.preventDefault(); go(n); say(p); return; } }
-		var b = $('[data-send]'); setTimeout(function () { b.disabled = true; }, 0);
+		var b = $('[data-send]');
+		if (ts() && !tsToken()) { // the check has not answered yet: wait for it, then send
+			e.preventDefault();
+			if (sending) { return; }
+			sending = true; b.disabled = true; say('');
+			var t0 = Date.now(), wait = setInterval(function () {
+				if (tsToken()) { clearInterval(wait); f.submit(); }
+				else if (Date.now() - t0 > 25000) { clearInterval(wait); sending = false; b.disabled = false; say(<?php echo wp_json_encode(__('Could not confirm you are human. Tick the box above the button, then send again.', 'y4apk')); ?>); }
+			}, 300);
+			return;
+		}
+		setTimeout(function () { b.disabled = true; }, 0);
 	});
-	opts();
 	if (pick) { choose(pick); } else { cats(); }
 	reached = Math.max(1, Math.min(5, C.start));
 	go(C.start);

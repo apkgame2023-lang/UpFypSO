@@ -157,25 +157,100 @@ class Y4APK_Executors {
 			'meta_key' => 'wpb_post_views_count', 'orderby' => 'meta_value_num', 'order' => 'DESC']);
 	}
 
-	/** On a script's page: the executors it was tested with. */
+	/** Where a download row's file is: the file on R2 itself when it was uploaded here (downloads where you are), else its link. */
+	public static function file_url($f) {
+		if (!empty($f['key']) && class_exists('Y4APK_R2') && Y4APK_R2::can_store()) {
+			return Y4APK_R2::public_url($f['key']);
+		}
+		return (string) $f['url'];
+	}
+
+	/** How to put it on the device, in three short steps. */
+	public static function steps($platform) {
+		$s = [
+			'android' => [__('Download the APK', 'y4apk'), __('Open it and allow installing from your browser if Android asks', 'y4apk'), __('Open Roblox, then the executor, and paste the script', 'y4apk')],
+			'windows' => [__('Download it (unzip it if it is a ZIP)', 'y4apk'), __('Run it; Windows may ask before it opens an app from the internet', 'y4apk'), __('Open Roblox, attach the executor and paste the script', 'y4apk')],
+			'mac'     => [__('Download it and open the file', 'y4apk'), __('Move the app to Applications and open it', 'y4apk'), __('Open Roblox, then the executor, and paste the script', 'y4apk')],
+			'ios'     => [__('Download it on your iPhone or iPad', 'y4apk'), __('Install it the way its maker explains', 'y4apk'), __('Open Roblox, then the executor, and paste the script', 'y4apk')],
+		];
+		return isset($s[$platform]) ? $s[$platform] : $s['android'];
+	}
+
+	/**
+	 * On a script's page (2.45): "Get Executors" — the executors it was tested with.
+	 * Tapping one opens a panel on the page with its downloads (the file comes
+	 * straight down, the page stays) and how to install it.
+	 */
 	public static function tested_with($post_id) {
 		$ids = array_filter(array_map('intval', (array) get_post_meta($post_id, self::ON_SCRIPT, true)));
 		if (!$ids) {
 			return '';
 		}
 		$st = self::statuses();
-		$h = '';
+		$plats = self::platforms();
+		$chips = '';
+		$sheets = '';
 		foreach ($ids as $id) {
 			if (get_post_status($id) !== 'publish' || get_post_type($id) !== self::CPT) {
 				continue;
 			}
 			$d = self::data($id);
-			$h .= '<a class="y4x-chip is-' . esc_attr($d['status']) . '" href="' . esc_url(get_permalink($id)) . '" title="' . esc_attr($st[$d['status']][0] ?? '') . '">' . self::mark($id, 22) . '<span>' . esc_html(get_the_title($id)) . '</span><i aria-hidden="true"></i></a>';
+			$s = $st[$d['status']] ?? $st['unknown'];
+			$name = get_the_title($id);
+			$chips .= '<button type="button" class="y4x-chip is-' . esc_attr($d['status']) . '" data-y4x-open="y4x-sheet-' . (int) $id . '" title="' . esc_attr($s[0]) . '">' . self::mark($id, 22) . '<span>' . esc_html($name) . '</span><i aria-hidden="true"></i>'
+				. '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11 4h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V4Zm-6 14h14v2H5v-2Z"/></svg></button>';
+			$banner = self::banner($id);
+			$files = '';
+			$first = '';
+			foreach ($d['files'] as $f) {
+				$url = self::file_url($f);
+				if ($url === '') {
+					continue;
+				}
+				$first = $first ?: $f['platform'];
+				$away = empty($f['key']) && strpos($url, home_url()) !== 0;
+				$files .= '<a class="y4x-dl is-' . esc_attr($f['platform']) . '" href="' . esc_url($url) . '" rel="nofollow noopener" data-y4x-get="' . (int) $id . '" data-y4x-plat="' . esc_attr($f['platform']) . '"' . ($away ? ' target="_blank"' : ' download') . '>'
+					. '<span class="y4x-dl-ico">' . self::platform_icon($f['platform']) . '</span><span class="y4x-dl-text"><b>' . esc_html($f['label'] !== '' ? $f['label'] : sprintf(__('Download for %s', 'y4apk'), $plats[$f['platform']])) . '</b><small>'
+					. esc_html(implode(' · ', array_filter([$plats[$f['platform']], $f['version'] !== '' ? 'v' . $f['version'] : '', $f['size']]))) . '</small></span>'
+					. '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M11 4h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V4Zm-6 14h14v2H5v-2Z"/></svg></a>';
+			}
+			$steps = '';
+			foreach (self::steps($first ?: ($d['platforms'][0] ?? 'android')) as $i => $t) {
+				$steps .= '<li><b>' . ($i + 1) . '</b><span>' . esc_html($t) . '</span></li>';
+			}
+			$tags = '<span class="y4x-tag' . (self::price_text($d) === __('Free', 'y4apk') ? ' is-free' : '') . '">' . esc_html(self::price_text($d)) . '</span>'
+				. ($d['sunc'] !== '' ? '<span class="y4x-tag is-sunc">sUNC ' . (int) $d['sunc'] . '%</span>' : '')
+				. '<span class="y4x-tag">' . esc_html($d['key'] === 'key' ? __('Key system', 'y4apk') : __('Keyless', 'y4apk')) . '</span>';
+			$sheets .= '<dialog class="y4x-sheet is-' . esc_attr($d['status']) . '" id="y4x-sheet-' . (int) $id . '" aria-label="' . esc_attr($name) . '">'
+				. '<div class="y4x-sheet-top"' . ($banner ? ' style="background-image:url(' . esc_url($banner) . ')"' : '') . '><button type="button" class="y4x-sheet-x" data-y4x-close aria-label="' . esc_attr__('Close', 'y4apk') . '">×</button></div>'
+				. '<div class="y4x-sheet-body"><div class="y4x-sheet-who">' . self::mark($id, 64) . '<div><p class="y4x-pill is-' . esc_attr($d['status']) . '"><i class="y4x-dot is-' . esc_attr($d['status']) . '"></i>' . esc_html($s[0]) . ($s[1] ? ' · ' . esc_html($s[1]) : '') . '</p>'
+				. '<h3>' . esc_html($name) . '</h3><p class="y4x-sheet-meta">' . esc_html(implode(' · ', array_filter([$d['developer'] !== '' ? sprintf(__('by %s', 'y4apk'), $d['developer']) : '', $d['version'] !== '' ? 'v' . $d['version'] : '']))) . '</p></div></div>'
+				. '<div class="y4x-tags">' . $tags . '</div>'
+				. ($d['status'] === 'outdated' ? '<p class="y4x-warn">' . esc_html__('Outdated: it may not work with the current Roblox until its maker updates it.', 'y4apk') . '</p>' : '')
+				. ($files !== '' ? '<div class="y4x-dls">' . $files . '</div>' : '<p class="y4x-muted">' . esc_html__('No download yet.', 'y4apk') . '</p>')
+				. '<ol class="y4x-how">' . $steps . '</ol>'
+				. '<p class="y4x-sheet-foot"><a href="' . esc_url(get_permalink($id)) . '">' . esc_html(sprintf(__('More about %s', 'y4apk'), $name)) . ' →</a><span>' . esc_html__('Made by other people, not by Y4APK. Use it at your own risk.', 'y4apk') . '</span></p>'
+				. '</div></dialog>';
 		}
-		if ($h === '') {
+		if ($chips === '') {
 			return '';
 		}
-		return '<div class="y4x-tested"><div class="y4x-tested-head"><b>' . esc_html__('Tested with', 'y4apk') . '</b><a href="' . esc_url(get_post_type_archive_link(self::CPT)) . '">' . esc_html__('All executors', 'y4apk') . ' →</a></div><div class="y4x-chips">' . $h . '</div></div>';
+		static $js = false;
+		$script = '';
+		if (!$js) {
+			$js = true;
+			$script = '<script id="y4apk-pwa-getexec" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false">(function () {'
+				. 'document.addEventListener("click", function (e) {'
+				. 'var o = e.target.closest("[data-y4x-open]"); if (o) { var d = document.getElementById(o.getAttribute("data-y4x-open")); if (d && d.showModal) { d.showModal(); document.documentElement.classList.add("y4x-lock"); } else if (d) { location.href = d.querySelector(".y4x-sheet-foot a").href; } return; }'
+				. 'var c = e.target.closest("[data-y4x-close]"); if (c) { c.closest("dialog").close(); return; }'
+				. 'if (e.target.tagName === "DIALOG" && e.target.classList.contains("y4x-sheet")) { e.target.close(); return; }'
+				. 'var g = e.target.closest("[data-y4x-get]"); if (g && window.y4apkTrack) { window.y4apkTrack("executor_dl", g.getAttribute("data-y4x-get")); }'
+				. '});'
+				. 'document.addEventListener("close", function (e) { if (e.target.classList && e.target.classList.contains("y4x-sheet")) { document.documentElement.classList.remove("y4x-lock"); } }, true);'
+				. '})();</script>';
+		}
+		return '<div class="y4x-tested"><div class="y4x-tested-head"><span><b>' . esc_html__('Get Executors', 'y4apk') . '</b><small>' . esc_html__('This script was tested with these. Tap one to download it.', 'y4apk') . '</small></span><a href="' . esc_url(get_post_type_archive_link(self::CPT)) . '">' . esc_html__('All executors', 'y4apk') . ' →</a></div>'
+			. '<div class="y4x-chips">' . $chips . '</div>' . $sheets . '</div>' . $script;
 	}
 
 	/* ---------------------------------------------------------------- *

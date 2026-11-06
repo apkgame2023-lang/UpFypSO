@@ -531,7 +531,7 @@ class Y4APK_Share {
 			$err[] = __('Tick the box to say the file is safe and fine to share.', 'y4apk');
 		}
 		$old = ['kind' => $kind, 'package' => $package, 'name' => $name, 'play' => $play, 'cat' => $cat, 'version' => $version, 'mods' => $mods, 'requires' => $requires, 'desc' => $desc,
-			'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step];
+			'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step, 'agree' => !empty($p['agree'])];
 		return [$old, $err];
 	}
 

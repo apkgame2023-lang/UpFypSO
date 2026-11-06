@@ -550,12 +550,24 @@ class Y4APK_Members {
 		return ['lines' => []];
 	}
 
+	/** The confirmation email again, from Y4APK ▸ Members (2.45): true when it went out. */
+	public static function resend_verification($user) {
+		if (!$user || !self::is_member($user) || get_user_meta($user->ID, self::VERIFIED, true) !== '0') {
+			return false;
+		}
+		$ok = (bool) self::send_verification($user);
+		if ($ok) {
+			update_user_meta($user->ID, 'y4apk_vsent', time());
+		}
+		return $ok;
+	}
+
 	private static function send_verification($user) {
 		$token = wp_generate_password(32, false, false);
 		update_user_meta($user->ID, 'y4apk_vtoken', hash('sha256', $token));
 		update_user_meta($user->ID, 'y4apk_vexp', time() + 2 * DAY_IN_SECONDS);
 		$link = self::url('verify', ['u' => $user->ID, 't' => $token]);
-		self::mail($user->user_email, sprintf(__('Confirm your email for %s', 'y4apk'), self::settings()['from_name']), self::message('verify', ['name' => $user->user_login, 'link' => $link]));
+		return self::mail($user->user_email, sprintf(__('Confirm your email for %s', 'y4apk'), self::settings()['from_name']), self::message('verify', ['name' => $user->user_login, 'link' => $link]));
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -703,7 +715,7 @@ class Y4APK_Members {
 		if (!self::$ctx) {
 			return $parts;
 		}
-		$names = ['home' => __('My scripts', 'y4apk'), 'login' => __('Sign in', 'y4apk'), 'register' => __('Create an account', 'y4apk'), 'forgot' => __('Reset your password', 'y4apk'),
+		$names = ['home' => __('My uploads', 'y4apk'), 'share' => get_query_var('y4_kind') === 'app' ? __('Share an app', 'y4apk') : __('Share a game', 'y4apk'), 'login' => __('Sign in', 'y4apk'), 'register' => __('Create an account', 'y4apk'), 'forgot' => __('Reset your password', 'y4apk'),
 			'reset' => __('Choose a new password', 'y4apk'), 'verify' => __('Confirm your email', 'y4apk'), 'submit' => __('Share a script', 'y4apk'), 'edit' => __('Edit your script', 'y4apk'),
 			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk'), 'logout' => __('Sign out', 'y4apk')];
 		$v = self::$ctx['view'];

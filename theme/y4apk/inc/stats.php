@@ -180,178 +180,244 @@ class Y4APK_Stats {
 		return $out . '</svg>';
 	}
 
+	/** Per day for some events, every day of the period there (0 when none): [event => [day => n]]. */
+	private static function per_day($events, $from, $to) {
+		global $wpdb;
+		$in = implode(',', array_fill(0, count($events), '%s'));
+		$out = [];
+		$days = [];
+		for ($t = strtotime($from); $t <= strtotime($to); $t += DAY_IN_SECONDS) {
+			$days[gmdate('Y-m-d', $t)] = 0;
+		}
+		foreach ($events as $e) {
+			$out[$e] = $days;
+		}
+		foreach ((array) $wpdb->get_results($wpdb->prepare('SELECT day, event, SUM(n) AS n FROM ' . self::table() . " WHERE day BETWEEN %s AND %s AND event IN ($in) GROUP BY day, event", array_merge([$from, $to], $events))) as $r) {
+			if (isset($out[$r->event][$r->day])) {
+				$out[$r->event][$r->day] = (int) $r->n;
+			}
+		}
+		return $out;
+	}
+
+	/** Y4APK ▸ Analytics (2.45): in the Dashboard's design, the whole width. */
 	public static function render_page() {
+		$D = 'Y4APK_Dashboard';
 		$days = isset($_GET['days']) && in_array((int) $_GET['days'], [7, 30, 90], true) ? (int) $_GET['days'] : 30;
 		$to = current_time('Y-m-d');
 		$from = gmdate('Y-m-d', strtotime($to) - ($days - 1) * DAY_IN_SECONDS);
-		list($totals, $daily, $top, $last) = self::load($from, $to);
-
-		$apk_downloads = self::sum($totals, 'banner_tap', 'apk') + self::sum($totals, 'banner_tap', 'update');
+		$pto = gmdate('Y-m-d', strtotime($from) - DAY_IN_SECONDS);
+		$pfrom = gmdate('Y-m-d', strtotime($pto) - ($days - 1) * DAY_IN_SECONDS);
+		list($totals, , $top, $last) = self::load($from, $to);
+		list($prev) = self::load($pfrom, $pto);
+		$series = self::per_day(['app_new', 'app_daily', 'file_download', 'direct_link', 'pwa_installed', 'banner_tap', 'executor_dl'], $from, $to);
+		global $wpdb;
+		$prev_files = (int) $wpdb->get_var($wpdb->prepare('SELECT SUM(n) FROM ' . self::table() . " WHERE day BETWEEN %s AND %s AND event = 'file_download'", $pfrom, $pto));
 		$since = get_option('y4apk_stats_since');
-		$daily_users = isset($daily['app_daily']) ? $daily['app_daily'] : [];
-		// Average over the days actually counted, not days before counting began.
 		$counted = $since ? min($days, max(1, (int) floor((strtotime($to) - strtotime(max($since, $from))) / DAY_IN_SECONDS) + 1)) : $days;
-		$users_avg = $daily_users ? array_sum($daily_users) / $counted : 0;
-		$files = isset($daily['file_download']) ? array_sum($daily['file_download']) : 0;
-
+		$users_avg = array_sum($series['app_daily']) / max(1, $counted);
+		$per = sprintf(_n('vs the day before', 'vs the %d days before', $days, 'y4apk'), $days);
+		$apk = self::sum($totals, 'banner_tap', 'apk') + self::sum($totals, 'banner_tap', 'update');
+		$apk_prev = self::sum($prev, 'banner_tap', 'apk') + self::sum($prev, 'banner_tap', 'update');
+		$files = array_sum($series['file_download']);
+		$base = admin_url('admin.php?page=' . self::SLUG);
+		$fmt = get_option('date_format');
 		$tiles = [
-			[__('Web app installs', 'y4apk'), self::sum($totals, 'pwa_installed'),
-				sprintf(__('%s accepted the install prompt', 'y4apk'), number_format_i18n(self::sum($totals, 'pwa_accepted')))],
-			[__('APK downloads', 'y4apk'), $apk_downloads,
-				sprintf(__('from the banner; %s of them updates', 'y4apk'), number_format_i18n(self::sum($totals, 'banner_tap', 'update')))],
-			[__('App users per day', 'y4apk'), $users_avg,
-				sprintf(__('average; today %s', 'y4apk'), number_format_i18n(isset($daily_users[$to]) ? $daily_users[$to] : 0))],
-			[__('New app users', 'y4apk'), self::sum($totals, 'app_new'),
-				sprintf(__('APK %1$s · web app %2$s', 'y4apk'), number_format_i18n(self::sum($totals, 'app_new', 'apk')), number_format_i18n(self::sum($totals, 'app_new', 'webapp')))],
-			[__('File downloads', 'y4apk'), $files, __('Download button on download pages', 'y4apk')],
-			[__('Direct Link ads opened', 'y4apk'), self::sum($totals, 'direct_link'), __('Y4APK ▸ Direct Link', 'y4apk')],
+			[__('Web app installs', 'y4apk'), self::sum($totals, 'pwa_installed'), $D::delta(self::sum($totals, 'pwa_installed'), self::sum($prev, 'pwa_installed'), $per), $series['pwa_installed']],
+			[__('APK downloads', 'y4apk'), $apk, $D::delta($apk, $apk_prev, $per), $series['banner_tap']],
+			[__('App users per day', 'y4apk'), $users_avg < 10 ? round($users_avg, 1) : (int) round($users_avg), '<span class="y4d-delta">' . esc_html(sprintf(__('average · today %s', 'y4apk'), number_format_i18n($series['app_daily'][$to] ?? 0))) . '</span>', $series['app_daily']],
+			[__('New app users', 'y4apk'), self::sum($totals, 'app_new'), $D::delta(self::sum($totals, 'app_new'), self::sum($prev, 'app_new'), $per), $series['app_new']],
+			[__('File downloads', 'y4apk'), $files, $D::delta($files, $prev_files, $per), $series['file_download']],
+			[__('Ad opens', 'y4apk'), self::sum($totals, 'direct_link'), $D::delta(self::sum($totals, 'direct_link'), self::sum($prev, 'direct_link'), $per), $series['direct_link']],
+			[__('Executor downloads', 'y4apk'), self::sum($totals, 'executor_dl'), $D::delta(self::sum($totals, 'executor_dl'), self::sum($prev, 'executor_dl'), $per), $series['executor_dl']],
 		];
-
 		$modes = [
-			'prompt' => __('Install (Chrome / Samsung Internet, Android)', 'y4apk'),
+			'prompt' => __('Install (Chrome / Samsung Internet)', 'y4apk'),
 			'apk'    => __('Download APK (in-app browsers)', 'y4apk'),
 			'ios'    => __('Add to Home Screen hint (iPhone)', 'y4apk'),
 			'update' => __('Update APK (older version installed)', 'y4apk'),
 			'open'   => __('Open in app (APK installed)', 'y4apk'),
 			'home'   => __('Reminder (web app installed)', 'y4apk'),
 		];
+		$D::styles();
 		?>
-		<div class="wrap y4s">
-			<style>
-				.y4s{--series-1:#2a78d6;--ink:#1d2327;--ink-2:#50575e;--line:#dcdcde;--surface:#fff}
-				.y4s-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;max-width:1100px;margin:16px 0}
-				.y4s-tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
-				.y4s-tile b{display:block;font-size:28px;line-height:1.15;color:var(--ink);font-weight:600;margin:4px 0}
-				.y4s-tile span,.y4s-tile small{color:var(--ink-2)}
-				.y4s-charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;max-width:1100px}
-				.y4s-chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
-				.y4s-chart h3{margin:0 0 6px;font-size:14px}
-				.y4s-cols{width:100%;height:auto;display:block}
-				.y4s-bar{fill:var(--series-1)}
-				.y4s-hit{fill:transparent}
-				.y4s-day:hover .y4s-bar{opacity:.75}
-				.y4s-base{stroke:var(--line);stroke-width:1}
-				.y4s-muted{fill:var(--ink-2);font-size:11px}
-				.y4s-val{fill:var(--ink);font-size:11px;font-weight:600}
-				.y4s table.widefat{max-width:1100px;margin-top:8px}
-				.y4s td.num,.y4s th.num{text-align:right;font-variant-numeric:tabular-nums}
-				.y4s-share{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--series-1);vertical-align:middle;margin-left:8px}
-			</style>
+		<div class="wrap y4d y4s">
+			<header class="y4d-head">
+				<div>
+					<h1><?php esc_html_e('Analytics', 'y4apk'); ?></h1>
+					<p class="y4d-sub"><?php
+						echo esc_html(sprintf(__('%1$s – %2$s', 'y4apk'), date_i18n($fmt, strtotime($from)), date_i18n($fmt, strtotime($to))) . ' · '
+							. ($last ? sprintf(__('last data %s', 'y4apk'), date_i18n($fmt, strtotime($last))) : __('no data received yet', 'y4apk'))
+							. ($since ? ' · ' . sprintf(__('counting since %s', 'y4apk'), date_i18n($fmt, strtotime($since))) : ''));
+					?></p>
+				</div>
+				<div class="y4d-head-tools">
+					<nav class="y4d-range" aria-label="<?php esc_attr_e('Period', 'y4apk'); ?>">
+						<?php foreach ([7, 30, 90] as $r) : ?><a href="<?php echo esc_url(add_query_arg('days', $r, $base)); ?>"<?php echo $r === $days ? ' class="is-on" aria-current="true"' : ''; ?>><?php echo esc_html(sprintf(__('%d days', 'y4apk'), $r)); ?></a><?php endforeach; ?>
+					</nav>
+					<a class="button" href="#y4s-settings"><?php esc_html_e('Settings', 'y4apk'); ?></a>
+				</div>
+			</header>
+			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors’ pages pick it up.', 'y4apk'); ?></p></div><?php endif; ?>
+			<?php if (!self::enabled()) : ?><div class="notice notice-warning"><p><?php esc_html_e('Counting is switched off (Settings, below).', 'y4apk'); ?></p></div><?php endif; ?>
 
-			<h1><?php esc_html_e('Y4APK Analytics', 'y4apk'); ?></h1>
-			<?php if (!empty($_GET['saved'])) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors’ pages pick it up.', 'y4apk'); ?></p></div>
-			<?php endif; ?>
-			<?php if (!self::enabled()) : ?>
-				<div class="notice notice-warning"><p><?php esc_html_e('Counting is switched off (below).', 'y4apk'); ?></p></div>
-			<?php endif; ?>
-
-			<p>
-				<?php foreach ([7, 30, 90] as $d) : ?>
-					<a class="button<?php echo $d === $days ? ' button-primary' : ''; ?>" href="<?php echo esc_url(add_query_arg(['page' => self::SLUG, 'days' => $d], admin_url('admin.php'))); ?>"><?php printf(esc_html__('%d days', 'y4apk'), $d); ?></a>
+			<section class="y4d-kpis">
+				<?php foreach ($tiles as $t) : ?>
+				<div class="y4d-kpi">
+					<span class="y4d-kpi-l"><?php echo esc_html($t[0]); ?></span>
+					<span class="y4d-kpi-n"><?php echo esc_html(is_float($t[1]) && floor($t[1]) != $t[1] ? number_format_i18n($t[1], 1) : number_format_i18n((int) $t[1])); ?></span>
+					<span class="y4d-kpi-s"><?php echo wp_kses($t[2], ['span' => ['class' => []]]); ?></span>
+					<?php echo $D::spark($D::buckets($t[3])); ?>
+				</div>
 				<?php endforeach; ?>
-				<span style="margin-left:12px;color:#50575e"><?php
-					printf(esc_html__('%1$s – %2$s', 'y4apk'), esc_html(date_i18n(get_option('date_format'), strtotime($from))), esc_html(date_i18n(get_option('date_format'), strtotime($to))));
-					echo ' · ';
-					echo $last
-						? sprintf(esc_html__('last data: %s', 'y4apk'), esc_html(date_i18n(get_option('date_format'), strtotime($last))))
-						: esc_html__('no data received yet', 'y4apk');
-					if ($since) {
-						echo ' · ' . sprintf(esc_html__('counting since %s', 'y4apk'), esc_html(date_i18n(get_option('date_format'), strtotime($since))));
-					}
-				?></span>
-			</p>
+			</section>
 
-			<div class="y4s-tiles">
-				<?php foreach ($tiles as $tile) : ?>
-					<div class="y4s-tile"><span><?php echo esc_html($tile[0]); ?></span><b><?php echo self::num($tile[1]); ?></b><small><?php echo esc_html($tile[2]); ?></small></div>
-				<?php endforeach; ?>
-			</div>
-
-			<div class="y4s-charts">
-				<div class="y4s-chart"><h3><?php esc_html_e('New app users per day', 'y4apk'); ?></h3>
-					<?php echo self::columns(isset($daily['app_new']) ? $daily['app_new'] : [], $from, $days, __('new app users', 'y4apk')); ?></div>
-				<div class="y4s-chart"><h3><?php esc_html_e('App users per day', 'y4apk'); ?></h3>
-					<?php echo self::columns($daily_users, $from, $days, __('app users', 'y4apk')); ?></div>
-				<div class="y4s-chart"><h3><?php esc_html_e('File downloads per day', 'y4apk'); ?></h3>
-					<?php echo self::columns(isset($daily['file_download']) ? $daily['file_download'] : [], $from, $days, __('downloads', 'y4apk')); ?></div>
-			</div>
-
-			<h2><?php esc_html_e('Install banner', 'y4apk'); ?></h2>
-			<table class="widefat striped">
-				<thead><tr><th><?php esc_html_e('Banner', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Seen', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Button tapped', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Closed', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Tap rate', 'y4apk'); ?></th></tr></thead>
-				<tbody>
-				<?php foreach ($modes as $mode => $label) :
-					$seen = self::sum($totals, 'banner_seen', $mode);
-					$tap = self::sum($totals, 'banner_tap', $mode);
-					$closed = self::sum($totals, 'banner_close', $mode); ?>
-					<tr><td><?php echo esc_html($label); ?></td><td class="num"><?php echo self::num($seen); ?></td><td class="num"><?php echo self::num($tap); ?></td><td class="num"><?php echo self::num($closed); ?></td>
-						<td class="num"><?php echo $seen ? esc_html(number_format_i18n(100 * $tap / $seen, 1)) . '%' : '–'; ?></td></tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
-			<p class="description"><?php esc_html_e('Seen counts each visitor once per visit and banner. The Add to Home Screen hint has no button: iPhones do not tell pages whether it was followed.', 'y4apk'); ?></p>
-
-			<h2><?php esc_html_e('Inside the app', 'y4apk'); ?></h2>
-			<?php
-			$visits = ['apk' => self::sum($totals, 'app_open', 'apk'), 'webapp' => self::sum($totals, 'app_open', 'webapp')];
-			$versions = isset($totals['app_version']) ? $totals['app_version'] : [];
-			uksort($versions, function ($a, $b) { return version_compare($b, $a); });
-			$version_total = array_sum($versions);
-			?>
-			<table class="widefat striped">
-				<thead><tr><th><?php esc_html_e('Visits inside the app', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Visits', 'y4apk'); ?></th></tr></thead>
-				<tbody>
-					<tr><td><?php esc_html_e('Android APK', 'y4apk'); ?></td><td class="num"><?php echo self::num($visits['apk']); ?></td></tr>
-					<tr><td><?php esc_html_e('Web app (installed from the browser)', 'y4apk'); ?></td><td class="num"><?php echo self::num($visits['webapp']); ?></td></tr>
-				</tbody>
-			</table>
-			<table class="widefat striped">
-				<thead><tr><th><?php esc_html_e('APK version', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Visits', 'y4apk'); ?></th><th><?php esc_html_e('Share', 'y4apk'); ?></th></tr></thead>
-				<tbody>
-				<?php if (!$versions) : ?>
-					<tr><td colspan="3"><?php esc_html_e('No APK visits with a known version yet. The APK reports its version through its Start URL (Y4APK ▸ App, step 2).', 'y4apk'); ?></td></tr>
-				<?php endif; ?>
-				<?php foreach ($versions as $version => $n) : $share = $version_total ? $n / $version_total : 0; ?>
-					<tr><td><code><?php echo esc_html($version); ?></code><?php echo $version === (string) Y4APK_PWA::get('apk_version') ? ' — ' . esc_html__('latest', 'y4apk') : ''; ?></td>
-						<td class="num"><?php echo self::num($n); ?></td>
-						<td><?php echo esc_html(number_format_i18n(100 * $share, 1)); ?>%<span class="y4s-share" style="width:<?php echo esc_attr(round(160 * $share)); ?>px"></span></td></tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
-
-			<h2><?php esc_html_e('Most downloaded', 'y4apk'); ?></h2>
-			<table class="widefat striped">
-				<thead><tr><th><?php esc_html_e('Post', 'y4apk'); ?></th><th class="num"><?php esc_html_e('Download taps', 'y4apk'); ?></th></tr></thead>
-				<tbody>
-				<?php if (!$top) : ?>
-					<tr><td colspan="2"><?php esc_html_e('No downloads counted in this period yet.', 'y4apk'); ?></td></tr>
-				<?php else :
+			<h2 class="y4d-h"><?php esc_html_e('Downloads', 'y4apk'); ?></h2>
+			<div class="y4d-row">
+				<div class="y4d-card y4d-span-7">
+					<h3><?php esc_html_e('File downloads per day', 'y4apk'); ?> <small><?php esc_html_e('the Download button on download pages', 'y4apk'); ?></small></h3>
+					<?php echo $D::columns($series['file_download'], __('downloads', 'y4apk')); ?>
+					<p class="y4d-foot"><?php echo esc_html(sprintf(__('%1$s in %2$d days · busiest day %3$s', 'y4apk'), number_format_i18n($files), $days, $files ? number_format_i18n(max($series['file_download'])) : '0')); ?></p>
+				</div>
+				<div class="y4d-card y4d-span-5">
+					<h3><?php esc_html_e('Most downloaded', 'y4apk'); ?> <small><?php echo esc_html(sprintf(__('last %d days', 'y4apk'), $days)); ?></small></h3>
+					<?php
+					$rows = [];
 					$ids = array_filter(array_map(function ($r) { return absint($r->dim); }, $top));
 					if ($ids) {
 						_prime_post_caches($ids, false, false);
 					}
-					foreach ($top as $row) : $id = absint($row->dim); $title = $id ? get_the_title($id) : ''; ?>
-					<tr><td><?php echo $title !== ''
-						? '<a href="' . esc_url(get_permalink($id)) . '" target="_blank">' . esc_html($title) . '</a>'
-						: esc_html(sprintf(__('Post #%s', 'y4apk'), $row->dim)); ?></td>
-						<td class="num"><?php echo self::num((int) $row->n); ?></td></tr>
-				<?php endforeach; endif; ?>
-				</tbody>
-			</table>
+					foreach (array_slice($top, 0, 10) as $r) {
+						$id = absint($r->dim);
+						$title = $id ? get_the_title($id) : '';
+						$rows[] = [$title !== '' ? '<a href="' . esc_url(get_permalink($id)) . '" target="_blank">' . esc_html($title) . '</a>' : esc_html($r->dim !== '' ? sprintf(__('Post #%s (gone)', 'y4apk'), $r->dim) : __('A download page without a post', 'y4apk')), (int) $r->n];
+					}
+					echo $D::ranked($rows, $files, __('No downloads counted in this period yet.', 'y4apk'));
+					?>
+				</div>
+			</div>
 
-			<h2><?php esc_html_e('Settings', 'y4apk'); ?></h2>
-			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-				<input type="hidden" name="action" value="y4apk_save_stats">
-				<?php wp_nonce_field('y4apk-save-stats'); ?>
-				<p><label><input type="checkbox" name="on" value="1" <?php checked(self::enabled()); ?>> <?php esc_html_e('Count these events', 'y4apk'); ?></label><br>
-					<span class="description"><?php esc_html_e('Counts only — no IP addresses, cookies or user IDs. Visitors’ browsers send at most one small request per page, only when there is something to count, to a light counter that loads no plugins. Needs the app switched on (Y4APK ▸ App).', 'y4apk'); ?></span></p>
-				<p><label><input type="checkbox" name="ga" value="1" <?php checked(self::send_to_ga()); ?>> <?php esc_html_e('Also send them to Google Analytics', 'y4apk'); ?></label><br>
-					<span class="description"><?php esc_html_e('When the site has Google Analytics (Site Kit), the same events arrive there named y4apk_… (y4apk_banner_tap, y4apk_app_open, y4apk_file_download, …) with the detail in y4apk_detail — for countries, devices, traffic sources and the rest.', 'y4apk'); ?></span></p>
-				<?php submit_button(__('Save', 'y4apk')); ?>
-			</form>
+			<h2 class="y4d-h"><?php esc_html_e('The app', 'y4apk'); ?></h2>
+			<div class="y4d-row">
+				<div class="y4d-card y4d-span-6">
+					<h3><?php esc_html_e('App users per day', 'y4apk'); ?> <small><?php esc_html_e('devices that opened the app that day', 'y4apk'); ?></small></h3>
+					<?php echo $D::columns($series['app_daily'], __('app users', 'y4apk')); ?>
+				</div>
+				<div class="y4d-card y4d-span-6">
+					<h3><?php esc_html_e('New app users per day', 'y4apk'); ?> <small><?php echo esc_html(sprintf(__('APK %1$s · web app %2$s', 'y4apk'), number_format_i18n(self::sum($totals, 'app_new', 'apk')), number_format_i18n(self::sum($totals, 'app_new', 'webapp')))); ?></small></h3>
+					<?php echo $D::columns($series['app_new'], __('new app users', 'y4apk')); ?>
+				</div>
+			</div>
+			<div class="y4d-row">
+				<div class="y4d-card y4d-span-7">
+					<h3><?php esc_html_e('Install banner', 'y4apk'); ?> <small><?php esc_html_e('seen once per visit; the tap rate is taps ÷ seen', 'y4apk'); ?></small></h3>
+					<table class="y4d-table y4s-funnel"><thead><tr><th><?php esc_html_e('Banner', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Seen', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Tapped', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Closed', 'y4apk'); ?></th><th><?php esc_html_e('Tap rate', 'y4apk'); ?></th></tr></thead><tbody>
+					<?php foreach ($modes as $mode => $label) :
+						$seen = self::sum($totals, 'banner_seen', $mode);
+						$tap = self::sum($totals, 'banner_tap', $mode);
+						$closed = self::sum($totals, 'banner_close', $mode);
+						$rate = $seen ? 100 * $tap / $seen : 0; ?>
+						<tr data-tip="<?php echo esc_attr($label . ' · ' . number_format_i18n($rate, 1) . '%'); ?>"><td><?php echo esc_html($label); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($seen)); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($tap)); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($closed)); ?></td>
+							<td class="y4s-rate"><span class="y4d-rk-bar"><i style="width:<?php echo esc_attr(max($seen ? 1 : 0, min(100, $rate))); ?>%"></i></span><b><?php echo $seen ? esc_html(number_format_i18n($rate, 1)) . '%' : '–'; ?></b></td></tr>
+					<?php endforeach; ?>
+					</tbody></table>
+				</div>
+				<div class="y4d-card y4d-span-5">
+					<?php
+					$visits = ['apk' => self::sum($totals, 'app_open', 'apk'), 'webapp' => self::sum($totals, 'app_open', 'webapp')];
+					$vt = array_sum($visits);
+					$versions = isset($totals['app_version']) ? $totals['app_version'] : [];
+					uksort($versions, function ($a, $b) { return version_compare($b, $a); });
+					$latest = class_exists('Y4APK_PWA') ? (string) Y4APK_PWA::get('apk_version') : '';
+					?>
+					<h3><?php esc_html_e('Visits inside the app', 'y4apk'); ?> <small><?php echo esc_html(sprintf(_n('%s visit', '%s visits', $vt, 'y4apk'), number_format_i18n($vt))); ?></small></h3>
+					<div class="y4s-split" data-tip="<?php echo esc_attr(sprintf(__('Android APK %1$s · web app %2$s', 'y4apk'), number_format_i18n($visits['apk']), number_format_i18n($visits['webapp']))); ?>">
+						<?php if ($vt) : ?><i class="is-apk" style="flex:<?php echo (int) $visits['apk']; ?>"></i><i class="is-web" style="flex:<?php echo (int) $visits['webapp']; ?>"></i><?php endif; ?>
+					</div>
+					<p class="y4s-legend"><span><i class="is-apk"></i><?php esc_html_e('Android APK', 'y4apk'); ?> <b><?php echo esc_html(number_format_i18n($visits['apk'])); ?></b></span><span><i class="is-web"></i><?php esc_html_e('Web app', 'y4apk'); ?> <b><?php echo esc_html(number_format_i18n($visits['webapp'])); ?></b></span></p>
+					<h3 style="margin-top:14px"><?php esc_html_e('APK versions in use', 'y4apk'); ?></h3>
+					<?php
+					$rows = [];
+					foreach (array_slice($versions, 0, 8, true) as $v => $n) {
+						$rows[] = ['<code>' . esc_html($v) . '</code>' . ((string) $v === $latest ? '<span class="y4d-chip">' . esc_html__('latest', 'y4apk') . '</span>' : ''), (int) $n];
+					}
+					echo $D::ranked($rows, array_sum($versions), __('No APK visits with a known version yet. The APK reports its version through its Start URL (Y4APK ▸ App, step 2).', 'y4apk'));
+					?>
+				</div>
+			</div>
+
+			<h2 class="y4d-h"><?php esc_html_e('Ads and executors', 'y4apk'); ?></h2>
+			<div class="y4d-row">
+				<div class="y4d-card y4d-span-7">
+					<h3><?php esc_html_e('Direct Link ads opened per day', 'y4apk'); ?> <a class="y4d-all" href="<?php echo esc_url(admin_url('admin.php?page=y4apk-direct-link')); ?>"><?php esc_html_e('Direct Link', 'y4apk'); ?> →</a></h3>
+					<?php echo $D::columns($series['direct_link'], __('ads opened', 'y4apk')); ?>
+					<?php
+					$names = [];
+					if (class_exists('Y4APK_Direct_Link')) {
+						foreach (Y4APK_Direct_Link::links() as $l) {
+							$names[$l['id']] = $l['name'] !== '' ? $l['name'] : preg_replace('~^https?://~', '', $l['url']);
+						}
+					}
+					$by = isset($totals['direct_link_n']) ? $totals['direct_link_n'] : [];
+					arsort($by);
+					$rows = [];
+					foreach ($by as $id => $n) {
+						$rows[] = [esc_html(isset($names[$id]) ? $names[$id] : sprintf(__('Link %s (removed)', 'y4apk'), $id)), (int) $n];
+					}
+					if (count($rows) > 1) {
+						echo '<h3 style="margin-top:12px">' . esc_html__('By link', 'y4apk') . '</h3>' . $D::ranked($rows, array_sum($by), '');
+					}
+					?>
+				</div>
+				<div class="y4d-card y4d-span-5">
+					<h3><?php esc_html_e('Executor downloads', 'y4apk'); ?> <small><?php echo esc_html(sprintf(__('last %d days', 'y4apk'), $days)); ?></small><?php if (class_exists('Y4APK_Executors')) : ?> <a class="y4d-all" href="<?php echo esc_url(admin_url('edit.php?post_type=' . Y4APK_Executors::CPT)); ?>"><?php esc_html_e('Executors', 'y4apk'); ?> →</a><?php endif; ?></h3>
+					<?php
+					$by = isset($totals['executor_dl']) ? $totals['executor_dl'] : [];
+					arsort($by);
+					$rows = [];
+					foreach (array_slice($by, 0, 10, true) as $id => $n) {
+						$title = get_the_title((int) $id);
+						$rows[] = [$title !== '' ? '<a href="' . esc_url(get_permalink((int) $id)) . '" target="_blank">' . esc_html($title) . '</a>' : esc_html('#' . $id), (int) $n];
+					}
+					echo $D::ranked($rows, array_sum($by), __('No executor downloads in this period yet.', 'y4apk'));
+					?>
+				</div>
+			</div>
+
+			<h2 class="y4d-h"><?php esc_html_e('Every event', 'y4apk'); ?></h2>
+			<div class="y4d-row"><div class="y4d-card y4d-span-12">
+				<table class="y4d-table"><thead><tr><th><?php esc_html_e('Event', 'y4apk'); ?></th><th class="y4d-num"><?php echo esc_html(sprintf(__('Last %d days', 'y4apk'), $days)); ?></th><th class="y4d-num"><?php esc_html_e('The period before', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Change', 'y4apk'); ?></th></tr></thead><tbody>
+				<?php foreach ((require get_template_directory() . '/inc/stats-events.php') as $ev => $label) :
+					$now = $ev === 'file_download' ? $files : self::sum($totals, $ev);
+					$was = $ev === 'file_download' ? $prev_files : self::sum($prev, $ev); ?>
+					<tr><td><?php echo esc_html($label); ?> <code class="y4s-ev"><?php echo esc_html($ev); ?></code></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($now)); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($was)); ?></td><td class="y4d-num"><?php echo wp_kses($D::delta($now, $was, ''), ['span' => ['class' => []]]); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody></table>
+			</div></div>
+
+			<h2 class="y4d-h" id="y4s-settings"><?php esc_html_e('Settings', 'y4apk'); ?></h2>
+			<div class="y4d-row"><div class="y4d-card y4d-span-12">
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+					<input type="hidden" name="action" value="y4apk_save_stats">
+					<?php wp_nonce_field('y4apk-save-stats'); ?>
+					<p><label><input type="checkbox" name="on" value="1" <?php checked(self::enabled()); ?>> <b><?php esc_html_e('Count these events', 'y4apk'); ?></b></label><br>
+						<span class="description"><?php esc_html_e('Counts only — no IP addresses, cookies or user IDs. Visitors’ browsers send at most one small request per page, only when there is something to count, to a light counter that loads no plugins. Needs the app switched on (Y4APK ▸ App).', 'y4apk'); ?></span></p>
+					<p><label><input type="checkbox" name="ga" value="1" <?php checked(self::send_to_ga()); ?>> <b><?php esc_html_e('Also send them to Google Analytics', 'y4apk'); ?></b></label><br>
+						<span class="description"><?php esc_html_e('When the site has Google Analytics (Site Kit), the same events arrive there named y4apk_… (y4apk_banner_tap, y4apk_app_open, y4apk_file_download, …) with the detail in y4apk_detail — for countries, devices, traffic sources and the rest.', 'y4apk'); ?></span></p>
+					<?php submit_button(__('Save', 'y4apk'), 'primary', 'submit', false); ?>
+				</form>
+			</div></div>
+			<div class="y4d-tip" role="tooltip" hidden></div>
 		</div>
+		<style>
+		.y4d-span-6{grid-column:span 6}@media (max-width:1100px){.y4d-span-6{grid-column:span 12}}
+		.y4s-rate{display:flex;align-items:center;gap:8px;min-width:140px}.y4s-rate .y4d-rk-bar{flex:1}.y4s-rate b{min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+		.y4s-split{display:flex;gap:2px;height:22px;margin:6px 0 8px;border-radius:6px;overflow:hidden;background:#f0f0f1}.y4s-split i{display:block;min-width:2px}.y4s-split .is-apk,.y4s-legend .is-apk{background:#2a78d6}.y4s-split .is-web,.y4s-legend .is-web{background:#eb6834}
+		.y4s-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;color:var(--ink2)}.y4s-legend span{display:inline-flex;align-items:center;gap:6px}.y4s-legend i{width:10px;height:10px;border-radius:3px}.y4s-legend b{color:var(--ink)}
+		.y4s-ev{margin-left:6px;font-size:11px;color:var(--mute);background:#f6f7f7}
+		</style>
 		<?php
+		$D::script();
 	}
 }
 

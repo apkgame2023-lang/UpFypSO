@@ -134,3 +134,38 @@
 .y4x-chip i { position: absolute; left: 1.6rem; top: .25rem; width: .5rem; height: .5rem; border-radius: 50%; box-shadow: 0 0 0 2px #fff; background: #8a979a; }
 .y4x-chip.is-working i { background: #1faa55; }
 .y4x-chip.is-outdated i { background: #e5484d; }
+
+/* "Get Executors" on a script's page (2.45): chips that open a panel with the downloads */
+.y4x-tested-head span { display: flex; flex-direction: column; gap: .125rem; }
+.y4x-tested-head small { font-size: .75rem; color: rgba(23, 32, 33, .55); }
+button.y4x-chip { border: 0; font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer; }
+.y4x-chip > svg { flex: none; margin-left: .125rem; color: #29b1d8; }
+html.y4x-lock { overflow: hidden; }
+.y4x-sheet { width: min(32rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 0; border: 0; border-radius: 1.5rem; overflow: auto; color: #172021; background: #fff; box-shadow: 0 2rem 4rem -1rem rgba(0, 0, 0, .45); }
+.y4x-sheet::backdrop { background: rgba(10, 16, 24, .55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.y4x-sheet[open] { animation: y4x-pop .22s ease-out; }
+@keyframes y4x-pop { from { opacity: 0; transform: translateY(1rem) scale(.98); } }
+.y4x-sheet-top { position: relative; height: 7.5rem; background: linear-gradient(135deg, #1d2b44, #29b1d8) center / cover no-repeat; }
+.y4x-sheet.is-outdated .y4x-sheet-top { filter: grayscale(.8); }
+.y4x-sheet-top::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .05), rgba(0, 0, 0, .35)); }
+.y4x-sheet-x { position: absolute; z-index: 1; right: .75rem; top: .75rem; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 50%; font-size: 1.5rem; line-height: 1; color: #fff; background: rgba(0, 0, 0, .45); cursor: pointer; }
+.y4x-sheet-x:hover { background: rgba(0, 0, 0, .65); }
+.y4x-sheet-body { display: grid; gap: .875rem; padding: 0 1.25rem 1.25rem; }
+.y4x-sheet-who { display: flex; align-items: flex-end; gap: .875rem; margin-top: -2rem; position: relative; z-index: 1; }
+.y4x-sheet-who .y4x-mark { border-radius: 24%; box-shadow: 0 .75rem 1.5rem -.5rem rgba(0, 0, 0, .45), 0 0 0 4px #fff; }
+.y4x-sheet-who > div { min-width: 0; padding-bottom: .125rem; }
+.y4x-sheet .y4x-pill { color: #3d4a4d; background: #eef2f3; }
+.y4x-sheet .y4x-pill.is-working { color: #12793f; background: #e2f6ea; }
+.y4x-sheet .y4x-pill.is-outdated { color: #a3262c; background: #fdeeee; }
+.y4x-sheet h3 { margin: .25rem 0 0; font-size: 1.375rem; line-height: 1.2; overflow-wrap: anywhere; }
+.y4x-sheet-meta { margin: .125rem 0 0; font-size: .8125rem; color: rgba(23, 32, 33, .58); }
+.y4x-warn { margin: 0; padding: .625rem .875rem; border-radius: .75rem; font-size: .8125rem; color: #8f1d22; background: #fdeeee; }
+.y4x-sheet .y4x-how { grid-template-columns: 1fr; margin: 0; }
+.y4x-sheet-foot { display: flex; flex-direction: column; gap: .25rem; margin: 0; font-size: .75rem; color: rgba(23, 32, 33, .55); }
+.y4x-sheet-foot a { font-size: .875rem; font-weight: 700; }
+@media (max-width: 35.99rem) {
+	.y4x-sheet { width: 100vw; max-width: 100vw; max-height: 88vh; margin: auto 0 0; border-radius: 1.5rem 1.5rem 0 0; }
+	.y4x-sheet[open] { animation: y4x-up .25s ease-out; }
+	@keyframes y4x-up { from { transform: translateY(100%); } }
+}
+.y4x-tested, .y4x-sheet { --x-ink: #172021; --x-mute: rgba(23, 32, 33, .58); --x-line: rgba(23, 32, 33, .09); --x-blue: #29b1d8; --x-green: #1faa55; --x-red: #e5484d; --x-gray: #8a979a; }

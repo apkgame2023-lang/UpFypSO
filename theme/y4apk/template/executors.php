@@ -139,7 +139,8 @@ get_header();
 					<?php else : ?>
 					<div class="y4x-dls">
 						<?php foreach ($d['files'] as $f) : ?>
-						<a class="y4x-dl is-<?php echo esc_attr($f['platform']); ?>" href="<?php echo esc_url($f['url']); ?>" rel="nofollow noopener" data-y4x-dl="<?php echo (int) $id; ?>"<?php echo strpos($f['url'], home_url()) === 0 || (class_exists('Y4APK_R2') && strpos($f['url'], Y4APK_R2::settings()['dir_url']) === 0) ? '' : ' target="_blank"'; ?>>
+						<?php $fu = $X::file_url($f); $away = empty($f['key']) && strpos($fu, home_url()) !== 0 && !(class_exists('Y4APK_R2') && strpos($fu, Y4APK_R2::settings()['dir_url']) === 0); ?>
+						<a class="y4x-dl is-<?php echo esc_attr($f['platform']); ?>" href="<?php echo esc_url($fu); ?>" rel="nofollow noopener" data-y4x-dl="<?php echo (int) $id; ?>"<?php echo $away ? ' target="_blank"' : ' download'; ?>>
 							<span class="y4x-dl-ico"><?php echo $X::platform_icon($f['platform']); ?></span>
 							<span class="y4x-dl-text"><b><?php echo esc_html($f['label'] !== '' ? $f['label'] : sprintf(__('Download for %s', 'y4apk'), $plats[$f['platform']])); ?></b><small><?php echo esc_html(implode(' · ', array_filter([$plats[$f['platform']], $f['version'] !== '' ? 'v' . $f['version'] : '', $f['size']]))); ?></small></span>
 							<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M11 4h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V4Zm-6 14h14v2H5v-2Z"/></svg>

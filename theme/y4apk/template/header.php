@@ -266,7 +266,6 @@ if ($subcategories_2) {
             var U = <?php echo wp_json_encode(array(
                 'home'      => Y4APK_Members::url(),
                 'submit'    => Y4APK_Members::url('submit'),
-                'share'     => class_exists('Y4APK_Share') && Y4APK_Share::open() ? Y4APK_Members::url('share/game') : '',
                 'following' => Y4APK_Members::url('following'),
                 'customize' => Y4APK_Members::url('customize'),
                 'settings'  => Y4APK_Members::url('settings'),
@@ -278,8 +277,7 @@ if ($subcategories_2) {
                 'menu'      => __('Your account', 'y4apk'),
                 'view'      => __('View profile', 'y4apk'),
                 'home'      => __('Dashboard', 'y4apk'),
-                'submit'    => __('Share a script', 'y4apk'),
-                'share'     => __('Share a game or app', 'y4apk'),
+                'submit'    => __('Upload now', 'y4apk'),
                 'following' => __('Following', 'y4apk'),
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
@@ -315,7 +313,7 @@ if ($subcategories_2) {
             head.insertAdjacentHTML('beforeend', svg('next', 18));
             menu.appendChild(head);
             var list = '<nav class="h-acct-list">';
-            [['home', 'home'], ['submit', 'upload'], ['share', 'pad'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
+            [['home', 'home'], ['submit', 'upload'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
                 if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
             });
             list += '</nav><a class="h-acct-out" href="' + U.logout + '" data-out>' + svg('out') + '<span>' + T.out + '</span></a>';

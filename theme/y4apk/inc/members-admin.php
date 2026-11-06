@@ -51,7 +51,7 @@ class Y4APK_Members_Admin {
 		$n = $waiting + $reported;
 		$bubble = $n ? ' <span class="awaiting-mod count-' . (int) $n . '"><span class="pending-count">' . (int) $n . '</span></span>' : '';
 		add_submenu_page(Y4APK_MENU, __('Review', 'y4apk'), __('Review', 'y4apk') . $bubble, 'edit_others_posts', 'y4apk-review', [__CLASS__, 'review_page']);
-		add_submenu_page(Y4APK_MENU, __('Members', 'y4apk'), __('Members', 'y4apk'), 'manage_options', 'y4apk-members', [__CLASS__, 'settings_page']);
+		add_submenu_page(Y4APK_MENU, __('Members', 'y4apk'), __('Members', 'y4apk'), 'manage_options', 'y4apk-members', class_exists('Y4APK_Members_List') ? ['Y4APK_Members_List', 'page'] : [__CLASS__, 'settings_page']);
 	}
 
 	private static function back($page, $args = []) {

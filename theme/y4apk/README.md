@@ -638,6 +638,71 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Members' accounts, Analytics, Get Executors, fixes (2.45)
+
+**Y4APK ▸ Members ▸ Accounts** lists every member account, 50 a page. Tiles at
+the top count all members, email confirmed (with a bar), not confirmed, online
+now and banned; each tile is a filter. Each row shows:
+- the member's picture, name and @name;
+- their email, marked *Confirmed* or *Not confirmed*, with "reminded … ago";
+- when they joined and when they were last seen (or *Online*);
+- where they came from: country, system, browser and source;
+- how many posts they have live.
+
+**⋯** opens everything about the account: public and sign-in name, email,
+joined, followers and following, country, device, how they arrived, language
+and bio. You can search by name or email, and sort by newest, oldest, last
+seen or name.
+
+Actions, for one account or for the ticked ones:
+- *Send confirmation email* (a new link, valid 48 hours);
+- *Mark as confirmed*;
+- *Ban* or *Allow again*.
+
+*Remind N members to confirm* sends the email to up to 50 who have not
+confirmed and were not reminded in the last day; press it again for the next
+50. If the mailbox cannot send, the page says so. The settings, emails and
+privacy checks that were on this page are the second tab. The Dashboard's
+"Email not confirmed" links to the list of those accounts.
+
+**Y4APK ▸ Analytics** is redesigned in the Dashboard's style, the whole width:
+- seven tiles with their trend and the change against the period before (web
+  app installs, APK downloads, app users per day, new app users, file
+  downloads, ad opens, executor downloads);
+- downloads per day and the most downloaded posts;
+- app users and new app users per day;
+- the install banner, with each kind's tap rate as a bar;
+- visits inside the app (APK or web app) and the APK versions in use;
+- Direct Link ads per day and per link;
+- executor downloads by executor;
+- every event against the period before;
+- the settings, at the bottom.
+
+**Get Executors.** The "Tested with" chips on a script's page are now *Get
+Executors*. Tapping one opens a panel on the same page (a sheet from the
+bottom on phones) with:
+- the executor's status, price, key and sUNC;
+- a warning when it is outdated;
+- a button for each download, and three steps to install it;
+- a link to its page.
+
+A file uploaded to R2 downloads straight from R2, so the visitor stays on the
+script. A download that is only a link to the maker's site opens in a new tab.
+The executor's own page now downloads straight from R2 too.
+
+**Fixes.**
+- Sending a game or app failed with "Could not confirm you are human": the
+  Cloudflare Turnstile check was never loaded on /upload/game/ and
+  /upload/app/. It is loaded now. At the last step a token older than about
+  3 minutes is renewed (they last 5, and a big upload takes longer). Send
+  waits for the check to answer, and the "safe to share" tick is kept when the
+  form comes back.
+- The game wizard no longer asks "a game or an app" again: the switch above
+  it decides. The share pages have their own titles.
+- The member menu has one **Upload now** instead of "Share a script" and
+  "Share a game or app"; it opens /upload/ with the Script / Game / App switch.
+  The profile head and the empty My uploads have the same single button.
+
 ## Share a game or app, search suggestions, executors (2.44)
 
 **Share a game or app.** Members share a game's or app's file at
@@ -709,7 +774,7 @@ the tap, as on game pages), how to use it, and the scripts tested with it.
 Downloads are counted with the site's analytics (`executor_dl`). When members
 share a script, they tick the executors it works with. Admins can set them in
 the post editor's "Tested with executors" box. The script's page shows them as
-"Tested with" chips with a status dot, and step 2, "Open your executor",
+*Get Executors* chips with a status dot (see 2.45), and step 2, "Open your executor",
 leads to `/executors/`. The Roblox menu and the Roblox page link there too.
 Both pages carry a note that executors are other people's apps, that Roblox
 does not allow them, and that they are used at your own risk.

@@ -163,8 +163,7 @@ $owner_head = function ($u, $st = null) use ($M, $si) {
 				<div class="prf-actions">
 					<button type="button" class="prf-btn prf-btn-icon" data-open="prf-share" title="<?php esc_attr_e('Share my page', 'y4apk'); ?>"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 					<a class="prf-btn" href="<?php echo esc_url($M::url('customize')); ?>"><?php echo $si('edit'); ?><span><?php esc_html_e('Edit profile', 'y4apk'); ?></span></a>
-					<?php if (class_exists('Y4APK_Share') && Y4APK_Share::open()) : ?><a class="prf-btn" href="<?php echo esc_url($M::url('share/game')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Game or app', 'y4apk'); ?></span></a><?php endif; ?>
-					<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('submit')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Share a script', 'y4apk'); ?></span></a>
+					<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('submit')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Upload now', 'y4apk'); ?></span></a>
 				</div>
 				<?php endif; ?>
 			</div>
@@ -437,8 +436,7 @@ if ($screen === 'login') {
 			<h2><?php esc_html_e('You have not shared anything yet', 'y4apk'); ?></h2>
 			<p><?php echo esc_html($can_share ? __('Share a Roblox script, or a game’s or app’s file. We check it and it goes live.', 'y4apk') : __('Pick a game, paste the code, and send it. We check it and it goes live.', 'y4apk')); ?></p>
 			<div class="acc-empty-acts">
-				<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Share a script', 'y4apk'); ?></a>
-				<?php if ($can_share) : ?><a class="acc-btn acc-btn-ghost" href="<?php echo esc_url($M::url('share/game')); ?>"><?php esc_html_e('Share a game or app', 'y4apk'); ?></a><?php endif; ?>
+				<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Upload now', 'y4apk'); ?></a>
 			</div>
 		</div>
 	<?php else : ?>
@@ -1188,7 +1186,7 @@ if ($screen === 'login') {
 <?php // Named y4apk-pwa-…: the speed plugin's delay already leaves y4apk-pwa scripts alone. ?>
 <script id="y4apk-pwa-account" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
 (function () {
-<?php if (Y4APK_Members::turnstile_on() && in_array($screen, ['login', 'register', 'forgot', 'submit', 'edit'], true)) : ?>
+<?php if (Y4APK_Members::turnstile_on() && in_array($screen, ['login', 'register', 'forgot', 'submit', 'edit', 'share'], true)) : ?>
 	// Cloudflare Turnstile is added from here: as a plain <script src> a speed plugin holds it back until the visitor moves.
 	var ts = document.createElement('script');
 	ts.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';

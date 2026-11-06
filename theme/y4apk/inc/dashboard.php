@@ -299,20 +299,20 @@ class Y4APK_Dashboard {
 	const RAMP  = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']; // sequential, light → dark
 	const ORD   = ['#86b6ef', '#5598e7', '#2a78d6', '#1c5cab', '#104281']; // ordinal (funnel stages)
 
-	private static function n($v) {
+	public static function n($v) {
 		return is_numeric($v) ? number_format_i18n((int) $v) : (string) $v;
 	}
 
-	private static function short($v) {
+	public static function short($v) {
 		return Y4APK_Roblox::short_number((int) $v);
 	}
 
-	private static function pct($part, $whole) {
+	public static function pct($part, $whole) {
 		return $whole > 0 ? round(100 * $part / $whole) : 0;
 	}
 
 	/** A signed change vs the period before, coloured by direction (up is good for everything here). */
-	private static function delta($now, $before, $label) {
+	public static function delta($now, $before, $label) {
 		if ($now === 0 && $before === 0) {
 			return '<span class="y4d-delta">' . esc_html__('no change', 'y4apk') . '</span>';
 		}
@@ -324,7 +324,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** The days of a period put into up to 12 buckets, for a stat tile's trend. */
-	private static function buckets($series, $n = 12) {
+	public static function buckets($series, $n = 12) {
 		$vals = array_values($series);
 		$size = max(1, (int) ceil(count($vals) / $n));
 		$out = [];
@@ -335,7 +335,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** A tile's trend: a 2px line, a 10% wash, the end dot ringed in the surface colour. */
-	private static function spark($vals) {
+	public static function spark($vals) {
 		$w = 120; $h = 34; $n = count($vals);
 		if ($n < 2) {
 			return '';
@@ -352,7 +352,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** Clean axis steps: [step, top]. */
-	private static function nice($max) {
+	public static function nice($max) {
 		$max = max(1, $max);
 		$raw = $max / 3;
 		$mag = pow(10, floor(log10($raw)));
@@ -367,7 +367,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** Columns per day: ≤24px bars, 4px rounded tops, hairline grid, clean ticks, a tooltip on each day. */
-	private static function columns($series, $noun) {
+	public static function columns($series, $noun) {
 		$w = 720; $h = 190; $left = 34; $bottom = 22; $top = 8;
 		$n = max(1, count($series));
 		list($step, $ymax) = self::nice(max($series ?: [0]));
@@ -403,7 +403,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** Ranked bars in one colour: [label (html), n, sub (html)]; the value at the bar's tip. */
-	private static function ranked($rows, $total, $empty) {
+	public static function ranked($rows, $total, $empty) {
 		if (!$rows) {
 			return '<p class="y4d-empty">' . esc_html($empty) . '</p>';
 		}
@@ -589,7 +589,7 @@ class Y4APK_Dashboard {
 					<div><dt><?php esc_html_e('Seen today', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($m['active_1'])); ?></dd></div>
 					<div><dt><?php esc_html_e('Seen in 7 days', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($m['active_7'])); ?> <small><?php echo esc_html(self::pct($m['active_7'], $total)); ?>%</small></dd></div>
 					<div><dt><?php esc_html_e('Seen in 30 days', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($m['active_30'])); ?> <small><?php echo esc_html(self::pct($m['active_30'], $total)); ?>%</small></dd></div>
-					<div><dt><i class="y4d-dot y4d-warn"></i><?php esc_html_e('Email not confirmed', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($m['unverified'])); ?></dd></div>
+					<div><dt><i class="y4d-dot y4d-warn"></i><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-members&show=pending')); ?>"><?php esc_html_e('Email not confirmed', 'y4apk'); ?></a></dt><dd><?php echo esc_html(number_format_i18n($m['unverified'])); ?></dd></div>
 					<div><dt><i class="y4d-dot y4d-bad"></i><?php esc_html_e('Banned', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($m['banned'])); ?></dd></div>
 				</dl>
 			</div>
@@ -836,7 +836,7 @@ class Y4APK_Dashboard {
 		<?php
 	}
 
-	private static function styles() {
+	public static function styles() {
 		echo '<style>
 #wpcontent{padding-left:0}#wpbody-content{padding-bottom:40px}
 .y4d{--ink:#1d2327;--ink2:#50575e;--mute:#8c8f94;--line:#ebeae4;--card:#fff;--blue:' . self::BLUE . ';margin:0;padding:20px 24px 0;max-width:none;color:var(--ink);font-size:13px}
@@ -924,7 +924,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** The tooltip on everything with data-tip, and the follow map (a small force layout; no library). */
-	private static function script() {
+	public static function script() {
 		?>
 		<script>
 		(function () {
