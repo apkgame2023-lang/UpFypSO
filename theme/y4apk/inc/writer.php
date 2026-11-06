@@ -1215,6 +1215,11 @@ class Y4APK_Writer {
 		if (!$post || $post->post_type !== 'post') {
 			return self::result(false, __('Post not found.', 'y4apk'));
 		}
+		$parent = (int) get_post_meta($post_id, '_y4apk_parent', true);
+		if ($parent) {
+			// A member's version (2.47): only its article; its icon, screenshots and details are its main post's
+			return $parts & self::ARTICLE ? self::write_version($post_id, $parent) : self::result(true, __('a member’s version: its details come from its main post', 'y4apk'));
+		}
 		$ctx = self::context($post_id);
 		if ($ctx['play']['status'] === 'busy') {
 			return self::result(false, __('Google Play is busy; trying again later.', 'y4apk'), true, 'play');
@@ -1318,6 +1323,58 @@ class Y4APK_Writer {
 			}
 		}
 		delete_transient('y4apk_writer_short');
+		return self::result(true, ucfirst(implode(' · ', $done)));
+	}
+
+	/**
+	 * The article of a member's version: as the site's posts have it (the same
+	 * prompt and layout), about this version (its number and MOD), from what
+	 * the member wrote and the main post's Google Play facts.
+	 */
+	private static function write_version($post_id, $parent) {
+		$package = Y4APK_App_Updates::package_from(get_post_meta($parent, 'wp_GP_ID', true));
+		$play = $package !== '' ? Y4APK_App_Updates::play_app($package) : ['status' => 'none'];
+		if ($play['status'] !== 'ok') {
+			$play = ['status' => 'none']; // Google Play busy or not there: the member's words and the post's own details are enough
+		}
+		$ctx = self::context($post_id, $play);
+		$d = class_exists('Y4APK_Share') ? Y4APK_Share::data($post_id) : null;
+		$version = Y4APK_App_Updates::number(get_post_meta($post_id, 'wp_version_GP', true));
+		$mods = self::plain(get_post_meta($post_id, 'wp_mods', true));
+		$ctx['mod'] = $mods; // the member's MOD, or none: never Settings' or one looked up
+		$ctx['mod_saved'] = true;
+		if ($mods === '') {
+			$ctx['apk'] = false; // the original file: no "MOD APK" in the article
+		}
+		$notes = $d ? trim(wp_strip_all_tags((string) $d['desc'])) : '';
+		$extra = "\n\n---\nThis page is one member's own upload of " . $ctx['name'] . ($version !== '' ? ', version ' . $version : '')
+			. ($mods !== '' ? ', with this MOD: ' . $mods : ', the original file (not modded)') . '.'
+			. ($notes !== '' ? "\nWhat the member wrote about it (use what fits, in your own words; do not add features they did not write):\n" . mb_substr($notes, 0, 1500) : '');
+		$asked = self::ask(function ($p) use ($ctx, $extra) {
+			list($system, $user) = self::prompt($ctx, false, $p);
+			return [$system, $user . $extra];
+		}, 4000, false);
+		if (is_wp_error($asked)) {
+			$data = $asked->get_error_data();
+			return self::result(false, $asked->get_error_message(), $asked->get_error_code() === 'busy', $asked->get_error_code(), isset($data['wait']) ? $data['wait'] : 0);
+		}
+		list($answer, $provider, $model) = $asked;
+		$ctx['permalink'] = self::permalink($post_id);
+		$article = self::layout($answer, $ctx);
+		if (!$article) {
+			return self::result(false, __('The answer had no paragraphs.', 'y4apk'));
+		}
+		$saved = self::save_article(get_post($post_id), $article, $provider, $model);
+		if (is_wp_error($saved)) {
+			return self::result(false, $saved->get_error_message());
+		}
+		$done = [sprintf(_n('%s word', '%s words', $article['words'], 'y4apk'), number_format_i18n($article['words'])), __('a member’s version', 'y4apk')];
+		if (($desc = self::update_description($post_id)) !== '') {
+			$done[] = $desc;
+		}
+		if (class_exists('Y4APK_Versions')) {
+			Y4APK_Versions::purge($post_id);
+		}
 		return self::result(true, ucfirst(implode(' · ', $done)));
 	}
 

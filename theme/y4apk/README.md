@@ -638,6 +638,67 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Versions from members: short links, a paged grid, new-version emails (2.47)
+
+**Short links.** A member's version has a short, random address:
+`y4apk.com/v/k7x2pq9m4z/` (a letter, then nine letters or digits), like a
+YouTube link. The random name says nothing about how many there are or who
+sent them. Versions from 2.46 get theirs on the first admin page after the
+update. Their old long address, and `/k7x2pq9m4z/` without `/v/`, lead to it
+(301). Download pages are `/v/k7x2pq9m4z/download/0/`.
+
+**What the member did not fill in comes from the main post** while the version
+has none of its own:
+- Age (content rating), the stars and votes, Android ("8.0+") and OS;
+- the developer, the price, the screenshots and the icon.
+
+The version's own number, MOD, size, files, title and article are never
+taken. A vote on a version starts from the main post's stars and is kept on the
+version.
+
+**The article.** When the member wrote fewer than 60 words (or nothing),
+Review's *Approve* has *Write the article with AI* ticked. After it goes live,
+Write with AI writes its article as the site's posts have it: the same prompt,
+the bold name with its MOD, the heading and the SEO description. It is written
+about this version (its number and MOD) from the member's words and the main
+post's Google Play facts. An Original file gets no "MOD APK". A version never
+gets new icons, screenshots or details from Write with AI (they are the main
+post's).
+
+**The list** is a grid, four across (three on a tablet, two on a phone), 12 a
+page:
+- *Newest* or *Most viewed*, "13–24 of 10,000", and page numbers ("‹ 1 … 4 5 6
+  … 834 ›");
+- each card shows the member's picture and name, the date, the version, MOD or
+  Original with what is modded, the file type, size and views.
+
+The first page is in the post's HTML. The other pages, and the other sort, come
+from `versions.php` (WordPress with SHORTINIT: three small indexed queries) as
+the visitor clicks, without leaving the post. The page may come from a cache,
+so page 1 is asked for again when the list comes into view. Versions are their
+main post's children (`post_parent`, which has an index), so a game with
+100,000 versions pages as fast as one with ten. A link like `?vp=3&vs=views`
+works without the script too. On a version's page, the main post comes first
+as a wide card. Only members are named: a version put there by the site's own
+staff shows "Y4APK".
+
+**New versions.** When App updates finds a newer Google Play version for a main
+post, or the post's own version goes up, each member who shared a version of it
+is told, in the background (500 versions a round):
+- once per new version, by email ("New version of Chicken Gun: v6.0.35" with
+  *Share v6.0.35*, which opens the wizard with the game picked);
+- on My uploads: "v6.0.35 is out. Yours is v6.0.32: share the new one.", and
+  *Add a version* becomes *Share v6.0.35*.
+
+It is about the member's newest version of that game. A member's own new game
+counts too. Settings has *Email me when a game or app I shared has a new
+version* (on unless they turn it off); My uploads shows it either way.
+
+**Fix: the Roblox script wizard showed all four steps at once** (since 2.44).
+An attribute was written as `data-wizdata-start` instead of `data-wiz
+data-start`, so its script never started. It goes step by step again, with
+its game search and checks.
+
 ## Versions from members (2.46)
 
 A member who shares a game or app the site already has no longer changes the

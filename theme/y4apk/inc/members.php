@@ -31,7 +31,7 @@ class Y4APK_Members {
 
 	const ROLE     = 'y4apk_author';
 	const OPTION   = 'y4apk_members';
-	const VERSION  = '6';               // rewrite rules and the role, written again when this changes
+	const VERSION  = '7';               // rewrite rules and the role, written again when this changes
 	const VERIFIED = 'y4apk_email_ok';  // '0' until the email link is opened (absent: an older account, fine)
 	const BANNED   = 'y4apk_banned';
 	const REJECT   = '_y4apk_reject_reason';
@@ -41,7 +41,7 @@ class Y4APK_Members {
 	const MEMBER_POST = '_y4apk_member_post';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings', 'customize' => 'customize', 'share' => 'share'];
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'customize' => 'customize', 'share' => 'share'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -1029,6 +1029,23 @@ class Y4APK_Members {
 		wp_set_password($new, $user->ID);
 		wp_set_auth_cookie($user->ID, true, is_ssl()); // wp_set_password signs everyone out, this device included
 		wp_safe_redirect(self::url('settings', ['ok' => 'pw']));
+		exit;
+	}
+
+	/** Settings ▸ Emails (2.47): the "new version of a game you shared" emails, on or off. */
+	private static function do_emails(&$ctx) {
+		$ctx['screen'] = 'settings';
+		$g = self::guard('emails', false);
+		if ($g !== true) {
+			$ctx['errors'][] = $g;
+			return;
+		}
+		if (empty($_POST['newer'])) {
+			update_user_meta($ctx['user']->ID, 'y4apk_newer_mail', '0');
+		} else {
+			delete_user_meta($ctx['user']->ID, 'y4apk_newer_mail');
+		}
+		wp_safe_redirect(self::url('settings', ['ok' => 'emails']));
 		exit;
 	}
 

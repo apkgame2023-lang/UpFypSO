@@ -17,6 +17,7 @@ $notices = [
 	'shared'      => __('Thanks! Your upload is in review. We email you when it is live.', 'y4apk'),
 	'reshared'    => __('Saved. It goes back in review, and we email you when it is live.', 'y4apk'),
 	'pw'          => __('Password changed.', 'y4apk'),
+	'emails'      => __('Email settings saved.', 'y4apk'),
 	'profile'     => __('Profile saved.', 'y4apk'),
 ];
 $ok = isset($notices[$c['ok']]) ? $notices[$c['ok']] : '';
@@ -477,11 +478,12 @@ if ($screen === 'login') {
 						<?php if ($live) : ?><span><?php echo $si('eye'); ?><?php echo esc_html(sprintf(_n('%s view', '%s views', $s['views'], 'y4apk'), Y4APK_Roblox::short_number($s['views']))); ?></span><?php endif; ?>
 					</p>
 					<?php if ($s['key'] === 'changes' && $s['reason'] !== '') : ?><p class="acc-reason"><b><?php esc_html_e('What to change:', 'y4apk'); ?></b> <?php echo esc_html($s['reason']); ?></p><?php endif; ?>
+					<?php $newer = $sd && $live && class_exists('Y4APK_Versions') ? Y4APK_Versions::newer_for($p->ID) : ''; if ($newer !== '') : ?><p class="acc-newer"><i aria-hidden="true"></i><?php echo esc_html(sprintf(__('v%1$s is out. Yours is v%2$s: share the new one.', 'y4apk'), $newer, Y4APK_App_Updates::number(get_post_meta($p->ID, 'wp_version_GP', true)))); ?></p><?php endif; ?>
 				</div>
 				<div class="acc-item-actions">
 					<?php if ($live) : ?><a class="acc-ico" href="<?php echo esc_url(get_permalink($p)); ?>" title="<?php esc_attr_e('Open', 'y4apk'); ?>"><?php echo $si('open'); ?><span class="sr-only"><?php esc_html_e('Open', 'y4apk'); ?></span></a><?php endif; ?>
 					<?php if ($sd && $live) : ?>
-					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('share/' . $sd['kind'], ['newer' => $p->ID])); ?>"><?php echo $si('plus'); ?><?php esc_html_e('Add a version', 'y4apk'); ?></a>
+					<a class="acc-btn acc-btn-small<?php echo $newer !== '' ? ' acc-btn-primary' : ''; ?>" href="<?php echo esc_url($M::url('share/' . $sd['kind'], ['newer' => $p->ID])); ?>"><?php echo $si('plus'); ?><?php echo esc_html($newer !== '' ? sprintf(__('Share v%s', 'y4apk'), $newer) : __('Add a version', 'y4apk')); ?></a>
 					<?php elseif ($can_edit || !$sd) : ?>
 					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php echo $si('edit'); ?><?php esc_html_e('Edit', 'y4apk'); ?></a>
 					<?php endif; ?>
@@ -642,7 +644,11 @@ if ($screen === 'login') {
 		<div class="acc-card">
 			<h2><?php esc_html_e('Your details', 'y4apk'); ?></h2>
 			<dl class="acc-dl"><dt><?php esc_html_e('Username', 'y4apk'); ?></dt><dd>@<?php echo esc_html($u->user_login); ?></dd><dt><?php esc_html_e('Email', 'y4apk'); ?></dt><dd><?php echo esc_html($u->user_email); ?></dd></dl>
-			<p class="acc-hint"><?php esc_html_e('We use your email only to confirm your account and to tell you when a script is live.', 'y4apk'); ?></p>
+			<p class="acc-hint"><?php esc_html_e('We use your email only to confirm your account, to tell you when an upload is live, and (if you want) when a game or app you shared has a new version.', 'y4apk'); ?></p>
+			<?php $form_open('emails'); ?>
+				<label class="acc-check"><input type="checkbox" name="newer" value="1" <?php checked(get_user_meta($u->ID, 'y4apk_newer_mail', true) !== '0'); ?>> <span><?php esc_html_e('Email me when a game or app I shared has a new version, so I can share it', 'y4apk'); ?></span></label>
+				<button class="acc-btn acc-btn-small" type="submit"><?php esc_html_e('Save', 'y4apk'); ?></button>
+			</form>
 			<details class="acc-danger">
 				<summary><?php esc_html_e('Close my account', 'y4apk'); ?></summary>
 				<p><?php esc_html_e('This removes your account and email. It cannot be undone.', 'y4apk'); ?></p>
@@ -704,7 +710,7 @@ if ($screen === 'login') {
 	?>
 	<div class="acc-crumb"><a href="<?php echo esc_url($M::url()); ?>">← <?php esc_html_e('My uploads', 'y4apk'); ?></a></div>
 	<?php if (!$editing) { $kinds_switch('script'); } ?>
-	<div class="acc-wiz" data-wizdata-start="<?php echo (int) $start; ?>" data-games="<?php echo esc_attr(wp_json_encode($games)); ?>">
+	<div class="acc-wiz" data-wiz data-start="<?php echo (int) $start; ?>" data-games="<?php echo esc_attr(wp_json_encode($games)); ?>">
 		<div class="acc-wiz-head">
 			<span class="acc-wiz-badge" data-head-icon><?php echo $icon('code'); ?></span>
 			<div>

@@ -198,6 +198,7 @@ class Y4APK_Members_Admin {
 			'shared' => __('Approved: it is live with its download, and the member was told.', 'y4apk'), 'writing' => __('Approved: Write with AI writes its article, icon and screenshots, then it goes live and the member is told.', 'y4apk'),
 			'merged' => __('Approved: the newer version is in that post now, and the member was told.', 'y4apk'),
 			'under' => __('Approved: it is live as the member’s own post, listed on the main post’s page, and the member was told.', 'y4apk'),
+			'underai' => __('Approved: it is live as the member’s own post, listed on the main post’s page, and the member was told. Write with AI is writing its article.', 'y4apk'),
 			'sharefail' => __('Could not approve it:', 'y4apk') . ' ' . (isset($_GET['why']) ? sanitize_text_field(rawurldecode(wp_unslash($_GET['why']))) : '')];
 		$msg = isset($_GET['msg'], $msgs[$_GET['msg']]) ? $msgs[$_GET['msg']] : '';
 		if (isset($_GET['restored']) && in_array($_GET['restored'], ['ok', 'kept'], true)) {

@@ -1,14 +1,28 @@
 <?php
 /**
- * Versions from members (2.46)
+ * Versions from members (2.46–2.47)
  *
  * A member who shares a game or app the site already has gets their own post,
- * linked to the site's post (Y4APK_Share::PARENT). The site's post (the main
- * one) lists them under "Versions from members", newest first, as a Roblox game
- * lists its scripts; each is the member's own, with their name, and the main
- * post and its file are never touched. The site's lists (home, categories,
- * search, feeds, "Similar") show only main posts; a member's profile and
- * My uploads still show their own.
+ * linked to the site's post (Y4APK_Share::PARENT, and its post_parent). The
+ * site's post (the main one) lists them under "Versions from members", as a
+ * Roblox game lists its scripts; each is the member's own, with their name, and
+ * the main post and its file are never touched. The site's lists (home,
+ * categories, search, feeds, "Similar") show only main posts; a member's
+ * profile and My uploads still show their own.
+ *
+ * 2.47:
+ * - A version has a short address, /v/k7x2pq9m4z/ (random, so it tells nothing
+ *   about how many there are or who sent them), instead of its long title.
+ * - What the member did not fill in comes from the main post while the version
+ *   has none of its own: the age rating, the stars, Android and OS, the
+ *   developer, the screenshots, the icon (inherit()).
+ * - The list is a grid of 12 a page, four across, with the newest or the most
+ *   viewed first and page numbers. The first page is in the post's HTML; the
+ *   others come from versions.php (the database only), so a game with 100,000
+ *   versions pages as fast as one with ten.
+ * - A member is told when a game or app they shared has a newer version (on
+ *   Google Play, or on the site): once per version, by email (they can turn it
+ *   off in Settings) and on My uploads.
  *
  * 2.44–2.45 put an approved newer version into the main post instead (its
  * download pointed at the member's file). unmerge() undoes that once: the
@@ -20,18 +34,38 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+require_once __DIR__ . '/versions-data.php';
+
 class Y4APK_Versions {
 	const FIXED   = 'y4apk_versions_fixed'; // option: the 2.44–2.45 merges were undone
 	const RESTORE = '_y4apk_restore';       // on a main post a merge changed: [['from' => member post, 'keys' => [R2 keys], 'version' => '6.0.32'], …]
-	const SHOW    = 10;                     // versions shown before "Show more"
-	const MAX     = 100;                    // versions a page lists
+	const SHORTS  = 'y4apk_versions_short'; // option: versions before 2.47 have their short address and post_parent
+	const CFG     = 'y4apk_versions_cfg';   // JSON: what versions.php needs (addresses, R2, the words)
+	const TOLD    = 'y4apk_told_newer';     // user meta: [main post => the newer version the member was told about]
+	const MAIL    = 'y4apk_newer_mail';     // user meta: '0' when the member turned those emails off
+	const HOOK    = 'y4apk_versions_tell';
+	const SLUG    = '[a-z][a-z0-9]{9}';     // a version's short address
+	const BATCH   = 500;                    // versions looked at per round of telling
+
+	/** What a version takes from its main post while it has none of its own. */
+	const INHERIT = ['wp_contentrated_GP' => 1, 'total_rating' => 1, 'total_votes' => 1, 'avg_rating' => 1, 'ss_images' => 1, 'wp_requires_GP' => 1,
+		'platform' => 1, 'wp_developers_GP' => 1, 'price' => 1, '_thumbnail_id' => 1];
 
 	public static function init() {
+		add_filter('get_post_metadata', [__CLASS__, 'inherit'], 10, 4);
+		add_action('init', [__CLASS__, 'rules'], 5); // before Y4APK_Members::setup() writes the rules again
+		add_filter('post_link', [__CLASS__, 'link'], 10, 2);
+		add_action('template_redirect', [__CLASS__, 'canonical'], 1);
 		add_action('pre_get_posts', [__CLASS__, 'only_main'], 30);
 		add_action('transition_post_status', [__CLASS__, 'changed'], 20, 3);
 		add_action('before_delete_post', [__CLASS__, 'deleting']);
 		add_action('admin_init', [__CLASS__, 'unmerge']);
+		add_action('admin_init', [__CLASS__, 'shorten']);
+		add_action('admin_init', [__CLASS__, 'keep_cfg']);
 		add_action('admin_post_y4apk_restore_file', [__CLASS__, 'restore']);
+		add_action('added_post_meta', [__CLASS__, 'meta_changed'], 10, 3);
+		add_action('updated_post_meta', [__CLASS__, 'meta_changed'], 10, 3);
+		add_action(self::HOOK, [__CLASS__, 'tell'], 10, 2);
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -42,14 +76,6 @@ class Y4APK_Versions {
 	public static function parent_of($post_id) {
 		$parent = (int) get_post_meta($post_id, Y4APK_Share::PARENT, true);
 		return $parent && get_post_status($parent) === 'publish' && get_post_type($parent) === 'post' ? $parent : 0;
-	}
-
-	/** The published versions under a main post, newest first: [post IDs, how many in all]. */
-	public static function children($parent, $n = self::MAX, $not = []) {
-		$q = new WP_Query(['post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => $n, 'fields' => 'ids', 'orderby' => 'date', 'order' => 'DESC',
-			'meta_key' => Y4APK_Share::PARENT, 'meta_value' => (string) (int) $parent, 'post__not_in' => array_map('intval', (array) $not), 'ignore_sticky_posts' => true,
-			'y4_children' => 1, 'update_post_term_cache' => false]);
-		return [array_map('intval', $q->posts), (int) $q->found_posts];
 	}
 
 	/** "v6.0.32 by Dez": a version as the breadcrumb and the lists name it. */
@@ -81,14 +107,132 @@ class Y4APK_Versions {
 	}
 
 	/**
+	 * A version's age rating, stars, Android, OS, developer, price, screenshots
+	 * and icon: its own, else its main post's. Its own version, MOD, size, files,
+	 * title and article are never taken. (A vote on a version starts from the
+	 * main post's stars and is kept on the version.)
+	 */
+	public static function inherit($value, $id, $key, $single) {
+		static $busy = false;
+		if ($value !== null || $busy || !is_string($key) || !isset(self::INHERIT[$key])) {
+			return $value;
+		}
+		$busy = true;
+		$out = null;
+		$parent = (int) get_post_meta($id, Y4APK_Share::PARENT, true);
+		if ($parent && $parent !== (int) $id && self::blank(get_post_meta($id, $key, false))) {
+			$theirs = get_post_meta($parent, $key, false);
+			if (!self::blank($theirs)) {
+				$out = $theirs; // get_metadata() gives the first when one is asked for
+			}
+		}
+		$busy = false;
+		return $out;
+	}
+
+	private static function blank($values) {
+		foreach ((array) $values as $v) {
+			if ($v !== '' && $v !== '0' && $v !== 0 && $v !== [] && $v !== null && $v !== false) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Short addresses: /v/k7x2pq9m4z/
+	 * ---------------------------------------------------------------- */
+
+	public static function rules() {
+		add_rewrite_rule('^v/(' . self::SLUG . ')/?$', 'index.php?name=$matches[1]', 'top');
+		add_rewrite_rule('^v/(' . self::SLUG . ')/download(/(.*))?/?$', 'index.php?name=$matches[1]&download=$matches[3]', 'top');
+	}
+
+	/** A new short address no post has: a letter, then nine letters or digits. */
+	public static function short_id() {
+		global $wpdb;
+		$chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+		do {
+			$s = $chars[random_int(0, 25)];
+			for ($i = 0; $i < 9; $i++) {
+				$s .= $chars[random_int(0, 35)];
+			}
+		} while ($wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_name = %s LIMIT 1", $s)));
+		return $s;
+	}
+
+	public static function is_short($name) {
+		return (bool) preg_match('/^' . self::SLUG . '$/', (string) $name);
+	}
+
+	public static function link($url, $post) {
+		if ($post && $post->post_type === 'post' && $post->post_status === 'publish' && self::is_short($post->post_name) && get_option('permalink_structure')
+			&& get_post_meta($post->ID, Y4APK_Share::PARENT, true)) {
+			return home_url('/v/' . $post->post_name . '/');
+		}
+		return $url;
+	}
+
+	/** /r1emlor2o5/ (the post's address without /v/) → /v/r1emlor2o5/: one address for each version. */
+	public static function canonical() {
+		global $wp_query;
+		if (!is_singular('post') || isset($wp_query->query_vars['download']) || is_preview()) {
+			return;
+		}
+		$post = get_queried_object();
+		if (!$post instanceof WP_Post || !self::is_short($post->post_name)) {
+			return;
+		}
+		$want = get_permalink($post);
+		$path = (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH);
+		if (strpos($want, '/v/') !== false && untrailingslashit($path) !== untrailingslashit((string) wp_parse_url($want, PHP_URL_PATH))) {
+			$qs = (string) wp_parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_QUERY);
+			wp_safe_redirect($want . ($qs !== '' ? '?' . $qs : ''), 301);
+			exit;
+		}
+	}
+
+	/**
+	 * Versions from before 2.47: their short address (the long one still works,
+	 * and leads to it) and their post_parent. A few hundred per admin page.
+	 */
+	public static function shorten() {
+		if (get_option(self::SHORTS) || !class_exists('Y4APK_Share')) {
+			return;
+		}
+		global $wpdb;
+		$rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_name, p.post_status, p.post_parent, m.meta_value AS parent FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+			WHERE p.post_type = 'post' AND (p.post_parent <> CAST(m.meta_value AS UNSIGNED) OR (p.post_status = 'publish' AND p.post_name NOT REGEXP %s)) LIMIT 300", Y4APK_Share::PARENT, '^' . self::SLUG . '$'));
+		foreach ((array) $rows as $r) {
+			$set = ['post_parent' => (int) $r->parent];
+			if ($r->post_status === 'publish' && !self::is_short($r->post_name)) {
+				$set['post_name'] = self::short_id();
+				if ($r->post_name !== '') {
+					add_post_meta((int) $r->ID, '_wp_old_slug', $r->post_name); // the old address leads to the new one
+				}
+			}
+			$wpdb->update($wpdb->posts, $set, ['ID' => (int) $r->ID]); // not "Updated just now"
+			clean_post_cache((int) $r->ID);
+		}
+		if (count((array) $rows) < 300) {
+			update_option(self::SHORTS, time(), false);
+			flush_rewrite_rules(false);
+		}
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * The site's lists
+	 * ---------------------------------------------------------------- */
+
+	/**
 	 * The site's lists show main posts only: every front-end list of posts
 	 * (home, categories, tags, search, feeds, "Similar"), but not one post, a
-	 * member's own lists (by author), a list of chosen posts, or this file's
-	 * own lists of versions ('y4_children').
+	 * member's own lists (by author), a list of chosen posts, or a list of a
+	 * main post's versions ('y4_children', post_parent).
 	 */
 	public static function only_main($q) {
 		if (is_admin() || $q->get('y4_children') || $q->is_singular() || $q->get('p') || $q->get('name') || $q->get('page_id') || $q->get('pagename')
-			|| $q->get('post__in') || $q->get('author') || $q->get('author_name') || $q->get('author__in')) {
+			|| $q->get('post__in') || $q->get('author') || $q->get('author_name') || $q->get('author__in') || $q->get('post_parent')) {
 			return;
 		}
 		$type = $q->get('post_type');
@@ -127,13 +271,56 @@ class Y4APK_Versions {
 		do_action('y4apk_purge_post', $post_id);
 	}
 
-	/** A main post deleted for good: its versions stand on their own. */
+	/** A main post deleted for good: its versions stand on their own (WordPress sets their post_parent to 0). */
 	public static function deleting($post_id) {
 		if (get_post_type($post_id) !== 'post') {
 			return;
 		}
 		global $wpdb;
 		$wpdb->delete($wpdb->postmeta, ['meta_key' => Y4APK_Share::PARENT, 'meta_value' => (string) (int) $post_id]);
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * What versions.php needs
+	 * ---------------------------------------------------------------- */
+
+	public static function cfg() {
+		$pretty = (bool) get_option('permalink_structure');
+		return [
+			'home'   => untrailingslashit(home_url()),
+			'pretty' => $pretty,
+			'short'  => $pretty,
+			'r2'     => class_exists('Y4APK_R2') ? (string) Y4APK_R2::settings()['public'] : '',
+			'date'   => (string) get_option('date_format'),
+			'offset' => (float) get_option('gmt_offset'),
+			'role'   => Y4APK_Members::ROLE,
+			'site'   => Y4APK_Members::settings()['from_name'],
+			't'      => [
+				'MOD'                     => __('MOD', 'y4apk'),
+				'Original'                => __('Original', 'y4apk'),
+				'As released, not modded' => __('As released, not modded', 'y4apk'),
+				'views'                   => [__('%s view', 'y4apk'), __('%s views', 'y4apk')],
+				'Previous page'           => __('Previous page', 'y4apk'),
+				'Next page'               => __('Next page', 'y4apk'),
+				'%1$s–%2$s of %3$s'       => __('%1$s–%2$s of %3$s', 'y4apk'),
+			],
+		];
+	}
+
+	public static function keep_cfg() {
+		$c = wp_json_encode(self::cfg(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		if (get_option(self::CFG) !== $c) {
+			update_option(self::CFG, $c, false);
+		}
+	}
+
+	private static function cfg_now() {
+		$c = json_decode((string) get_option(self::CFG, ''), true);
+		if (!is_array($c)) {
+			self::keep_cfg();
+			$c = self::cfg();
+		}
+		return $c;
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -149,9 +336,8 @@ class Y4APK_Versions {
 		$main = $parent ?: $post_id;
 		if (!$parent) {
 			$cats = wp_list_pluck(get_the_category($post_id), 'term_id');
-			$roots = Y4APK_Share::roots();
 			$ours = false;
-			foreach ($roots as $r) {
+			foreach (Y4APK_Share::roots() as $r) {
 				if ($r[0] && (in_array((int) $r[0]->term_id, $cats, true) || array_intersect($cats, wp_list_pluck($r[1], 'term_id')))) {
 					$ours = true;
 				}
@@ -160,80 +346,207 @@ class Y4APK_Versions {
 				return; // not a game or an app (a page, a Roblox script…)
 			}
 		}
-		list($ids, $total) = self::children($main, self::MAX, [$post_id]);
+		$cfg = self::cfg_now();
+		$sort = isset($_GET['vs']) && $_GET['vs'] === 'views' ? 'views' : 'new';
+		$data = y4apk_vd_page($main, isset($_GET['vp']) ? absint($_GET['vp']) : 1, $sort, $parent ? $post_id : 0, $cfg);
 		$can_add = Y4APK_Share::open() && class_exists('Y4APK_R2') && Y4APK_R2::ready();
-		if (!$ids && !$parent && !$can_add) {
+		if (!$data['total'] && !$parent && !$can_add) {
 			return;
 		}
 		$name = self::app_name($main);
 		$add = $can_add ? Y4APK_Members::url('share/' . self::kind_of($main), ['newer' => $main]) : '';
+		$state = ['p' => $main, 'x' => $parent ? $post_id : 0, 'sort' => $sort, 'page' => $data['page'], 'total' => $data['total'],
+			'first' => $data['items'] ? $data['items'][0]['id'] : 0, 'api' => get_template_directory_uri() . '/versions.php'];
+		$tab = function ($key, $label) use ($sort) {
+			echo '<a class="y4v-tab' . ($sort === $key ? ' is-on' : '') . '" href="' . esc_attr($key === 'views' ? '?vs=views#versions' : '?vp=1#versions') . '" data-vs="' . esc_attr($key) . '" role="tab" aria-selected="' . ($sort === $key ? 'true' : 'false') . '">' . esc_html($label) . '</a>';
+		};
 		?>
-		<section class="block y4v" id="versions" aria-labelledby="y4v-title">
+		<section class="block y4v<?php echo $data['total'] ? '' : ' is-empty'; ?>" id="versions" aria-labelledby="y4v-title" data-y4v="<?php echo esc_attr(wp_json_encode($state)); ?>">
 			<div class="y4v-head">
 				<div class="y4v-text">
 					<h2 class="y4v-title" id="y4v-title"><?php echo esc_html($parent ? sprintf(__('More versions of %s', 'y4apk'), $name) : __('Versions from members', 'y4apk')); ?>
-						<?php if ($total) : ?><span class="y4v-count"><?php echo esc_html(number_format_i18n($total)); ?></span><?php endif; ?></h2>
+						<span class="y4v-count" data-y4v-count<?php echo $data['total'] ? '' : ' hidden'; ?>><?php echo esc_html(number_format_i18n($data['total'])); ?></span></h2>
 					<p class="y4v-sub"><?php echo esc_html($parent
 						? __('The site’s own post, and what other members shared for it.', 'y4apk')
-						: ($ids ? sprintf(__('Shared by our members for %s. Each one is the member’s own post.', 'y4apk'), $name) : sprintf(__('Have another version of %s? Share it: it shows here with your name.', 'y4apk'), $name))); ?></p>
+						: sprintf(__('Shared by our members for %s. Each one is the member’s own post.', 'y4apk'), $name)); ?></p>
 				</div>
 				<?php if ($add) : ?><a class="y4v-add" href="<?php echo esc_url($add); ?>" rel="nofollow"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg><?php esc_html_e('Share your version', 'y4apk'); ?></a><?php endif; ?>
 			</div>
-			<?php if ($parent || $ids) : ?>
-			<ul class="y4v-list">
-				<?php if ($parent) {
-					self::card($parent, true);
-				}
-				foreach (array_slice($ids, 0, self::SHOW) as $id) {
-					self::card($id);
-				} ?>
-			</ul>
-			<?php if (count($ids) > self::SHOW) : ?>
-			<details class="y4v-more">
-				<summary><?php echo esc_html(sprintf(_n('Show %s more', 'Show %s more', count($ids) - self::SHOW, 'y4apk'), number_format_i18n(count($ids) - self::SHOW))); ?></summary>
-				<ul class="y4v-list"><?php foreach (array_slice($ids, self::SHOW) as $id) {
-					self::card($id);
-				} ?></ul>
-			</details>
-			<?php endif; ?>
-			<?php endif; ?>
+			<?php if ($parent) {
+				self::main_card($parent);
+			} ?>
+			<div class="y4v-empty" data-y4v-empty<?php echo $data['total'] ? ' hidden' : ''; ?>>
+				<svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 7.5v9L12 21l9-4.5v-9L12 3Zm0 2.2 6.6 3.3L12 11.8 5.4 8.5 12 5.2ZM5 10.1l6 3v5.7l-6-3v-5.7Zm8 8.7v-5.7l6-3v5.7l-6 3Z" fill="currentColor"/></svg>
+				<p><b><?php echo esc_html($parent ? __('No other versions yet', 'y4apk') : __('No versions from members yet', 'y4apk')); ?></b>
+					<span><?php echo esc_html(sprintf(__('Have another version of %s? Share it: it shows here with your name.', 'y4apk'), $name)); ?></span></p>
+			</div>
+			<div class="y4v-bar" data-y4v-bar<?php echo $data['total'] ? '' : ' hidden'; ?>>
+				<div class="y4v-tabs" role="tablist" aria-label="<?php esc_attr_e('Sort versions', 'y4apk'); ?>"><?php $tab('new', __('Newest', 'y4apk')); $tab('views', __('Most viewed', 'y4apk')); ?></div>
+				<span class="y4v-range" data-y4v-range><?php echo esc_html(y4apk_vd_range($data, $cfg)); ?></span>
+			</div>
+			<ul class="y4v-grid" data-y4v-grid aria-live="polite"><?php echo y4apk_vd_cards($data, $cfg); // escaped in y4apk_vd_card() ?></ul>
+			<nav class="y4v-pager" data-y4v-pager aria-label="<?php esc_attr_e('Pages of versions', 'y4apk'); ?>"><?php echo y4apk_vd_pager($data, $sort, $cfg); ?></nav>
 		</section>
 		<?php
+		self::script();
 	}
 
-	/** One version in the list: who shared it, the version, MOD, the file and its size. */
-	private static function card($id, $main = false) {
+	/** On a version's page: the main post, first. */
+	private static function main_card($id) {
 		$v = (string) get_post_meta($id, 'wp_version_GP', true);
 		$mods = trim((string) get_post_meta($id, 'wp_mods', true));
 		$size = (string) get_post_meta($id, 'wp_sizes_GP', true);
-		$links = get_post_meta($id, 'repeatable_download_link', true);
-		$type = is_array($links) && isset($links[0]['download_name']) ? strtoupper((string) $links[0]['download_name']) : 'APK';
-		$views = (int) get_post_meta($id, 'wpb_post_views_count', true);
-		$user = $main ? null : Y4APK_Members::author($id);
+		$icon = get_the_post_thumbnail_url($id, 'thumbnail');
 		?>
-		<li><a class="y4v-card<?php echo $main ? ' y4v-main' : ''; ?>" href="<?php echo esc_url(get_permalink($id)); ?>">
-			<span class="y4v-who"><?php if ($main) {
-				$icon = get_the_post_thumbnail_url($id, 'thumbnail');
-				echo $icon ? '<img class="y4v-icon" src="' . esc_url($icon) . '" alt="" width="44" height="44" loading="lazy" decoding="async">' : '<span class="y4v-icon"></span>';
-			} elseif ($user) {
-				echo Y4APK_Social::avatar($user, 44);
-			} else {
-				echo Y4APK_Members::avatar('?', 44);
-			} ?></span>
-			<span class="y4v-body">
-				<span class="y4v-line">
-					<b class="y4v-v"><?php echo esc_html($v !== '' ? 'v' . $v : get_the_title($id)); ?></b>
-					<?php if ($main) : ?><span class="y4v-chip y4v-chip-main"><?php esc_html_e('Main post', 'y4apk'); ?></span><?php endif; ?>
-					<span class="y4v-chip<?php echo $mods !== '' ? ' y4v-chip-mod' : ''; ?>"><?php echo esc_html($mods !== '' ? __('MOD', 'y4apk') : __('Original', 'y4apk')); ?></span>
-				</span>
-				<?php if ($mods !== '') : ?><span class="y4v-mods"><?php echo esc_html($mods); ?></span><?php endif; ?>
-				<span class="y4v-by"><?php if ($user) : ?><span class="y4v-name"><?php echo esc_html(Y4APK_Social::name($user)); ?></span> · <?php endif; ?>
-					<time datetime="<?php echo esc_attr(get_post_time('c', true, $id)); ?>"><?php echo esc_html(get_the_date('', $id)); ?></time><?php if ($views > 0) : ?> · <?php echo esc_html(sprintf(_n('%s view', '%s views', $views, 'y4apk'), number_format_i18n($views))); ?><?php endif; ?></span>
+		<a class="y4v-mainpost" href="<?php echo esc_url(get_permalink($id)); ?>">
+			<?php echo $icon ? '<img src="' . esc_url($icon) . '" alt="" width="56" height="56" loading="lazy" decoding="async">' : '<span class="y4v-mp-icon"></span>'; ?>
+			<span class="y4v-mp-body">
+				<span class="y4v-line"><span class="y4v-chip y4v-chip-main"><?php esc_html_e('Main post', 'y4apk'); ?></span><b><?php echo esc_html(self::app_name($id)); ?></b></span>
+				<small><?php echo esc_html(implode(' · ', array_filter([$v !== '' ? 'v' . $v : '', $mods !== '' ? $mods : __('Original', 'y4apk'), $size]))); ?></small>
 			</span>
-			<span class="y4v-file"><span class="y4v-type"><?php echo esc_html($type); ?></span><?php if ($size !== '') : ?><span class="y4v-size"><?php echo esc_html($size); ?></span><?php endif; ?></span>
-			<svg class="y4v-go" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-		</a></li>
+			<span class="y4v-mp-go"><?php esc_html_e('Open', 'y4apk'); ?><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+		</a>
 		<?php
+	}
+
+	/** Pages and sort without leaving the post: versions.php sends the cards. The post's page may be from a cache, so page 1 is asked again when the list comes into view. */
+	private static function script() {
+		?>
+<script id="y4apk-pwa-versions" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+	var box = document.getElementById('versions');
+	if (!box || !window.fetch || !window.JSON) { return; }
+	var c = JSON.parse(box.getAttribute('data-y4v') || '{}'), busy = false;
+	var q = function (s) { return box.querySelector(s); };
+	function show(d, sort) {
+		q('[data-y4v-grid]').innerHTML = d.html;
+		q('[data-y4v-pager]').innerHTML = d.pager;
+		q('[data-y4v-range]').textContent = d.range;
+		var n = q('[data-y4v-count]');
+		n.textContent = (d.total || 0).toLocaleString();
+		n.hidden = !d.total; q('[data-y4v-bar]').hidden = !d.total; q('[data-y4v-empty]').hidden = !!d.total;
+		box.classList.toggle('is-empty', !d.total);
+		[].forEach.call(box.querySelectorAll('[data-vs]'), function (t) { var on = t.getAttribute('data-vs') === sort; t.classList.toggle('is-on', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
+		c.page = d.page; c.sort = sort; c.total = d.total; c.first = d.first;
+	}
+	function load(page, sort, scroll, quiet) {
+		if (busy) { return; }
+		busy = true;
+		if (!quiet) { box.classList.add('is-loading'); }
+		fetch(c.api + '?p=' + c.p + '&page=' + page + '&sort=' + sort + (c.x ? '&x=' + c.x : ''), { credentials: 'omit' })
+			.then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+			.then(function (d) {
+				if (quiet && d.total === c.total && d.first === c.first) { return; }
+				show(d, sort);
+				if (scroll) { var top = box.getBoundingClientRect().top + window.pageYOffset - 80; window.scrollTo({ top: top, behavior: 'smooth' }); }
+			})
+			.catch(function () { if (!quiet) { location.href = '?vp=' + page + (sort === 'views' ? '&vs=views' : '') + '#versions'; } })
+			.then(function () { busy = false; box.classList.remove('is-loading'); });
+	}
+	box.addEventListener('click', function (e) {
+		var a = e.target.closest ? e.target.closest('[data-vp],[data-vs]') : null;
+		if (!a || e.metaKey || e.ctrlKey || e.shiftKey) { return; }
+		e.preventDefault();
+		if (a.getAttribute('aria-disabled') === 'true') { return; }
+		if (a.hasAttribute('data-vs')) { if (a.getAttribute('data-vs') !== c.sort) { load(1, a.getAttribute('data-vs'), false); } }
+		else { load(+a.getAttribute('data-vp'), c.sort, true); }
+	});
+	if (c.page === 1 && 'IntersectionObserver' in window) {
+		var io = new IntersectionObserver(function (es) { if (es[0].isIntersecting) { io.disconnect(); load(1, c.sort, false, true); } }, { rootMargin: '300px' });
+		io.observe(box);
+	}
+})();
+</script>
+		<?php
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Telling members about a newer version
+	 * ---------------------------------------------------------------- */
+
+	/** The newest version known for a main post: Google Play's (App updates) or the post's own, whichever is newer; '' if neither. */
+	public static function latest_of($main) {
+		$a = Y4APK_App_Updates::number(get_post_meta($main, Y4APK_App_Updates::LATEST, true));
+		$b = Y4APK_App_Updates::number(Y4APK_App_Updates::current_version($main));
+		if ($a === '' || ($b !== '' && version_compare($b, $a, '>'))) {
+			return $b;
+		}
+		return $a;
+	}
+
+	/** For My uploads: the newer version out for this upload's game or app, or ''. */
+	public static function newer_for($post_id) {
+		$main = (int) get_post_meta($post_id, Y4APK_Share::PARENT, true) ?: (int) $post_id;
+		$mine = Y4APK_App_Updates::number(get_post_meta($post_id, 'wp_version_GP', true));
+		$latest = self::latest_of($main);
+		return $mine !== '' && $latest !== '' && version_compare($latest, $mine, '>') ? $latest : '';
+	}
+
+	/** Google Play's version found, or the post's own changed: the members who shared it are told, in the background. */
+	public static function meta_changed($meta_id, $post_id, $key) {
+		if (($key !== 'wp_version_GP' && $key !== Y4APK_App_Updates::LATEST) || get_post_type($post_id) !== 'post' || get_post_meta($post_id, Y4APK_Share::PARENT, true)) {
+			return;
+		}
+		if (!wp_next_scheduled(self::HOOK, [(int) $post_id, 0])) {
+			wp_schedule_single_event(time() + 120, self::HOOK, [(int) $post_id, 0]);
+		}
+	}
+
+	/** Each member whose newest version of this game is older than the newest known: one email per new version (if they want them). */
+	public static function tell($main, $offset = 0) {
+		$main = (int) $main;
+		if (get_post_status($main) !== 'publish' || !class_exists('Y4APK_Share')) {
+			return;
+		}
+		$latest = self::latest_of($main);
+		if ($latest === '') {
+			return;
+		}
+		global $wpdb;
+		$rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_author, m.meta_value AS v FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = 'wp_version_GP'
+			WHERE p.post_parent = %d AND p.post_type = 'post' AND p.post_status = 'publish' ORDER BY p.ID LIMIT %d OFFSET %d", $main, self::BATCH, (int) $offset));
+		$best = [];
+		if (!$offset && Y4APK_Share::is_share($main)) {
+			$best[(int) get_post_field('post_author', $main)] = Y4APK_App_Updates::number(Y4APK_App_Updates::current_version($main)); // a member's own new game: they are told too
+		}
+		foreach ((array) $rows as $r) {
+			$v = Y4APK_App_Updates::number($r->v);
+			$a = (int) $r->post_author;
+			if (!isset($best[$a]) || ($v !== '' && version_compare($v, $best[$a], '>'))) {
+				$best[$a] = $v;
+			}
+		}
+		foreach ($best as $uid => $v) {
+			if ($v !== '' && version_compare($latest, $v, '>')) {
+				self::tell_one($uid, $main, $v, $latest);
+			}
+		}
+		if (count((array) $rows) === self::BATCH) {
+			wp_schedule_single_event(time() + 60, self::HOOK, [$main, (int) $offset + self::BATCH]); // the next ones
+		}
+	}
+
+	private static function tell_one($uid, $main, $have, $latest) {
+		$user = get_userdata($uid);
+		if (!$user || !Y4APK_Members::is_public($user)) {
+			return;
+		}
+		$told = get_user_meta($uid, self::TOLD, true);
+		$told = is_array($told) ? $told : [];
+		if (isset($told[$main]) && version_compare((string) $told[$main], $latest, '>=')) {
+			return; // told about this one (or a newer) already
+		}
+		unset($told[$main]);
+		$told[$main] = $latest;
+		update_user_meta($uid, self::TOLD, array_slice($told, -300, null, true));
+		if (get_user_meta($uid, self::MAIL, true) === '0') {
+			return; // they turned these emails off: My uploads still shows it
+		}
+		$name = self::app_name($main);
+		Y4APK_Members::mail($user->user_email, sprintf(__('New version of %1$s: v%2$s', 'y4apk'), $name, $latest), Y4APK_Share::message('newer', [
+			'name' => $user->user_login, 'title' => $name, 'have' => $have, 'latest' => $latest,
+			'link' => Y4APK_Members::url('share/' . self::kind_of($main), ['newer' => $main]),
+		]));
 	}
 
 	/* ---------------------------------------------------------------- *
