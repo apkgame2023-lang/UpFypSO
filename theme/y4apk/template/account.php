@@ -13,7 +13,9 @@ $notices = [
 	'verified'    => __('Email confirmed. You can sign in.', 'y4apk'),
 	'submitted'   => __('Thanks! Your script is in review. We email you when it is live.', 'y4apk'),
 	'resubmitted' => __('Saved. It goes back in review, and we email you when it is live.', 'y4apk'),
-	'deleted'     => __('Script deleted.', 'y4apk'),
+	'deleted'     => __('Deleted.', 'y4apk'),
+	'shared'      => __('Thanks! Your upload is in review. We email you when it is live.', 'y4apk'),
+	'reshared'    => __('Saved. It goes back in review, and we email you when it is live.', 'y4apk'),
 	'pw'          => __('Password changed.', 'y4apk'),
 	'profile'     => __('Profile saved.', 'y4apk'),
 ];
@@ -22,7 +24,25 @@ $old = $c['old'];
 $v = function ($k, $d = '') use ($old) {
 	return isset($old[$k]) ? $old[$k] : $d;
 };
-$statuses = ['live' => __('Live', 'y4apk'), 'review' => __('In review', 'y4apk'), 'changes' => __('Needs changes', 'y4apk'), 'draft' => __('Draft', 'y4apk')];
+$statuses = ['live' => __('Live', 'y4apk'), 'review' => __('In review', 'y4apk'), 'approved' => __('Approved, going live', 'y4apk'), 'changes' => __('Needs changes', 'y4apk'), 'draft' => __('Draft', 'y4apk')];
+
+/** What to share (2.44): a script, a game or an app, above each wizard. */
+$kinds_switch = function ($on) {
+	$open = class_exists('Y4APK_Share') && Y4APK_Share::open();
+	$items = ['script' => [__('Roblox script', 'y4apk'), Y4APK_Members::url('submit'), '<path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/>']];
+	if ($open || $on !== 'script') {
+		$items['game'] = [__('Game', 'y4apk'), Y4APK_Members::url('share/game'), '<path d="M7 6h10a5 5 0 0 1 4.9 6l-1 5a3 3 0 0 1-5.2 1.4L13.6 16h-3.2l-2.1 2.4A3 3 0 0 1 3.1 17l-1-5A5 5 0 0 1 7 6Zm1 3v2H6v2h2v2h2v-2h2v-2h-2V9H8Zm8.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/>'];
+		$items['app'] = [__('App', 'y4apk'), Y4APK_Members::url('share/app'), '<path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm12.5 0a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z"/>'];
+	}
+	if (count($items) < 2) {
+		return;
+	}
+	echo '<nav class="acc-kinds" aria-label="' . esc_attr__('What to share', 'y4apk') . '"><span>' . esc_html__('Share a', 'y4apk') . '</span>';
+	foreach ($items as $k => $it) {
+		echo '<a href="' . esc_url($it[1]) . '"' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . '><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">' . $it[2] . '</svg>' . esc_html($it[0]) . '</a>';
+	}
+	echo '</nav>';
+};
 
 /** Errors and the confirmation, above a form. */
 $messages = function () use ($c, $ok) {
@@ -110,7 +130,7 @@ $si = function ($name) {
 
 /** The signed-in member's tabs: under their page's head, like on their public page. */
 $tabs = function ($on) use ($si) {
-	$items = ['home' => [__('My scripts', 'y4apk'), 'code'], 'following' => [__('Following', 'y4apk'), 'users'], 'customize' => [__('Edit profile', 'y4apk'), 'edit'], 'settings' => [__('Settings', 'y4apk'), 'gear']];
+	$items = ['home' => [__('My uploads', 'y4apk'), 'code'],'following' => [__('Following', 'y4apk'), 'users'], 'customize' => [__('Edit profile', 'y4apk'), 'edit'], 'settings' => [__('Settings', 'y4apk'), 'gear']];
 	echo '<nav class="prf-tabs acc-nav">';
 	foreach ($items as $k => $t) {
 		echo '<a' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . ' href="' . esc_url(Y4APK_Members::url($k === 'home' ? '' : $k)) . '">' . $si($t[1]) . esc_html($t[0]) . '</a>';
@@ -143,6 +163,7 @@ $owner_head = function ($u, $st = null) use ($M, $si) {
 				<div class="prf-actions">
 					<button type="button" class="prf-btn prf-btn-icon" data-open="prf-share" title="<?php esc_attr_e('Share my page', 'y4apk'); ?>"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 					<a class="prf-btn" href="<?php echo esc_url($M::url('customize')); ?>"><?php echo $si('edit'); ?><span><?php esc_html_e('Edit profile', 'y4apk'); ?></span></a>
+					<?php if (class_exists('Y4APK_Share') && Y4APK_Share::open()) : ?><a class="prf-btn" href="<?php echo esc_url($M::url('share/game')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Game or app', 'y4apk'); ?></span></a><?php endif; ?>
 					<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('submit')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Share a script', 'y4apk'); ?></span></a>
 				</div>
 				<?php endif; ?>
@@ -401,56 +422,82 @@ if ($screen === 'login') {
 } elseif ($screen === 'home') {
 	$u = $c['user'];
 	$st = $c['stats'];
-	$counts = ['all' => count($c['scripts']), 'live' => 0, 'review' => 0, 'changes' => 0, 'draft' => 0];
+	$counts = ['all' => count($c['scripts']), 'live' => 0, 'review' => 0, 'approved' => 0, 'changes' => 0, 'draft' => 0];
 	foreach ($c['scripts'] as $s) {
 		$counts[$s['key']]++;
 	}
+	$can_share = class_exists('Y4APK_Share') && Y4APK_Share::open();
 	$owner_head($u, $st);
 	$tabs('home');
 	$messages();
 	?>
 	<?php if (!$c['scripts']) : ?>
 		<div class="acc-card acc-empty">
-			<div class="acc-big-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/></svg></div>
-			<h2><?php esc_html_e('You have not shared a script yet', 'y4apk'); ?></h2>
-			<p><?php esc_html_e('Pick a game, paste the code, and send it. We check it and it goes live.', 'y4apk'); ?></p>
-			<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Share your first script', 'y4apk'); ?></a>
+			<div class="acc-big-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M11 16V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V16h-2Zm-6 2h14v2H5v-2Z"/></svg></div>
+			<h2><?php esc_html_e('You have not shared anything yet', 'y4apk'); ?></h2>
+			<p><?php echo esc_html($can_share ? __('Share a Roblox script, or a game’s or app’s file. We check it and it goes live.', 'y4apk') : __('Pick a game, paste the code, and send it. We check it and it goes live.', 'y4apk')); ?></p>
+			<div class="acc-empty-acts">
+				<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Share a script', 'y4apk'); ?></a>
+				<?php if ($can_share) : ?><a class="acc-btn acc-btn-ghost" href="<?php echo esc_url($M::url('share/game')); ?>"><?php esc_html_e('Share a game or app', 'y4apk'); ?></a><?php endif; ?>
+			</div>
 		</div>
 	<?php else : ?>
 		<div class="prf-bar">
-			<h2><?php esc_html_e('My scripts', 'y4apk'); ?> <span><?php echo esc_html(number_format_i18n($counts['all'])); ?></span></h2>
+			<h2><?php esc_html_e('My uploads', 'y4apk'); ?> <span><?php echo esc_html(number_format_i18n($counts['all'])); ?></span></h2>
 			<div class="prf-sort acc-filter" data-filter>
-				<?php foreach (['all' => __('All', 'y4apk'), 'live' => $statuses['live'], 'review' => $statuses['review'], 'changes' => $statuses['changes'], 'draft' => $statuses['draft']] as $k => $label) : if ($k !== 'all' && $k !== 'live' && !$counts[$k]) { continue; } ?>
+				<?php foreach (['all' => __('All', 'y4apk'), 'live' => $statuses['live'], 'review' => $statuses['review'], 'approved' => $statuses['approved'], 'changes' => $statuses['changes'], 'draft' => $statuses['draft']] as $k => $label) : if ($k !== 'all' && $k !== 'live' && !$counts[$k]) { continue; } ?>
 				<button type="button" data-f="<?php echo esc_attr($k); ?>"<?php echo $k === 'all' ? ' class="is-on"' : ''; ?>><?php echo esc_html($label); ?> <i><?php echo esc_html(number_format_i18n($counts[$k])); ?></i></button>
 				<?php endforeach; ?>
 			</div>
-			<label class="prf-search"><?php echo $si('search'); ?><input type="search" maxlength="60" placeholder="<?php esc_attr_e('Search my scripts…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search my scripts', 'y4apk'); ?>" data-find></label>
+			<label class="prf-search"><?php echo $si('search'); ?><input type="search" maxlength="60" placeholder="<?php esc_attr_e('Search my uploads…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search my uploads', 'y4apk'); ?>" data-find></label>
 		</div>
 		<div class="acc-list" data-list>
-			<?php foreach ($c['scripts'] as $s) : $p = $s['post']; $title = wp_strip_all_tags(get_the_title($p)); $g = Y4APK_Roblox::game_of($p->ID); $live = $s['key'] === 'live'; $go = $live ? get_permalink($p) : $M::url('edit/' . $p->ID); ?>
-			<article class="acc-item acc-item-<?php echo esc_attr($s['key']); ?>" data-state="<?php echo esc_attr($s['key']); ?>" data-title="<?php echo esc_attr(mb_strtolower($title . ' ' . $s['game'])); ?>">
+			<?php foreach ($c['scripts'] as $s) :
+				$p = $s['post'];
+				$title = wp_strip_all_tags(get_the_title($p));
+				$sd = $s['share'];
+				$g = $sd ? null : Y4APK_Roblox::game_of($p->ID);
+				$live = $s['key'] === 'live';
+				$can_edit = !$live && $s['key'] !== 'approved';
+				$go = $live ? get_permalink($p) : ($can_edit ? $M::url('edit/' . $p->ID) : '');
+				$icon = $sd ? Y4APK_Share::icon_url($p->ID) : '';
+				?>
+			<article class="acc-item acc-item-<?php echo esc_attr($s['key']); ?><?php echo $sd ? ' acc-item-app' : ''; ?>" data-state="<?php echo esc_attr($s['key']); ?>" data-title="<?php echo esc_attr(mb_strtolower($title . ' ' . $s['game'])); ?>">
+				<?php if ($sd) : ?>
+				<a class="acc-item-art acc-item-icon"<?php echo $go ? ' href="' . esc_url($go) . '"' : ''; ?> tabindex="-1" aria-hidden="true"><?php if ($icon !== '') : ?><img src="<?php echo esc_url($icon); ?>" alt="" width="96" height="96" loading="lazy" decoding="async"><?php endif; ?></a>
+				<?php else : ?>
 				<a class="acc-item-art" href="<?php echo esc_url($go); ?>" tabindex="-1" aria-hidden="true"><img src="<?php echo esc_url(Y4APK_Roblox::thumb($p->ID), ['http', 'https', 'data']); ?>" alt="" width="320" height="180" loading="lazy" decoding="async"></a>
+				<?php endif; ?>
 				<div class="acc-item-main">
 					<p class="acc-item-top"><span class="acc-badge acc-badge-<?php echo esc_attr($s['key']); ?>"><i aria-hidden="true"></i><?php echo esc_html($statuses[$s['key']]); ?></span><span><?php echo $si('clock'); ?><?php echo esc_html(sprintf(__('Updated %s', 'y4apk'), Y4APK_Roblox::ago(get_post_datetime($p, 'modified')->getTimestamp()))); ?></span></p>
-					<h3><a href="<?php echo esc_url($go); ?>"><?php echo esc_html($title); ?></a></h3>
+					<h3><?php if ($go) : ?><a href="<?php echo esc_url($go); ?>"><?php echo esc_html($title); ?></a><?php else : echo esc_html($title); endif; ?></h3>
 					<p class="acc-item-meta">
-						<?php if ($g) : ?><span><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($g), ['http', 'https', 'data']); ?>" alt="" width="18" height="18" loading="lazy"><?php echo esc_html($g->name); ?></span><?php elseif ($s['game'] !== '') : ?><span><?php echo $si('code'); ?><?php echo esc_html($s['game']); ?></span><?php endif; ?>
+						<?php if ($sd) : ?>
+							<span class="acc-kind"><?php echo esc_html($sd['kind'] === 'app' ? __('App', 'y4apk') : __('Game', 'y4apk')); ?></span>
+							<?php foreach ($sd['files'] as $fl) : ?><span><?php echo esc_html($fl['label'] . ' · ' . Y4APK_R2::size_text($fl['size'])); ?></span><?php endforeach; ?>
+						<?php elseif ($g) : ?><span><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($g), ['http', 'https', 'data']); ?>" alt="" width="18" height="18" loading="lazy"><?php echo esc_html($g->name); ?></span><?php elseif ($s['game'] !== '') : ?><span><?php echo $si('code'); ?><?php echo esc_html($s['game']); ?></span><?php endif; ?>
 						<?php if ($live) : ?><span><?php echo $si('eye'); ?><?php echo esc_html(sprintf(_n('%s view', '%s views', $s['views'], 'y4apk'), Y4APK_Roblox::short_number($s['views']))); ?></span><?php endif; ?>
 					</p>
 					<?php if ($s['key'] === 'changes' && $s['reason'] !== '') : ?><p class="acc-reason"><b><?php esc_html_e('What to change:', 'y4apk'); ?></b> <?php echo esc_html($s['reason']); ?></p><?php endif; ?>
 				</div>
 				<div class="acc-item-actions">
 					<?php if ($live) : ?><a class="acc-ico" href="<?php echo esc_url(get_permalink($p)); ?>" title="<?php esc_attr_e('Open', 'y4apk'); ?>"><?php echo $si('open'); ?><span class="sr-only"><?php esc_html_e('Open', 'y4apk'); ?></span></a><?php endif; ?>
+					<?php if ($sd && $live) : ?>
+					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('share/' . $sd['kind'], ['newer' => $p->ID])); ?>"><?php echo $si('plus'); ?><?php esc_html_e('Newer version', 'y4apk'); ?></a>
+					<?php elseif ($can_edit || !$sd) : ?>
 					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php echo $si('edit'); ?><?php esc_html_e('Edit', 'y4apk'); ?></a>
-					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js(__('Delete this script?', 'y4apk')); ?>')">
+					<?php endif; ?>
+					<?php if (!$sd || !$live) : ?>
+					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js($sd ? __('Delete this upload? Its file is deleted too.', 'y4apk') : __('Delete this script?', 'y4apk')); ?>')">
 						<input type="hidden" name="y4_do" value="delete"><input type="hidden" name="id" value="<?php echo esc_attr($p->ID); ?>"><?php echo $M::nonce('delete'); ?>
 						<button class="acc-ico acc-ico-danger" type="submit" title="<?php esc_attr_e('Delete', 'y4apk'); ?>"><?php echo $si('trash'); ?><span class="sr-only"><?php esc_html_e('Delete', 'y4apk'); ?></span></button>
 					</form>
+					<?php endif; ?>
 				</div>
 			</article>
 			<?php endforeach; ?>
 		</div>
-		<p class="acc-card acc-empty acc-none" data-none hidden><?php esc_html_e('No scripts match.', 'y4apk'); ?></p>
+		<p class="acc-card acc-empty acc-none" data-none hidden><?php esc_html_e('Nothing matches.', 'y4apk'); ?></p>
 		<?php if ($st['live'] && $st['review']) : ?><p class="acc-hint"><?php esc_html_e('A script you change goes back in review; until it is checked again it is not shown.', 'y4apk'); ?></p><?php endif; ?>
 	<?php endif; ?>
 	<?php $share($u);
@@ -613,6 +660,16 @@ if ($screen === 'login') {
 	<?php
 
 /* ======================================================= share / edit a script: /upload/, four steps */
+} elseif ($screen === 'share') {
+	include locate_template('template/share.php'); // a game or app (2.44)
+} elseif ($screen === 'share_closed') {
+	$shell_open();
+	?>
+	<h1><?php esc_html_e('Sharing games and apps is closed at the moment', 'y4apk'); ?></h1>
+	<p class="acc-lead"><?php esc_html_e('New files are not being accepted right now. What you shared is safe. Come back soon, or share a Roblox script.', 'y4apk'); ?></p>
+	<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('submit')); ?>"><?php esc_html_e('Share a script', 'y4apk'); ?></a>
+	<?php
+	$shell_close();
 } elseif ($screen === 'submit' || $screen === 'edit') {
 	$editing = $screen === 'edit' && $c['post'];
 	$codes = $v('codes', [['label' => '', 'code' => '']]);
@@ -647,8 +704,9 @@ if ($screen === 'login') {
 		return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">' . $p[$name] . '</svg>';
 	};
 	?>
-	<div class="acc-crumb"><a href="<?php echo esc_url($M::url()); ?>">← <?php esc_html_e('My scripts', 'y4apk'); ?></a></div>
-	<div class="acc-wiz" data-wiz data-start="<?php echo (int) $start; ?>" data-games="<?php echo esc_attr(wp_json_encode($games)); ?>">
+	<div class="acc-crumb"><a href="<?php echo esc_url($M::url()); ?>">← <?php esc_html_e('My uploads', 'y4apk'); ?></a></div>
+	<?php if (!$editing) { $kinds_switch('script'); } ?>
+	<div class="acc-wiz" data-wizdata-start="<?php echo (int) $start; ?>" data-games="<?php echo esc_attr(wp_json_encode($games)); ?>">
 		<div class="acc-wiz-head">
 			<span class="acc-wiz-badge" data-head-icon><?php echo $icon('code'); ?></span>
 			<div>

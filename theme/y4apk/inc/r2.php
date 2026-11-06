@@ -287,6 +287,69 @@ HTML;
 	}
 
 	/* ---------------------------------------------------------------- *
+	 * Multipart steps for other uploaders (members' games and apps, 2.44)
+	 * ---------------------------------------------------------------- */
+
+	/** Starts a multipart upload at $key: its upload ID, or a WP_Error. */
+	public static function mp_start($key, $type = 'application/octet-stream') {
+		$r = self::call('POST', $key, ['uploads' => ''], '', ['Content-Type' => $type]);
+		if (is_wp_error($r) || $r[0] !== 200 || !preg_match('~<UploadId>(.*?)</UploadId>~s', $r[1], $m)) {
+			return self::r2_error($r, __('Starting the upload', 'y4apk'));
+		}
+		return html_entity_decode($m[1]);
+	}
+
+	/** Part size and count for a file: [part bytes, parts]. */
+	public static function mp_plan($size) {
+		$part = max(self::MIN_PART, (int) ceil($size / self::MAX_PARTS / 1048576) * 1048576);
+		return [$part, (int) ceil($size / $part)];
+	}
+
+	/** Signed PUT links for some parts: [number => url]. */
+	public static function mp_urls($key, $upload_id, $count, $numbers, $expires = 6 * HOUR_IN_SECONDS) {
+		$urls = [];
+		foreach (array_slice(array_map('absint', (array) $numbers), 0, 100) as $n) {
+			if ($n >= 1 && $n <= $count) {
+				$urls[$n] = self::presign('PUT', $key, ['partNumber' => $n, 'uploadId' => $upload_id], $expires);
+			}
+		}
+		return $urls;
+	}
+
+	/** Joins the parts ([number => ETag], all of them): the file's size on R2, or a WP_Error. */
+	public static function mp_complete($key, $upload_id, $count, $etags) {
+		$xml = '<CompleteMultipartUpload>';
+		for ($n = 1; $n <= $count; $n++) {
+			if (empty($etags[$n])) {
+				return new WP_Error('y4apk_r2_parts', __('Some parts of the file are missing: upload it again.', 'y4apk'));
+			}
+			$xml .= '<Part><PartNumber>' . $n . '</PartNumber><ETag>' . esc_html('"' . trim((string) $etags[$n], '"') . '"') . '</ETag></Part>';
+		}
+		$xml .= '</CompleteMultipartUpload>';
+		$r = self::call('POST', $key, ['uploadId' => $upload_id], $xml, ['Content-Type' => 'application/xml']);
+		if (is_wp_error($r) || $r[0] !== 200 || strpos($r[1], '<Error>') !== false) {
+			return self::r2_error($r, __('Finishing the upload', 'y4apk'));
+		}
+		return self::size_of($key);
+	}
+
+	public static function mp_abort($key, $upload_id) {
+		self::call('DELETE', $key, ['uploadId' => $upload_id]);
+	}
+
+	/** The size of a file on R2 (0: not there). */
+	public static function size_of($key) {
+		$h = self::call('HEAD', $key);
+		return !is_wp_error($h) && $h[0] === 200 && isset($h[2]['content-length']) ? (float) $h[2]['content-length'] : 0;
+	}
+
+	/** The first bytes of a file on R2 ('' when it cannot be read). */
+	public static function first_bytes($key, $n = 8) {
+		$r = wp_remote_get(self::presign('GET', $key, [], 300), ['timeout' => 20, 'headers' => ['Range' => 'bytes=0-' . max(0, (int) $n - 1)], 'limit_response_size' => (int) $n]);
+		return is_wp_error($r) || !in_array((int) wp_remote_retrieve_response_code($r), [200, 206], true) ? '' : substr((string) wp_remote_retrieve_body($r), 0, (int) $n);
+	}
+
+	/* ---------------------------------------------------------------- *
 	 * Upload steps (admin-ajax, from assets/js/y4apk-r2-upload.js)
 	 * ---------------------------------------------------------------- */
 

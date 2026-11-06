@@ -37,6 +37,9 @@ if(function_exists('single_bottom_ad')) single_bottom_ad();
 ?>
 <div class="f-app-download" id="download-now">
     <?php if (class_exists('Y4APK_Scripts')) Y4APK_Scripts::render(get_the_ID()); // Script Code (2.31): what a script post offers, before any download ?>
+    <?php if (class_exists('Y4APK_Share') && Y4APK_Share::is_share(get_the_ID()) && ($y4_by = Y4APK_Members::author(get_the_ID()))) : // a member's game or app (2.44) ?>
+    <a class="y4-shared" href="<?php echo esc_url(Y4APK_Members::profile_url($y4_by)); ?>"><?php echo Y4APK_Social::avatar($y4_by, 36); ?><span><small><?php esc_html_e('Shared by', 'y4apk'); ?></small><b><?php echo esc_html(Y4APK_Social::name($y4_by)); ?></b></span></a>
+    <?php endif; ?>
     <div class="grid-list <?php echo $grid2_class; ?>">
 		<?php 
 		if (!empty($download_links)) :

@@ -130,7 +130,7 @@ if(strtolower($app_os) == 'android') {
                     </svg>
                 </i>
                 <span class="fw-b c-blue"><?php esc_html_e('OS', 'y4apk'); ?></span>
-                <span class="f-app-meta-data"><?php echo $app_os; ?> <?php echo "$app_requires+"; ?></span>
+                <span class="f-app-meta-data"><?php echo $app_os; ?> <?php echo $app_requires !== "" && $app_requires !== false ? esc_html(rtrim($app_requires, "+")) . "+" : ""; ?></span>
             </div>
         </div>
 		<?php endif; ?>

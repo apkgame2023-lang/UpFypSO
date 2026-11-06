@@ -373,3 +373,11 @@
 
 /* Phones: 16px in the boxes people type in, so iOS does not zoom in on them (2.43) */
 @media (max-width: 47.99rem) { .y4-report-form select, .y4-report-form input, .y4-report-form textarea { font-size: 1rem; } }
+
+/* A member's game or app (2.44): who shared it */
+.y4-shared { display: flex; align-items: center; gap: .625rem; width: fit-content; max-width: 100%; margin: 0 auto 1rem; padding: .375rem 1rem .375rem .375rem; border-radius: 2rem; color: #172021; background: #fff; box-shadow: 0 .5rem 1rem -.5rem rgba(0, 0, 0, .15), 0 0 0 1px rgba(0, 0, 0, .05); }
+.y4-shared:hover { color: #172021; box-shadow: 0 .75rem 1.5rem -.75rem rgba(41, 177, 216, .5), 0 0 0 1px rgba(41, 177, 216, .3); }
+.y4-shared .acc-av { flex: none; display: inline-grid; place-items: center; border-radius: 50%; font-weight: 700; color: #fff; object-fit: cover; }
+.y4-shared span { min-width: 0; line-height: 1.2; }
+.y4-shared small { display: block; font-size: .6875rem; color: rgba(23, 32, 33, .55); }
+.y4-shared b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; }

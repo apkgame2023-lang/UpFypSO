@@ -129,7 +129,10 @@ class Y4APK_Members_Admin {
 		update_post_meta($id, Y4APK_Members::REJECT, wp_slash($why));
 		wp_update_post(['ID' => $id, 'post_status' => 'draft']);
 		$user = get_userdata($post->post_author);
-		if ($user && Y4APK_Members::is_member($user)) {
+		if ($user && Y4APK_Members::is_member($user) && class_exists('Y4APK_Share') && Y4APK_Share::is_share($id)) {
+			Y4APK_Members::mail($user->user_email, __('Your upload needs a change', 'y4apk'),
+				Y4APK_Share::message('changes', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($id)), 'why' => $why, 'link' => Y4APK_Members::url('edit/' . $id)]));
+		} elseif ($user && Y4APK_Members::is_member($user)) {
 			Y4APK_Members::mail($user->user_email, __('Your script needs a change', 'y4apk'),
 				Y4APK_Members::message('changes', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($id)), 'why' => $why, 'link' => Y4APK_Members::url('edit/' . $id)]));
 		}
@@ -191,9 +194,12 @@ class Y4APK_Members_Admin {
 		}
 		$msgs = ['approved' => __('Approved: it is live, and the member was told.', 'y4apk'), 'rejected' => __('Sent back to the member with your note.', 'y4apk'), 'banned' => __('Account closed; what was waiting is removed and what they published is back in review.', 'y4apk'),
 			'unbanned' => __('Account allowed again.', 'y4apk'), 'dismissed' => __('Reports cleared.', 'y4apk'), 'rereview' => __('Back in review.', 'y4apk'), 'gone' => __('That script is no longer here.', 'y4apk'),
-			'nogame' => __('Choose the game (or type a new one) before approving.', 'y4apk'), 'noreason' => __('Write what the member should change.', 'y4apk')];
+			'nogame' => __('Choose the game (or type a new one) before approving.', 'y4apk'), 'noreason' => __('Write what the member should change.', 'y4apk'),
+			'shared' => __('Approved: it is live with its download, and the member was told.', 'y4apk'), 'writing' => __('Approved: Write with AI writes its article, icon and screenshots, then it goes live and the member is told.', 'y4apk'),
+			'merged' => __('Approved: the newer version is in that post now, and the member was told.', 'y4apk'),
+			'sharefail' => __('Could not approve it:', 'y4apk') . ' ' . (isset($_GET['why']) ? sanitize_text_field(rawurldecode(wp_unslash($_GET['why']))) : '')];
 		$msg = isset($_GET['msg'], $msgs[$_GET['msg']]) ? $msgs[$_GET['msg']] : '';
-		$bad = isset($_GET['msg']) && in_array($_GET['msg'], ['nogame', 'noreason', 'gone'], true);
+		$bad = isset($_GET['msg']) && in_array($_GET['msg'], ['nogame', 'noreason', 'gone', 'sharefail'], true);
 		$pending = get_posts(['post_type' => 'post', 'post_status' => 'pending', 'meta_key' => Y4APK_Members::MEMBER_POST, 'numberposts' => 50, 'orderby' => 'date', 'order' => 'ASC']);
 		$reported = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => self::REPORTS, 'numberposts' => 50]);
 		$games = get_terms(['taxonomy' => Y4APK_Roblox::TAX, 'hide_empty' => false, 'orderby' => 'name']);
@@ -203,12 +209,19 @@ class Y4APK_Members_Admin {
 		<div class="wrap y4rv">
 			<h1><?php esc_html_e('Review', 'y4apk'); ?></h1>
 			<?php if ($msg) : ?><div class="notice <?php echo $bad ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($msg); ?></p></div><?php endif; ?>
-			<p class="description"><?php esc_html_e('Scripts members sent. Nothing shows on the site until you approve it. Check where the code loads from before you do: the code itself can change later at that address.', 'y4apk'); ?></p>
+			<p class="description"><?php esc_html_e('Scripts, games and apps members sent. Nothing shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'); ?></p>
 
-			<h2><?php echo esc_html(sprintf(_n('%s script waiting', '%s scripts waiting', count($pending), 'y4apk'), number_format_i18n(count($pending)))); ?></h2>
+			<h2><?php echo esc_html(sprintf(_n('%s waiting for review', '%s waiting for review', count($pending), 'y4apk'), number_format_i18n(count($pending)))); ?></h2>
 			<?php if (!$pending) : ?><div class="y4rv-empty"><?php esc_html_e('Nothing is waiting. 🎉', 'y4apk'); ?></div><?php endif; ?>
 			<?php foreach ($pending as $p) {
-				self::card($p, $games);
+				if (class_exists('Y4APK_Share') && Y4APK_Share::is_share($p->ID)) {
+					Y4APK_Share::review_card($p); // a game or app (2.44)
+				} else {
+					self::card($p, $games);
+				}
+			}
+			if (class_exists('Y4APK_Share')) {
+				Y4APK_Share::review_styles();
 			} ?>
 
 			<?php if ($reported) : ?>
@@ -648,6 +661,8 @@ class Y4APK_Members_Admin {
 			$pic_new = class_exists('Y4APK_Pictures') ? Y4APK_Pictures::count_new() : 0;
 			$pic_all = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", Y4APK_Social::PIC, Y4APK_Social::BANNER));
 			?>
+			<?php if (class_exists('Y4APK_Share')) { Y4APK_Share::settings_card(); } ?>
+
 			<h2><?php esc_html_e('Members’ pictures', 'y4apk'); ?></h2>
 			<?php if (!empty($_GET['dropped'])) : ?><div class="notice notice-success inline"><p><?php esc_html_e('Picture removed.', 'y4apk'); ?></p></div><?php endif; ?>
 			<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px;max-width:780px;padding:14px 18px;margin:8px 0 28px;background:#fff;border:1px solid #dcdcde;border-radius:10px">

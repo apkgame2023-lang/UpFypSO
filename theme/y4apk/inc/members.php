@@ -31,7 +31,7 @@ class Y4APK_Members {
 
 	const ROLE     = 'y4apk_author';
 	const OPTION   = 'y4apk_members';
-	const VERSION  = '5';               // rewrite rules and the role, written again when this changes
+	const VERSION  = '6';               // rewrite rules and the role, written again when this changes
 	const VERIFIED = 'y4apk_email_ok';  // '0' until the email link is opened (absent: an older account, fine)
 	const BANNED   = 'y4apk_banned';
 	const REJECT   = '_y4apk_reject_reason';
@@ -41,7 +41,7 @@ class Y4APK_Members {
 	const MEMBER_POST = '_y4apk_member_post';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings', 'customize' => 'customize'];
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'close' => 'settings', 'customize' => 'customize', 'share' => 'share'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -129,6 +129,7 @@ class Y4APK_Members {
 	public static function setup() {
 		add_rewrite_rule('^account/?$', 'index.php?y4_acct=home', 'top');
 		add_rewrite_rule('^upload/?$', 'index.php?y4_acct=submit', 'top');
+		add_rewrite_rule('^upload/(game|app)/?$', 'index.php?y4_acct=share&y4_kind=$matches[1]', 'top'); // a game or app (2.44)
 		add_rewrite_rule('^account/edit/([0-9]+)/?$', 'index.php?y4_acct=edit&y4_id=$matches[1]', 'top');
 		add_rewrite_rule('^account/([a-z]+)/?$', 'index.php?y4_acct=$matches[1]', 'top');
 		add_rewrite_rule('^@([a-z0-9_]{3,20})/page/([0-9]+)/?$', 'index.php?y4_acct=profile&y4_user=$matches[1]&paged=$matches[2]', 'top');
@@ -145,10 +146,15 @@ class Y4APK_Members {
 	}
 
 	public static function query_vars($vars) {
-		return array_merge($vars, ['y4_acct', 'y4_id', 'y4_user']);
+		return array_merge($vars, ['y4_acct', 'y4_id', 'y4_user', 'y4_kind']);
 	}
 
 	public static function url($view = '', $args = []) {
+		if ($view === 'share' || $view === 'share/game' || $view === 'share/app') { // a game or app (2.44): /upload/game/, /upload/app/
+			$kind = $view === 'share/app' || ($view === 'share' && get_query_var('y4_kind') === 'app') ? 'app' : 'game';
+			$url = home_url('/upload/' . $kind . '/');
+			return $args ? add_query_arg($args, $url) : $url;
+		}
 		$url = $view === 'submit' ? home_url('/upload/') : home_url('/account/' . ($view !== '' && $view !== 'home' ? $view . '/' : ''));
 		return $args ? add_query_arg($args, $url) : $url;
 	}
@@ -490,6 +496,11 @@ class Y4APK_Members {
 		return true;
 	}
 
+	/** The checks a form gets before it is taken, for Y4APK_Share's (2.44). */
+	public static function guard_share() {
+		return self::guard(self::$ctx && self::$ctx['view'] === 'edit' ? 'edit' : 'share');
+	}
+
 	/* ---------------------------------------------------------------- *
 	 * Mail
 	 * ---------------------------------------------------------------- */
@@ -556,7 +567,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -599,7 +610,7 @@ class Y4APK_Members {
 		self::$ctx = &$ctx;
 
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
-		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following'];
+		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
 			wp_safe_redirect(self::url());
 			exit;
@@ -608,7 +619,7 @@ class Y4APK_Members {
 			self::do_logout($ctx); // signs out, or asks first (screen 'logout')
 		}
 		if (!$ctx['user'] && in_array($view, $members_only, true)) {
-			wp_safe_redirect(self::url('login', $view === 'submit' ? ['next' => 'upload'] : []));
+			wp_safe_redirect(self::url('login', $view === 'submit' || $view === 'share' ? ['next' => 'upload'] : []));
 			exit;
 		}
 		if ($ctx['user'] && !$ctx['member'] && in_array($view, $members_only, true)) {
@@ -621,6 +632,17 @@ class Y4APK_Members {
 			$ctx['errors'][] = sprintf(__('That was more than the site takes at once (%s). Send a smaller picture, or one picture at a time.', 'y4apk'), size_format(wp_max_upload_size()));
 		}
 		$do = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do'])) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
+		// A game or app (2.44): its own wizard, at /upload/game/, /upload/app/ and /account/edit/N/
+		$share = class_exists('Y4APK_Share') && ($view === 'share' || ($view === 'edit' && Y4APK_Share::is_share(absint(get_query_var('y4_id')))));
+		if ($share) {
+			if ($do === 'share' || $do === 'edit') {
+				Y4APK_Share::submit($ctx);
+			}
+			if ($ctx['screen'] !== 'notfound' && ($do === '' || !in_array($ctx['screen'], ['share', 'unverified', 'share_closed'], true))) {
+				Y4APK_Share::view($ctx);
+			}
+			return;
+		}
 		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
 			call_user_func_array([__CLASS__, 'do_' . $do], [&$ctx]);
 		}
@@ -1025,8 +1047,12 @@ class Y4APK_Members {
 				$key = $reason !== '' ? 'changes' : 'draft';
 			}
 			$game = Y4APK_Roblox::game_of($p->ID);
+			$share = class_exists('Y4APK_Share') ? Y4APK_Share::data($p->ID) : null;
+			if ($share && $key === 'review' && get_post_meta($p->ID, Y4APK_Share::OK, true)) {
+				$key = 'approved'; // being written by Write with AI, then live
+			}
 			$out[] = ['post' => $p, 'key' => $key, 'views' => (int) get_post_meta($p->ID, 'wpb_post_views_count', true),
-				'game' => $game ? $game->name : (string) get_post_meta($p->ID, self::WANTED, true), 'reason' => $reason];
+				'game' => $game ? $game->name : (string) get_post_meta($p->ID, self::WANTED, true), 'reason' => $reason, 'share' => $share];
 		}
 		return $out;
 	}
@@ -1436,8 +1462,13 @@ class Y4APK_Members {
 			return;
 		}
 		update_post_meta($post->ID, '_y4apk_told', 1);
-		self::mail($user->user_email, __('Your script is live', 'y4apk'),
-			self::message('live', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($post->ID)), 'link' => get_permalink($post->ID)]));
+		$d = ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($post->ID)), 'link' => get_permalink($post->ID)];
+		if (class_exists('Y4APK_Share') && Y4APK_Share::is_share($post->ID)) {
+			delete_post_meta($post->ID, Y4APK_Share::OK);
+			self::mail($user->user_email, __('Your upload is live', 'y4apk'), Y4APK_Share::message('live', $d));
+			return;
+		}
+		self::mail($user->user_email, __('Your script is live', 'y4apk'), self::message('live', $d));
 	}
 }
 

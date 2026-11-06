@@ -241,6 +241,7 @@ if ($subcategories_2) {
                 'me'     => '<path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5Z"/>',
                 'home'   => '<path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/>',
                 'upload' => '<path d="M11 16V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V16h-2Zm-6 2h14v2H5v-2Z"/>',
+                'pad'    => '<path d="M7 6h10a5 5 0 0 1 4.9 6l-1 5a3 3 0 0 1-5.2 1.4L13.6 16h-3.2l-2.1 2.4A3 3 0 0 1 3.1 17l-1-5A5 5 0 0 1 7 6Zm1 3v2H6v2h2v2h2v-2h2v-2h-2V9H8Zm8.5 1a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/>',
                 'users'  => '<path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-7 1.7-7 4v2h14v-2c0-2.3-3.7-4-7-4Zm7.5-2a3.5 3.5 0 1 0-1.3-6.7 6 6 0 0 1 0 6.4c.4.2.8.3 1.3.3Zm1.6 2.1c1.2.9 1.9 2.1 1.9 3.9v2h3v-2c0-2-2.4-3.4-4.9-3.9Z"/>',
                 'edit'   => '<path d="M3 17.3V21h3.8l11-11.1-3.7-3.7L3 17.3Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8 1.9-1.8Z"/>',
                 'gear'   => '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5-2.2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
@@ -265,6 +266,7 @@ if ($subcategories_2) {
             var U = <?php echo wp_json_encode(array(
                 'home'      => Y4APK_Members::url(),
                 'submit'    => Y4APK_Members::url('submit'),
+                'share'     => class_exists('Y4APK_Share') && Y4APK_Share::open() ? Y4APK_Members::url('share/game') : '',
                 'following' => Y4APK_Members::url('following'),
                 'customize' => Y4APK_Members::url('customize'),
                 'settings'  => Y4APK_Members::url('settings'),
@@ -277,6 +279,7 @@ if ($subcategories_2) {
                 'view'      => __('View profile', 'y4apk'),
                 'home'      => __('Dashboard', 'y4apk'),
                 'submit'    => __('Share a script', 'y4apk'),
+                'share'     => __('Share a game or app', 'y4apk'),
                 'following' => __('Following', 'y4apk'),
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
@@ -312,8 +315,8 @@ if ($subcategories_2) {
             head.insertAdjacentHTML('beforeend', svg('next', 18));
             menu.appendChild(head);
             var list = '<nav class="h-acct-list">';
-            [['home', 'home'], ['submit', 'upload'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
-                list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>';
+            [['home', 'home'], ['submit', 'upload'], ['share', 'pad'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
+                if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
             });
             list += '</nav><a class="h-acct-out" href="' + U.logout + '" data-out>' + svg('out') + '<span>' + T.out + '</span></a>';
             menu.insertAdjacentHTML('beforeend', list);
