@@ -25,6 +25,7 @@ $cfg = [
 	'ajax'  => admin_url('admin-ajax.php'),
 	'nonce' => wp_create_nonce('y4apk_share'),
 	'cats'  => $sh['cats'],
+	'popular' => $sh['popular'],
 	'max'   => $sh['max'],
 	'start' => $start,
 	'files' => array_map(function ($f) { return ['key' => $f['key'], 'size' => (float) $f['size'], 'name' => $f['name'], 'label' => $f['label'], 'sizeText' => Y4APK_R2::size_text($f['size'])]; }, $files),
@@ -81,6 +82,8 @@ $ic = function ($name, $s = 18) {
 		'star'   => '<path d="m12 2 3 6.6 7.2.7-5.4 4.8 1.6 7.1L12 17.5l-6.4 3.7 1.6-7.1L1.8 9.3 9 8.6 12 2Z"/>',
 		'x'      => '<path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7l-1.4-1.4L9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3 1.4 1.4Z"/>',
 		'plus'   => '<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>',
+		'play'   => '<path d="M4.6 2.3c-.4.3-.6.8-.6 1.4v16.6c0 .6.2 1.1.6 1.4l9.3-9.7L4.6 2.3Zm10.8 8.2 2.9-3-12-6.8 9.1 9.8Zm0 3-9.1 9.8 12-6.8-2.9-3Zm4.5-4.1-2.6-1.5-3.2 3.3 3.2 3.3 2.6-1.5c1-.6 1-2.9 0-3.6Z"/>',
+		'hand'   => '<path d="M3 17.3V21h3.8l11-11.1-3.7-3.7L3 17.3Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.8 1.9-1.8Z"/>',
 	];
 	return '<svg viewBox="0 0 24 24" width="' . (int) $s . '" height="' . (int) $s . '" fill="currentColor" aria-hidden="true">' . $p[$name] . '</svg>';
 };
@@ -123,14 +126,29 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 				<h2 class="acc-wiz-title"><?php echo esc_html($kind === 'app' ? __('Which app is it?', 'y4apk') : __('Which game is it?', 'y4apk')); ?></h2>
 				<p class="acc-wiz-lead"><?php esc_html_e('Paste its Google Play link, or type its name. We fill in the rest.', 'y4apk'); ?></p>
 				<input type="hidden" name="kind" value="<?php echo esc_attr($kind === 'app' ? 'app' : 'game'); ?>" data-f="kind"><?php // game or app: the switch above the wizard (2.45) ?>
-				<div class="acc-wiz-search shr-find" data-findbox>
-					<?php echo $ic('search'); ?>
-					<input type="text" data-q autocomplete="off" spellcheck="false" maxlength="200" placeholder="<?php esc_attr_e('play.google.com/store/apps/details?id=… or a name', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Find the game or app', 'y4apk'); ?>">
-					<span class="shr-spin" data-spin hidden></span>
+				<?php $by_hand = !empty($c['old']['name']) && empty($c['old']['package']) && empty($c['old']['update_of']) && empty($c['old']['play']); ?>
+				<div class="acc-wiz-scope shr-where" role="radiogroup" aria-label="<?php esc_attr_e('Where it is from', 'y4apk'); ?>">
+					<label class="acc-wiz-opt<?php echo $by_hand ? '' : ' is-on'; ?>"><input type="radio" name="where" value="play" data-where <?php checked(!$by_hand); ?>><span class="acc-wiz-opt-text"><b><?php esc_html_e('On Google Play', 'y4apk'); ?></b><small><?php echo esc_html($kind === 'app' ? __('Find it by name or its Google Play link', 'y4apk') : __('Find it by name or its Google Play link', 'y4apk')); ?></small></span><span class="acc-wiz-opt-art"><?php echo $ic('play'); ?></span></label>
+					<label class="acc-wiz-opt<?php echo $by_hand ? ' is-on' : ''; ?>"><input type="radio" name="where" value="hand" data-where <?php checked($by_hand); ?>><span class="acc-wiz-opt-text"><b><?php esc_html_e('Not on Google Play', 'y4apk'); ?></b><small><?php esc_html_e('Add its name and icon by hand', 'y4apk'); ?></small></span><span class="acc-wiz-opt-art"><?php echo $ic('hand'); ?></span></label>
 				</div>
-				<div class="shr-results" data-results hidden></div>
-				<div class="acc-wiz-chosen shr-chosen" data-chosen hidden></div>
-				<button type="button" class="acc-wiz-link shr-manual-btn" data-manual-open><?php esc_html_e('Not on Google Play? Add it by hand', 'y4apk'); ?></button>
+				<div class="shr-findpart" data-findpart>
+					<div class="acc-wiz-search shr-find" data-findbox>
+						<?php echo $ic('search'); ?>
+						<input type="text" data-q autocomplete="off" spellcheck="false" maxlength="200" placeholder="<?php esc_attr_e('Name, play.google.com/store/apps/details?id=… or a package', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Find the game or app', 'y4apk'); ?>">
+						<span class="shr-spin" data-spin hidden></span>
+					</div>
+					<div class="shr-results" data-results hidden></div>
+					<div class="acc-wiz-chosen shr-chosen" data-chosen hidden></div>
+					<?php if ($sh['popular']) : ?>
+					<div class="shr-popular" data-popular>
+						<p class="acc-wiz-label"><?php echo esc_html($kind === 'app' ? __('Popular apps on Y4APK', 'y4apk') : __('Popular games on Y4APK', 'y4apk')); ?></p>
+						<div class="acc-wiz-popular">
+							<?php foreach ($sh['popular'] as $i => $g) : ?><button type="button" class="acc-wiz-game" data-pop="<?php echo (int) $i; ?>" title="<?php echo esc_attr($g['title']); ?>"><?php if ($g['icon'] !== '') : ?><img src="<?php echo esc_url($g['icon']); ?>" alt="" width="40" height="40" loading="lazy"><?php else : ?><span class="shr-hit-q">?</span><?php endif; ?><span><?php echo esc_html($g['name'] !== '' ? $g['name'] : $g['title']); ?></span></button><?php endforeach; ?>
+						</div>
+						<p class="shr-pop-tip"><?php esc_html_e('Have your own file of one of these? Pick it: your version goes on its page, with your name.', 'y4apk'); ?></p>
+					</div>
+					<?php endif; ?>
+				</div>
 				<div class="shr-manual" data-manual hidden>
 					<label class="shr-icon-pick" data-iconpick>
 						<input type="file" name="icon" accept="image/png,image/jpeg,image/webp" data-icon-file>
@@ -291,14 +309,18 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		field('package').value = p && p.package ? p.package : '';
 		field('update_of').value = p && p.type === 'site' ? p.id : (p && p.have ? p.have.id : '');
 		if (p && p.type !== 'manual') { field('name').value = p.have ? (p.have.name || p.title) : (p.name || p.title); }
-		manual.hidden = !p || p.type !== 'manual';
-		$('[data-manual-open]').hidden = !!p && p.type !== 'manual';
-		$('[data-findbox]').hidden = !!p && p.type !== 'manual';
+		var hand = !!p && p.type === 'manual';
+		manual.hidden = !hand;
+		$('[data-findpart]').hidden = hand;
+		$('[data-findbox]').hidden = !!p && !hand;
+		var pop = $('[data-popular]');
+		if (pop) { pop.hidden = !!p; }
+		$$('[data-where]').forEach(function (r) { r.checked = r.value === (hand ? 'hand' : 'play'); r.closest('.acc-wiz-opt').classList.toggle('is-on', r.checked); });
 		res.hidden = true;
 		if (p && p.type !== 'manual') {
 			var site = p.type === 'site' ? p : p.have;
 			chosen.innerHTML = (p.icon ? '<img src="' + esc(p.icon) + '" alt="" width="56" height="56">' : '<span class="acc-wiz-q">?</span>') +
-				'<span><b>' + esc(p.title) + '</b><small>' + esc(site ? T.newer.replace('%s', site.version || '?') : [p.developer, p.genre].filter(Boolean).join(' · ')) + '</small></span>' +
+				'<span><b>' + esc(p.type === 'site' && p.name ? p.name : p.title) + '</b><small>' + esc(site ? T.newer.replace('%s', site.version || '?') : [p.developer, p.genre].filter(Boolean).join(' · ')) + '</small></span>' +
 				'<button type="button" class="acc-wiz-link" data-unpick>' + esc(<?php echo wp_json_encode(__('Change', 'y4apk')); ?>) + '</button>';
 			chosen.hidden = false;
 			var ver = field('version');
@@ -310,16 +332,24 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		head(); cats();
 	}
 	w.addEventListener('click', function (e) {
-		var t = e.target.closest('[data-hit],[data-unpick],[data-manual-open],[data-next],[data-back],[data-goto],[data-cat],[data-add2]');
+		var t = e.target.closest('[data-hit],[data-pop],[data-unpick],[data-next],[data-back],[data-goto],[data-cat],[data-add2]');
 		if (!t) { return; }
 		if (t.hasAttribute('data-hit')) { var g = t.getAttribute('data-hit').split(':'), x = found[g[0]][+g[1]]; choose(Object.assign({ type: g[0] }, x)); }
 		else if (t.hasAttribute('data-unpick')) { choose(null); q.focus(); }
-		else if (t.hasAttribute('data-manual-open')) { choose({ type: 'manual', title: field('name').value }); field('name').focus(); }
+		else if (t.hasAttribute('data-pop')) { choose(Object.assign({ type: 'site' }, C.popular[+t.getAttribute('data-pop')])); }
 		else if (t.hasAttribute('data-next')) { next(); }
 		else if (t.hasAttribute('data-back')) { go(cur - 1); }
 		else if (t.hasAttribute('data-goto')) { var n = +t.getAttribute('data-goto'); if (n <= reached) { go(n); } }
 		else if (t.hasAttribute('data-cat')) { field('cat').value = t.getAttribute('data-cat'); cats(); }
 		else if (t.hasAttribute('data-add2')) { slots[1].el.hidden = false; t.hidden = true; }
+	});
+	// On Google Play / Not on Google Play (2.49), as the script wizard's One game / Any game
+	$$('[data-where]').forEach(function (r) {
+		r.addEventListener('change', function () {
+			if (!r.checked) { return; }
+			if (r.value === 'hand') { choose({ type: 'manual', title: field('name').value }); field('name').focus(); }
+			else { choose(null); q.focus(); }
+		});
 	});
 	var iconFile = $('[data-icon-file]'), iconPrev = $('[data-icon-preview]');
 	iconFile.addEventListener('change', function () {

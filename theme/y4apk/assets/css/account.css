@@ -685,6 +685,11 @@
 .shr-chosen img { width: 3.5rem; height: 3.5rem; border-radius: 22%; }
 .shr-chosen small { overflow-wrap: anywhere; }
 .shr-manual-btn { display: inline-block; margin-top: .875rem; }
+/* Step 1 of a game or app (2.49): On Google Play / Not on Google Play, then the search and the site's popular ones, as the script wizard */
+.shr-where { margin-bottom: 1rem; }
+.shr-findpart[hidden], .shr-popular[hidden] { display: none; }
+.shr-popular .acc-wiz-game .shr-hit-q { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: .5rem; font-weight: 800; color: var(--acc-mute); background: #eef3f5; }
+.shr-pop-tip { margin: .625rem 0 0; font-size: .75rem; line-height: 1.45; color: var(--acc-mute); }
 .shr-manual { display: flex; gap: 1rem; align-items: flex-start; margin-top: 1rem; padding: 1rem; border-radius: 1rem; background: #f7f9fa; box-shadow: inset 0 0 0 1px var(--acc-line); }
 .shr-manual .acc-field { flex: 1; min-width: 0; margin: 0; }
 .shr-icon-pick { position: relative; flex: none; display: grid; place-items: center; width: 5.5rem; height: 5.5rem; margin: 0; border-radius: 22%; overflow: hidden; cursor: pointer; color: var(--acc-mute); background: #fff; box-shadow: inset 0 0 0 2px var(--acc-line); }

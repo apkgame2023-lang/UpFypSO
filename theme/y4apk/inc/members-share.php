@@ -213,6 +213,27 @@ class Y4APK_Share {
 			'package' => Y4APK_App_Updates::package_from(get_post_meta($id, 'wp_GP_ID', true))];
 	}
 
+	/** The wizard's "Popular on Y4APK" (2.49): the most read games (or apps) on the site, main posts only, kept 6 hours. */
+	public static function popular($kind, $n = 8) {
+		$kind = $kind === 'app' ? 'app' : 'game';
+		$key = 'y4apk_share_pop_' . $kind;
+		$ids = get_transient($key);
+		if (!is_array($ids)) {
+			$root = self::roots()[$kind][0];
+			$ids = $root ? get_posts(['post_type' => 'post', 'post_status' => 'publish', 'numberposts' => $n, 'fields' => 'ids', 'cat' => (int) $root->term_id,
+				'meta_key' => 'wpb_post_views_count', 'orderby' => 'meta_value_num', 'order' => 'DESC', 'no_found_rows' => true,
+				'meta_query' => [['key' => self::PARENT, 'compare' => 'NOT EXISTS']], 'tax_query' => class_exists('Y4APK_Roblox') ? Y4APK_Roblox::not_roblox() : []]) : [];
+			set_transient($key, array_map('intval', $ids), 6 * HOUR_IN_SECONDS);
+		}
+		$out = [];
+		foreach ($ids as $id) {
+			if (get_post_status($id) === 'publish') {
+				$out[] = self::site_card($id);
+			}
+		}
+		return $out;
+	}
+
 	/** An app on Google Play, as the wizard shows it (kept 12 hours). */
 	private static function play_card($package) {
 		$i = Y4APK_Discover::info($package);
@@ -428,6 +449,7 @@ class Y4APK_Share {
 		}
 		$kind = $post ? self::data($post->ID)['kind'] : (get_query_var('y4_kind') === 'app' ? 'app' : 'game');
 		$ctx['share'] = ['kind' => $kind, 'post' => $post, 'cats' => ['game' => self::categories('game'), 'app' => self::categories('app')], 'max' => self::max_bytes(),
+			'popular' => $post ? [] : self::popular($kind),
 			'done' => self::done_ups($user->ID)];
 		if (empty($ctx['old'])) {
 			$d = $post ? self::data($post->ID) : null;

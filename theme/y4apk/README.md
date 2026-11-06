@@ -638,6 +638,20 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Game and app wizards look like the script one (2.49)
+
+Step 1 of */upload/game/* and */upload/app/* now has what the Roblox script
+wizard has:
+- two cards: **On Google Play** (find it by name or its Google Play link) and
+  **Not on Google Play** (add its name and icon by hand; this replaces the
+  "Add it by hand" link);
+- the search box;
+- **Popular games (or apps) on Y4APK**: the eight most read main posts, with
+  their icons, four across (two on a phone). Picking one means "my own version
+  of this", so the upload goes on that post's page with the member's name.
+
+The picked card shows the game's name, not the whole post title.
+
 ## Live status dots (2.48)
 
 Every green (working, live, online) and red (outdated, needs changes) dot now
