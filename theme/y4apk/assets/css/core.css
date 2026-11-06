@@ -611,3 +611,18 @@ textarea#dle-promt-text { width: 100% !important; }
 @media (max-width: 26rem) {
   .header .logotype { transform: translateX(-1rem); } /* room for the account button beside it */
 }
+
+/* ---------------------------------------------------------------- 2.43: nothing wider than the phone
+ * A word, link or title longer than the screen used to push the page wider, and the
+ * phone (and the app) zoomed out to fit it. Long words now break inside their box,
+ * tables and code scroll inside theirs, and pictures and players never pass the edge. */
+body { overflow-wrap: break-word; }
+h1, h2, h3, h4, h5, h6, .heading, .speedbar, .text p, .text li, .text a, .text blockquote, .text figcaption, .text dd, .text dt,
+.f-app-main-text p, .f-app-main-text li, .f-app-main-text a, .f-app-main-text blockquote, .f-app-seo-virus p, .f-app-seo p, .comment-text, .c-text { overflow-wrap: anywhere; }
+.text img, .f-app-main-text img, .text video, .f-app-main-text video, .text figure, .f-app-main-text figure, .wp-caption { max-width: 100%; height: auto; }
+.text iframe, .text embed, .text object, .f-app-main-text embed, .f-app-main-text object { max-width: 100%; }
+.text .table-box, .f-app-main-text .table-box { max-width: 100%; margin-bottom: 1.5rem; }
+.text .table-box td, .text .table-box th, .f-app-main-text .table-box td, .f-app-main-text .table-box th { overflow-wrap: normal; }
+.str-main, .colomns > .content, .f-app-main, .f-app-main-text { min-width: 0; }
+.text pre, .f-app-main-text pre { max-width: 100%; }
+.text pre code, .f-app-main-text pre code { white-space: pre-wrap; overflow-wrap: anywhere; }

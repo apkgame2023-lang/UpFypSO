@@ -246,6 +246,14 @@ a.rbx-tag:hover { color: #fff; background-color: rgba(255, 255, 255, .24); }
 .rbx-game-meta span { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
 .rbx-game-meta .rbx-i { width: .75rem; height: .75rem; color: #29b1d8; }
 @media (min-width: 62rem) { .rbx-game-name { font-size: .875rem; } .rbx-game-meta { font-size: .75rem; } }
+/* Phones: the tiles reach into the page gutter, with thinner gaps and frames, so the pictures come out bigger */
+@media (max-width: 35.99rem) {
+	.rbx-games { gap: .5rem; margin-inline: -.5rem; }
+	.rbx-game { gap: .125rem; padding: .3125rem .3125rem .5rem; border-radius: .875rem; }
+	.rbx-game-icon { border-radius: .625rem; }
+	.rbx-game-name { min-height: 2.5em; margin-top: .3125rem; padding: 0 .1875rem; }
+	.rbx-game-meta { gap: 0 .5rem; padding: 0 .1875rem; }
+}
 
 /* ---------------------------------------------------------------- On a script post */
 .rbx-related { margin-top: .5rem; }
@@ -261,3 +269,6 @@ a.rbx-tag:hover { color: #fff; background-color: rgba(255, 255, 255, .24); }
 .rbx-fact-play { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .5rem; border-radius: 1rem; font-size: .75rem; font-weight: 700; color: #fff; background: #3fc35a; }
 .rbx-fact-play:hover { color: #fff; background: #34a94d; }
 .rbx-fact-play .rbx-i { width: .75rem; height: .75rem; }
+
+/* Phones: 16px in the boxes people type in, so iOS does not zoom in on them (2.43) */
+@media (max-width: 47.99rem) { .rbx-search input[type="search"], .rbx-sort select { font-size: 1rem; } }

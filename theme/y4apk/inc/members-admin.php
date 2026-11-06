@@ -326,7 +326,7 @@ class Y4APK_Members_Admin {
 			. '.y4rv-host.is-ok{background:#e4f7ea;color:#14602a}.y4rv-host.is-new{background:#fff4de;color:#7a4d00}'
 			. '.y4rv-decide{display:flex;flex-wrap:wrap;gap:.75rem 2rem;align-items:flex-end;padding-top:.75rem;border-top:1px solid #f0f0f1}'
 			. '.y4rv-approve{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end}.y4rv-approve label{display:flex;flex-direction:column;font-size:12px;gap:2px}'
-			. '.y4rv-reject{display:flex;gap:.5rem;flex:1 1 320px}.y4rv-reject input{flex:1}</style>';
+			. '.y4rv-reject{display:flex;gap:.5rem;flex:1 1 320px;min-width:0;max-width:100%}.y4rv-reject input{flex:1;min-width:0}</style>';
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -471,7 +471,7 @@ class Y4APK_Members_Admin {
 		check_admin_referer('y4apk_drop_image');
 		$kind = isset($_GET['kind']) && $_GET['kind'] === 'banner' ? 'banner' : 'pic';
 		Y4APK_Social::drop_image(isset($_GET['user']) ? absint($_GET['user']) : 0, $kind);
-		self::back('y4apk-members', ['dropped' => 1]);
+		self::back(class_exists('Y4APK_Pictures') ? Y4APK_Pictures::SLUG : 'y4apk-members', ['dropped' => 1]);
 	}
 
 	public static function test_mail() {
@@ -645,30 +645,17 @@ class Y4APK_Members_Admin {
 
 			<?php
 			global $wpdb;
-			$pics = $wpdb->get_results($wpdb->prepare("SELECT user_id, meta_key, meta_value FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s) ORDER BY umeta_id DESC LIMIT 24", Y4APK_Social::PIC, Y4APK_Social::BANNER));
+			$pic_new = class_exists('Y4APK_Pictures') ? Y4APK_Pictures::count_new() : 0;
+			$pic_all = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", Y4APK_Social::PIC, Y4APK_Social::BANNER));
 			?>
 			<h2><?php esc_html_e('Members’ pictures', 'y4apk'); ?></h2>
-			<p class="description" style="max-width:720px"><?php esc_html_e('The newest profile pictures and banners members uploaded (kept in Cloudflare R2). Take down one that does not belong: it is removed from R2 too, and a ban removes all of a member’s.', 'y4apk'); ?></p>
-			<?php $imagick = class_exists('Imagick') && Imagick::queryFormats('GIF'); $cap = Y4APK_Social::upload_max(); ?>
-			<p class="description" style="max-width:720px">
-				<?php echo esc_html(sprintf(__('Members may send pictures up to %1$s. They go from the browser straight to R2 (with the CORS rule in Y4APK ▸ App updates ▸ R2 settings, the same one your uploads use); this server then fetches each one, makes it the size it is shown at, keeps that on R2 and deletes what was sent. If a browser cannot reach R2, the picture comes through this server instead, which takes up to %2$s.', 'y4apk'), size_format($cap), size_format(wp_max_upload_size()))); ?>
-				<?php echo esc_html($imagick ? __('Moving GIFs are shrunk to the size they are shown at, frame by frame (Imagick).', 'y4apk') : __('Imagick is not on this server, so moving GIFs are kept as they are sent: up to 1000 × 1000 (banners 2000 × 1000) and 10 MB (banners 20 MB). Turn on the imagick extension in hPanel ▸ Advanced ▸ PHP Configuration to take bigger ones.', 'y4apk')); ?>
-			</p>
 			<?php if (!empty($_GET['dropped'])) : ?><div class="notice notice-success inline"><p><?php esc_html_e('Picture removed.', 'y4apk'); ?></p></div><?php endif; ?>
-			<?php if ($pics) : ?>
-			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;max-width:980px;margin:12px 0 28px">
-				<?php foreach ($pics as $row) : $v = maybe_unserialize($row->meta_value); $pu = get_userdata((int) $row->user_id); if (!$pu || !is_array($v) || empty($v['url'])) { continue; } $is_banner = $row->meta_key === Y4APK_Social::BANNER; ?>
-				<div style="background:#fff;border:1px solid #dcdcde;border-radius:8px;overflow:hidden">
-					<a href="<?php echo esc_url($v['url']); ?>" target="_blank" rel="noopener"><img src="<?php echo esc_url($v['url']); ?>" alt="" style="display:block;width:100%;aspect-ratio:<?php echo $is_banner ? '3/1' : '1/1'; ?>;object-fit:cover;background:#f0f0f1"></a>
-					<div style="padding:8px 10px;font-size:12px;line-height:1.5">
-						<a href="<?php echo esc_url(Y4APK_Members::profile_url($pu)); ?>" target="_blank" rel="noopener">@<?php echo esc_html($pu->user_login); ?></a> · <?php echo esc_html($is_banner ? __('banner', 'y4apk') : __('picture', 'y4apk')); ?><br>
-						<span style="color:#646970"><?php echo esc_html(isset($v['at']) ? Y4APK_Roblox::ago((int) $v['at']) : ''); ?></span>
-						<a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_drop_image&user=' . (int) $pu->ID . '&kind=' . ($is_banner ? 'banner' : 'pic')), 'y4apk_drop_image')); ?>" style="float:right;color:#b32d2e" onclick="return confirm('<?php echo esc_js(__('Take this picture down?', 'y4apk')); ?>')"><?php esc_html_e('Take down', 'y4apk'); ?></a>
-					</div>
-				</div>
-				<?php endforeach; ?>
+			<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px;max-width:780px;padding:14px 18px;margin:8px 0 28px;background:#fff;border:1px solid #dcdcde;border-radius:10px">
+				<div><strong style="font-size:22px;line-height:1.2;<?php echo $pic_new ? 'color:#b32d2e' : ''; ?>"><?php echo esc_html(number_format_i18n($pic_new)); ?></strong><br><span class="description"><?php esc_html_e('new, to look at', 'y4apk'); ?></span></div>
+				<div><strong style="font-size:22px;line-height:1.2"><?php echo esc_html(number_format_i18n($pic_all)); ?></strong><br><span class="description"><?php esc_html_e('pictures and banners in all', 'y4apk'); ?></span></div>
+				<p class="description" style="flex:1 1 260px;margin:0"><?php esc_html_e('Every new picture waits in Y4APK ▸ Pictures until you look, 60 at a time, so the list holds only what came since your last look, however many members there are.', 'y4apk'); ?></p>
+				<a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=y4apk-pictures')); ?>"><?php echo esc_html($pic_new ? __('Look at the new ones', 'y4apk') : __('Open Pictures', 'y4apk')); ?></a>
 			</div>
-			<?php else : ?><p><em><?php esc_html_e('No pictures yet.', 'y4apk'); ?></em></p><?php endif; ?>
 
 			<h2><?php esc_html_e('Privacy: what a stranger can learn about your accounts', 'y4apk'); ?></h2>
 			<p class="description" style="max-width:780px"><?php esc_html_e('WordPress shows the sign-in name of whoever wrote a post, in several places. The theme closes them. This looks at your site the way a stranger does.', 'y4apk'); ?></p>

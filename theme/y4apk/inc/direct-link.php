@@ -49,7 +49,51 @@ class Y4APK_Direct_Link {
 			'every' => 'visit',
 			'image' => 'https://y4apk.com/wp-content/uploads/2026/04/Ads.png',
 			'script_lock' => 1, // Script Code is hidden until the ad is tapped (2.34)
+			'links' => [],      // several links (2.43): [['id', 'url', 'name', 'weight', 'downloads', 'scripts']]; empty: the one 'url'
+			'pick'  => 'random', // which link a tap opens: 'random' (by weight) or 'turn' (each in turn)
 		];
+	}
+
+	/**
+	 * The ad links, in order: [['id', 'url', 'name', 'weight', 'downloads', 'scripts']]. For $use
+	 * 'downloads' or 'scripts', only the links used there. Before 2.43 there was one Link ('url').
+	 */
+	public static function links($use = '') {
+		$s = self::settings();
+		$list = is_array($s['links']) && $s['links'] ? $s['links'] : ((string) $s['url'] !== '' ? [['id' => 'a1', 'url' => $s['url']]] : []);
+		$out = [];
+		foreach ($list as $l) {
+			$url = esc_url_raw(isset($l['url']) ? (string) $l['url'] : '', ['http', 'https']);
+			if ($url === '') {
+				continue;
+			}
+			$row = ['id' => isset($l['id']) ? preg_replace('/[^a-z0-9]/', '', (string) $l['id']) : 'a1', 'url' => $url, 'name' => isset($l['name']) ? (string) $l['name'] : '',
+				'weight' => max(1, min(10, isset($l['weight']) ? (int) $l['weight'] : 1)), 'downloads' => !isset($l['downloads']) || !empty($l['downloads']), 'scripts' => !isset($l['scripts']) || !empty($l['scripts'])];
+			if ($use === '' || $row[$use]) {
+				$out[] = $row;
+			}
+		}
+		return $out;
+	}
+
+	/** The links for the page's script: [{u, w, i}]. */
+	private static function js_links($use) {
+		return array_map(function ($l) { return ['u' => $l['url'], 'w' => $l['weight'], 'i' => $l['id']]; }, self::links($use));
+	}
+
+	/**
+	 * JS function expression: (list) → the link to open, at random by weight or each in
+	 * turn (the turn kept per browser), and counted per link in Analytics.
+	 */
+	public static function pick_js() {
+		$turn = self::settings()['pick'] === 'turn' ? 'true' : 'false';
+		return "(function (list) {"
+			. " if (!list || !list.length) { return ''; }"
+			. " var l = list[0];"
+			. " if ($turn) { var k = 'y4apk_dl_turn', n = 0; try { n = parseInt(localStorage.getItem(k) || '0', 10) || 0; localStorage.setItem(k, String(n + 1)); } catch (e) {} l = list[n % list.length]; }"
+			. " else { var t = 0, r; list.forEach(function (x) { t += x.w; }); r = Math.random() * t; for (var i = 0; i < list.length; i++) { r -= list[i].w; if (r < 0) { l = list[i]; break; } } }"
+			. " if (window.y4apkTrack) { window.y4apkTrack('direct_link_n', l.i); }"
+			. " return l.u; })";
 	}
 
 	public static function settings() {
@@ -82,11 +126,11 @@ class Y4APK_Direct_Link {
 	 */
 	public static function script_gate() {
 		$s = self::settings();
-		$url = esc_url_raw((string) $s['url'], ['http', 'https']);
-		if ($url === '' || empty($s['script_lock'])) {
+		$links = self::js_links('scripts');
+		if (!$links || empty($s['script_lock'])) {
 			return null;
 		}
-		return [$url, in_array($s['every'], ['visit', 'day', 'always'], true) ? $s['every'] : 'visit'];
+		return [$links, in_array($s['every'], ['visit', 'day', 'always'], true) ? $s['every'] : 'visit'];
 	}
 
 	/** The in-app test, for code that cannot open a new tab (reused by the unlock). */
@@ -112,14 +156,14 @@ class Y4APK_Direct_Link {
 			return; // game pages only, not their download pages
 		}
 		$s = self::settings();
-		$url = esc_url_raw((string) $s['url']);
-		if ($url === '' || $s['mode'] === 'off') {
+		$links = self::js_links('downloads');
+		if (!$links || $s['mode'] === 'off') {
 			return;
 		}
 		if ($s['mode'] === 'unlock') {
-			self::unlock_box($url, (string) $s['image']);
+			self::unlock_box($links, (string) $s['image']);
 		} else {
-			self::download_script($url, (string) $s['every']);
+			self::download_script($links, (string) $s['every']);
 		}
 	}
 
@@ -130,13 +174,13 @@ class Y4APK_Direct_Link {
 	 * that holds scripts back until the first tap would otherwise miss the tap
 	 * that matters.
 	 */
-	private static function download_script($url, $every) {
+	private static function download_script($links, $every) {
 		$every = in_array($every, ['visit', 'day', 'always'], true) ? $every : 'visit';
 		?>
 <script id="y4apk-pwa-direct-link" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
 /* y4apk-pwa direct link — exclude from JavaScript delay */
 (function () {
-	var url = <?php echo wp_json_encode($url, JSON_UNESCAPED_SLASHES); ?>, every = <?php echo wp_json_encode($every); ?>, key = 'y4apk_direct_link';
+	var links = <?php echo wp_json_encode($links, JSON_UNESCAPED_SLASHES); ?>, pick = <?php echo self::pick_js(); ?>, every = <?php echo wp_json_encode($every); ?>, key = 'y4apk_direct_link';
 	function due() {
 		try {
 			if (every === 'visit') return !sessionStorage.getItem(key);
@@ -156,7 +200,7 @@ class Y4APK_Direct_Link {
 		if (<?php echo self::in_app_js(); ?> || !due()) return; // never inside the installed app
 		done();
 		if (window.y4apkTrack) window.y4apkTrack('direct_link', 'download');
-		window.open(url, '_blank', 'noopener');
+		window.open(pick(links), '_blank', 'noopener');
 	});
 })();
 </script>
@@ -164,7 +208,7 @@ class Y4APK_Direct_Link {
 	}
 
 	/** The full-screen box, as it was in single.php up to 2.12. */
-	private static function unlock_box($url, $image) {
+	private static function unlock_box($links, $image) {
 		?>
 <style>
 .unlock-overlay{
@@ -267,7 +311,7 @@ class Y4APK_Direct_Link {
   a.onclick=()=>{
     if(c)return;c=1;
     if(window.y4apkTrack) window.y4apkTrack("direct_link","unlock");
-    window.open(<?php echo wp_json_encode($url, JSON_UNESCAPED_SLASHES); ?>,"_blank");
+    window.open((<?php echo self::pick_js(); ?>)(<?php echo wp_json_encode($links, JSON_UNESCAPED_SLASHES); ?>),"_blank");
     p.style.width="100%";
     let i=3;
     t.innerText=`Progress 1/1 (${i}s...)`;
@@ -302,9 +346,21 @@ class Y4APK_Direct_Link {
 		check_admin_referer('y4apk-save-direct-link');
 		$in = wp_unslash($_POST);
 
+		$links = [];
+		foreach (isset($in['links']) && is_array($in['links']) ? $in['links'] : [] as $row) {
+			$url = esc_url_raw(isset($row['url']) ? trim((string) $row['url']) : '', ['http', 'https']);
+			if ($url === '' || count($links) >= 20) {
+				continue;
+			}
+			$id = isset($row['id']) ? preg_replace('/[^a-z0-9]/', '', strtolower((string) $row['id'])) : '';
+			$links[] = ['id' => $id !== '' ? substr($id, 0, 12) : strtolower(wp_generate_password(6, false, false)), 'url' => $url, 'name' => sanitize_text_field(isset($row['name']) ? (string) $row['name'] : ''),
+				'weight' => max(1, min(10, isset($row['weight']) ? (int) $row['weight'] : 1)), 'downloads' => empty($row['downloads']) ? 0 : 1, 'scripts' => empty($row['scripts']) ? 0 : 1];
+		}
 		update_option(self::OPTION, [
 			'mode'  => (isset($in['mode']) && in_array($in['mode'], ['download', 'unlock', 'off'], true)) ? $in['mode'] : 'download',
-			'url'   => esc_url_raw(isset($in['url']) ? trim((string) $in['url']) : '', ['http', 'https']),
+			'url'   => $links ? $links[0]['url'] : '', // the first, for anything that still reads the one Link
+			'links' => $links,
+			'pick'  => isset($in['pick']) && $in['pick'] === 'turn' ? 'turn' : 'random',
 			'every' => (isset($in['every']) && in_array($in['every'], ['visit', 'day', 'always'], true)) ? $in['every'] : 'visit',
 			'image' => esc_url_raw(isset($in['image']) ? trim((string) $in['image']) : '', ['http', 'https']),
 			'script_lock' => empty($in['script_lock']) ? 0 : 1,
@@ -330,7 +386,8 @@ class Y4APK_Direct_Link {
 			<?php if (!empty($_GET['saved'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors get the change.', 'y4apk'); ?></p></div>
 			<?php endif; ?>
-			<?php if ($s['mode'] !== 'off' && !$s['url']) : ?>
+			<?php $links = self::links(); $opens = self::opens_by_link(); if (!$links) { $links = [['id' => '', 'url' => '', 'name' => '', 'weight' => 1, 'downloads' => true, 'scripts' => true]]; } ?>
+			<?php if ($s['mode'] !== 'off' && !self::links()) : ?>
 				<div class="notice notice-warning"><p><?php esc_html_e('No link entered, so nothing is shown.', 'y4apk'); ?></p></div>
 			<?php endif; ?>
 			<p style="max-width:860px"><?php esc_html_e('Opens your ad link — a Monetag Direct Link (Monetag ▸ Direct Link ▸ Copy link) or any other — in a new tab.', 'y4apk'); ?></p>
@@ -340,8 +397,32 @@ class Y4APK_Direct_Link {
 				<input type="hidden" name="action" value="y4apk_save_direct_link">
 				<?php wp_nonce_field('y4apk-save-direct-link'); ?>
 				<table class="form-table" role="presentation"><tbody>
-					<tr><th scope="row"><label for="dl-url"><?php esc_html_e('Link', 'y4apk'); ?></label></th>
-						<td><input id="dl-url" type="url" class="large-text code" name="url" value="<?php echo esc_attr($s['url']); ?>" placeholder="https://cawsg.com/4/1234567"></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Links', 'y4apk'); ?></th>
+						<td>
+							<table class="widefat striped y4dl-links" style="max-width:1100px">
+								<thead><tr><th style="width:38%"><?php esc_html_e('Link', 'y4apk'); ?></th><th><?php esc_html_e('Name (for you)', 'y4apk'); ?></th><th style="width:90px"><?php esc_html_e('Weight', 'y4apk'); ?></th><th style="width:110px"><?php esc_html_e('Download buttons', 'y4apk'); ?></th><th style="width:70px"><?php esc_html_e('Scripts', 'y4apk'); ?></th><th style="width:110px"><?php esc_html_e('Opens, 30 days', 'y4apk'); ?></th><th style="width:40px"></th></tr></thead>
+								<tbody data-links>
+									<?php foreach ($links as $i => $l) : ?>
+									<tr data-link>
+										<td><input type="hidden" name="links[<?php echo (int) $i; ?>][id]" value="<?php echo esc_attr($l['id']); ?>"><input type="url" class="large-text code" name="links[<?php echo (int) $i; ?>][url]" value="<?php echo esc_attr($l['url']); ?>" placeholder="https://cawsg.com/4/1234567"></td>
+										<td><input type="text" class="regular-text" style="width:100%" name="links[<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr($l['name']); ?>" placeholder="Monetag 1" maxlength="40"></td>
+										<td><select name="links[<?php echo (int) $i; ?>][weight]"><?php for ($w = 1; $w <= 10; $w++) : ?><option value="<?php echo (int) $w; ?>" <?php selected($l['weight'], $w); ?>><?php echo (int) $w; ?></option><?php endfor; ?></select></td>
+										<td><label><input type="checkbox" name="links[<?php echo (int) $i; ?>][downloads]" value="1" <?php checked($l['downloads']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
+										<td><label><input type="checkbox" name="links[<?php echo (int) $i; ?>][scripts]" value="1" <?php checked($l['scripts']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
+										<td><?php echo $l['id'] !== '' ? '<b>' . esc_html(number_format_i18n($opens[$l['id']] ?? 0)) . '</b>' : '—'; ?></td>
+										<td><button type="button" class="button-link button-link-delete" data-remove aria-label="<?php esc_attr_e('Remove this link', 'y4apk'); ?>">✕</button></td>
+									</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+							<p><button type="button" class="button" data-add-link>+ <?php esc_html_e('Add a link', 'y4apk'); ?></button></p>
+							<p class="description" style="max-width:860px"><?php esc_html_e('Up to 20 links. Each tap opens one of them: a link with weight 4 is picked four times as often as one with weight 1. Untick “Download buttons” or “Scripts” to keep a link to one place. Opens are counted per link in Analytics, so you can see which ad network does better.', 'y4apk'); ?></p>
+						</td></tr>
+					<tr><th scope="row"><?php esc_html_e('Which link a tap opens', 'y4apk'); ?></th>
+						<td><fieldset>
+							<label style="display:block;margin:.2rem 0"><input type="radio" name="pick" value="random" <?php checked($s['pick'], 'random'); ?>> <strong><?php esc_html_e('One at random, by weight', 'y4apk'); ?></strong></label>
+							<label style="display:block;margin:.2rem 0"><input type="radio" name="pick" value="turn" <?php checked($s['pick'], 'turn'); ?>> <strong><?php esc_html_e('Each in turn', 'y4apk'); ?></strong> <span class="description"><?php esc_html_e('(the first tap opens link 1, the next link 2…, per browser; weight is not used)', 'y4apk'); ?></span></label>
+						</fieldset></td></tr>
 					<tr><th scope="row"><?php esc_html_e('When', 'y4apk'); ?></th>
 						<td><fieldset>
 							<?php foreach ($modes as $value => $label) : ?>
@@ -366,7 +447,47 @@ class Y4APK_Direct_Link {
 				<?php submit_button(__('Save', 'y4apk')); ?>
 			</form>
 		</div>
+		<script>
+		(function () {
+			var body = document.querySelector('[data-links]'), n = 1000;
+			document.addEventListener('click', function (e) {
+				if (e.target.closest('[data-add-link]')) {
+					var row = body.querySelector('[data-link]').cloneNode(true);
+					n++;
+					[].forEach.call(row.querySelectorAll('[name]'), function (el) {
+						el.name = el.name.replace(/links\[\d+\]/, 'links[' + n + ']');
+						if (el.type === 'checkbox') { el.checked = true; } else if (el.tagName === 'SELECT') { el.value = '1'; } else { el.value = ''; }
+					});
+					row.cells[5].textContent = '—';
+					body.appendChild(row);
+					row.querySelector('input[type=url]').focus();
+				}
+				var rm = e.target.closest('[data-remove]');
+				if (rm) {
+					var tr = rm.closest('tr');
+					if (body.querySelectorAll('[data-link]').length > 1) { tr.remove(); } else { [].forEach.call(tr.querySelectorAll('input[type=url],input[type=text]'), function (el) { el.value = ''; }); }
+				}
+			});
+		})();
+		</script>
 		<?php
+	}
+
+	/** Opens per link in the last 30 days, from Analytics: [link id => n]. */
+	private static function opens_by_link() {
+		global $wpdb;
+		if (!class_exists('Y4APK_Stats')) {
+			return [];
+		}
+		$t = Y4APK_Stats::table();
+		if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) !== $t) {
+			return [];
+		}
+		$out = [];
+		foreach ((array) $wpdb->get_results($wpdb->prepare("SELECT dim, SUM(n) AS n FROM $t WHERE event = 'direct_link_n' AND day >= %s GROUP BY dim", wp_date('Y-m-d', time() - 29 * DAY_IN_SECONDS))) as $r) {
+			$out[(string) $r->dim] = (int) $r->n;
+		}
+		return $out;
 	}
 }
 

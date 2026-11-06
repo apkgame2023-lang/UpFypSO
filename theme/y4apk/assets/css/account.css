@@ -631,3 +631,8 @@
 .acc-drop-bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #29b1d8, #6fd3ef); transition: width .2s ease; }
 .acc-drop-bar::after { content: attr(data-pc); position: absolute; right: 0; bottom: .875rem; padding: .125rem .5rem; border-radius: 1rem; font-size: .75rem; font-weight: 700; color: #172021; background: rgba(255, 255, 255, .92); }
 .acc-drop.is-sending { pointer-events: none; }
+
+/* Phones: 16px in the boxes people type in, so iOS does not zoom in on them (2.43) */
+@media (max-width: 47.99rem) {
+	.acc .acc-input input, .acc .acc-input select, .acc .acc-input textarea, .acc-code input, .acc-code textarea, .acc .prf-search input, .prf-share-link input { font-size: 1rem; }
+}

@@ -114,6 +114,14 @@ the don't-delay markers (a speed plugin that waits for the first tap would miss
 the tap that matters), and opens the ad with `noopener`, so the ad page cannot
 redirect the tab the visitor came from.
 
+**Several links (2.43).** Y4APK ▸ Direct Link keeps a list of up to 20 links,
+each with a name, a weight (1–10) and where it is used (download buttons, the
+script unlock, or both). Each tap picks one: at random, a weight-3 link three
+times as often as a weight-1 one, or in turn (the browser remembers whose turn it
+is). The table shows how often each was opened in the last 30 days
+(`direct_link_n`, by link id), so a slow Monetag link can be told from a good one.
+A site set up before 2.43 keeps its one link, as the first row.
+
 ## App updates: which posts have a newer version out (2.17–2.22)
 
 **Y4APK ▸ App updates** lists the posts whose download is older than the app's
@@ -583,8 +591,8 @@ WebP, a moving GIF is cut to shape and size frame by frame with Imagick (320 ×
 daily after an hour. If the browser cannot reach R2, the pictures go through the
 site as before, within PHP's `upload_max_filesize` / `post_max_size`; a form
 bigger than `post_max_size` (which PHP drops whole) now says so instead of doing
-nothing. Y4APK ▸ Members ▸ Members' pictures says what this server takes and
-whether it has Imagick.
+nothing. Y4APK ▸ Pictures says what this server takes and whether it has
+Imagick.
 
 ## A member's own pages, the header menu, sharing, the script box (2.41)
 
@@ -629,6 +637,63 @@ card with a lock, the one step and an *Unlock script* button.
 
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
+
+## The Dashboard, where members come from, Pictures, phones (2.43)
+
+**The Dashboard** (Y4APK ▸ Dashboard) is the whole width of the screen and in
+parts you can jump to: Overview, Members, What people read, Roblox, App & ads,
+Health. The period is 7, 30 or 90 days, against the period before; *Count again*
+recounts (the numbers are otherwise kept for 5 minutes). At the top: what is
+waiting for you (scripts to review, reported scripts, new pictures), then the
+main numbers with their line for the period.
+
+The Members part answers *how many, from where, on what*:
+
+- **New members** per day, and **right now**: members in all over 12 weeks,
+  online, seen today, in 7 and 30 days, email not confirmed, banned.
+- **The members' journey**: signed up → confirmed email → shared a script → has
+  a live script → has followers, with how many get from each step to the next
+  and which step loses the most.
+- **Where members come from**, as a tree: Google, YouTube, TikTok, Facebook &
+  Instagram, Discord, Telegram, X, other search engines, other websites, or
+  typed in / bookmark / app; then the websites by name and the first page of
+  the visit they signed up in.
+- **Countries** (Cloudflare's country header; without it, the browser
+  language's region, marked as a guess), **devices** (phone, tablet, computer),
+  **system** and **browser** (in-app browsers such as Facebook or TikTok
+  counted as themselves), and whether they used the Y4APK app.
+- **When members join**: a day × hour map in the site's time zone.
+- **Who follows whom**: a network you can drag; a bigger dot has more followers.
+- **Members who matter most** (views of their live scripts) and the newest.
+
+*How it is recorded.* At sign-up the account gets a few `y4apk_o_*` fields:
+country, device, system, browser, app, where the visit came from (the sending
+site's host only, never the address) and the first page of the visit. A small
+script keeps the last two in the browser for the visit (`sessionStorage`), and
+the sign-up form sends them, so pages stay the same for everyone and the page
+cache is fine. No IP address and no full User-Agent are kept. Each field is its
+own row, counted with `GROUP BY`, so it stays quick with millions of members. A
+member who joined before 2.43 gets the device fields at their next sign-in;
+where they came from shows as *Not recorded*.
+
+**Pictures** (Y4APK ▸ Pictures) replace the grid of the 24 newest on the Members
+page, which could not keep up with many members. Every picture or banner a
+member uploads is put on a *To look at* list (`y4apk_pic_new` /
+`y4apk_banner_new`); the page shows them 60 at a time, newest first. Tick the ones
+that do not belong and take them down (deleted from R2 too), mark the rest as
+fine, or mark the whole page as fine at once, so the list only ever holds what came
+since your last look. *All pictures* shows every one, with a filter (pictures,
+banners, moving GIFs) and search by @name. The menu and the Dashboard show how
+many are waiting. The pictures there before 2.43 go on the list once.
+
+**Phones.** A word, link or title longer than the screen used to push the page
+wider, and the phone (and the Android app) zoomed out to fit it. Long words now
+break inside their box; tables in posts scroll sideways in their own box; code
+wraps; pictures and players stay inside the page. Boxes you type in are 16px on
+phones, so iPhones no longer zoom in when you tap them. Every page type was
+checked at 320, 360, 375, 390 and 414 px wide, with the menu, search, share and
+report boxes open. The Dashboard, Review and Pictures pages fit a phone too.
+Game tiles on the Roblox page are bigger on phones, with thinner gaps.
 
 ## The old Google Play importer, removed (2.33)
 

@@ -419,3 +419,17 @@ function y4apk_size_label($size) {
 	return $size === '' || $size === '—' || $size === '-' ? '' : ' (<span itemprop="fileSize">' . esc_html($size) . '</span>)';
 }
 
+
+/**
+ * 2.43: a table in a post scrolls sideways inside its own box on a phone, instead of
+ * making the page wider than the screen (which zooms the phone and the app out).
+ */
+function y4apk_scroll_tables($content) {
+	if (stripos($content, '<table') === false || is_admin() || is_feed()) {
+		return $content;
+	}
+	return preg_replace_callback('~(<div class="table-box">\s*)?<table\b.*?</table>~is', function ($m) {
+		return !empty($m[1]) ? $m[0] : '<div class="table-box">' . $m[0] . '</div>';
+	}, $content);
+}
+add_filter('the_content', 'y4apk_scroll_tables', 20);

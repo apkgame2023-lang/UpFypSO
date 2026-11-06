@@ -455,6 +455,9 @@ class Y4APK_Social {
 		}
 		self::drop_image($user->ID, $kind); // the one it replaces
 		update_user_meta($user->ID, $rules['meta'], ['key' => $key, 'url' => Y4APK_R2::public_url($key), 'at' => time()]);
+		if (class_exists('Y4APK_Pictures')) {
+			Y4APK_Pictures::came($user->ID, $kind); // on Y4APK ▸ Pictures, to look at
+		}
 		return true;
 	}
 
@@ -591,6 +594,9 @@ class Y4APK_Social {
 			Y4APK_R2::remove($v['key']);
 		}
 		delete_user_meta($user_id, $meta);
+		if (class_exists('Y4APK_Pictures')) {
+			delete_user_meta($user_id, Y4APK_Pictures::new_key($kind));
+		}
 	}
 
 	public static function drop_images($user_id) {

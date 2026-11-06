@@ -162,7 +162,7 @@ class Y4APK_Scripts {
 		$i = function ($d) { return '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' . $d . '</svg>'; };
 		$copy_i = $i('<path d="M8 3h11a2 2 0 0 1 2 2v11h-2V5H8V3Zm-3 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm0 2v10h10V9H5Z"/>');
 		?>
-		<div class="y4-scripts<?php echo $locked; ?>"<?php if ($gate) : ?> data-y4-url="<?php echo esc_attr($gate[0]); ?>" data-y4-every="<?php echo esc_attr($gate[1]); ?>"<?php endif; ?>>
+		<div class="y4-scripts<?php echo $locked; ?>"<?php if ($gate) : ?> data-y4-urls="<?php echo esc_attr(wp_json_encode($gate[0], JSON_UNESCAPED_SLASHES)); ?>" data-y4-every="<?php echo esc_attr($gate[1]); ?>"<?php endif; ?>>
 			<div class="block f-app-script">
 				<div class="y4s-head">
 					<span class="y4s-ico"><?php echo $i('<path d="M8.6 16.6 4 12l4.6-4.6L7.2 6 1.2 12l6 6 1.4-1.4Zm6.8 0L20 12l-4.6-4.6L16.8 6l6 6-6 6-1.4-1.4Z"/>'); ?></span>
@@ -229,7 +229,7 @@ class Y4APK_Scripts {
 			while (box && !(box.classList && box.classList.contains('y4-scripts'))) { box = box.previousElementSibling; }
 			if (!box || box.y4Ready) { return; }
 			box.y4Ready = 1;
-			var url = box.getAttribute('data-y4-url'), every = box.getAttribute('data-y4-every'),
+			var links = JSON.parse(box.getAttribute('data-y4-urls') || '[]'), pick = <?php echo Y4APK_Direct_Link::pick_js(); ?>, every = box.getAttribute('data-y4-every'),
 				gate = box.querySelector('.y4-unlock'), key = 'y4apk_script_unlock', inApp = <?php echo Y4APK_Direct_Link::in_app_expr(); ?>;
 			function done() {
 				try {
@@ -255,7 +255,7 @@ class Y4APK_Scripts {
 				if (box.y4Done) { return; }
 				box.y4Done = 1;
 				if (window.y4apkTrack) { window.y4apkTrack('direct_link', 'script'); }
-				window.open(url, '_blank', 'noopener');
+				window.open(pick(links), '_blank', 'noopener');
 				done();
 				setTimeout(reveal, 400); // after the new tab takes focus
 			}

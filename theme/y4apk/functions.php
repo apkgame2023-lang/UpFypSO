@@ -36,6 +36,8 @@ require $theme_dir . '/inc/writer.php';
 require $theme_dir . '/inc/discover.php';
 require $theme_dir . '/inc/members.php';
 require $theme_dir . '/inc/members-social.php';
+require $theme_dir . '/inc/members-insights.php';
+require $theme_dir . '/inc/members-pictures.php';
 require $theme_dir . '/inc/mail.php';
 require $theme_dir . '/inc/members-admin.php';
 require $theme_dir . '/inc/dashboard.php';

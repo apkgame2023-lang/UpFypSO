@@ -261,6 +261,7 @@ if ($screen === 'login') {
 	<?php else : ?>
 		<?php $messages(); ?>
 		<?php $form_open('register'); ?>
+			<input type="hidden" name="y4_land_ref" value=""><input type="hidden" name="y4_land_page" value=""><input type="hidden" name="y4_app" value="">
 			<?php $field(__('Username', 'y4apk'), 'handle', 'text', ['autocomplete' => 'username', 'required' => true, 'minlength' => '3', 'maxlength' => '20', 'pattern' => '[A-Za-z0-9_]{3,20}', 'autocapitalize' => 'none']); ?>
 			<p class="acc-hint"><?php esc_html_e('3–20 letters, numbers or underscores. It is shown on the scripts you share.', 'y4apk'); ?></p>
 			<?php $field(__('Email', 'y4apk'), 'email', 'email', ['autocomplete' => 'email', 'required' => true, 'maxlength' => '100']); ?>
@@ -1128,6 +1129,13 @@ if ($screen === 'login') {
 	ts.async = true;
 	document.head.appendChild(ts);
 <?php endif; ?>
+	// Sign-up: where this visit began (kept by y4apk-pwa-land) and whether it is the app, for the Dashboard's Members part
+	var land = document.querySelector('[name="y4_land_ref"]');
+	if (land) {
+		try { var lv = JSON.parse(sessionStorage.getItem('y4apk_land') || '{}'); land.value = lv.r || ''; document.querySelector('[name="y4_land_page"]').value = lv.p || ''; } catch (e) {}
+		var inApp = <?php echo class_exists('Y4APK_Direct_Link') ? Y4APK_Direct_Link::in_app_expr() : 'false'; ?>;
+		document.querySelector('[name="y4_app"]').value = window.__y4apkInApp ? 'apk' : (inApp ? 'pwa' : '');
+	}
 	// A page cache may have kept this page: ask for fresh hidden values, and hold a quick submit until they are in.
 	var forms = [].slice.call(document.querySelectorAll('form')).filter(function (f) { return f.querySelector('[name="_y4n"]'); });
 	if (!forms.length || !window.fetch || !window.FormData) { return; }
