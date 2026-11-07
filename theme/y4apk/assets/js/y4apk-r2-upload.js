@@ -185,7 +185,21 @@
 			if (size) {
 				size.value = d.size;
 			}
-			u.show(fmt(T.done, u.file.name + ' (' + d.size + ')'));
+			var msg = fmt(T.done, u.file.name + ' (' + d.size + ')');
+			// 2.50.5: the version the file itself says goes into the version box
+			if (d.fileVersion) {
+				var v = line.querySelector('input[name="version"], input[name$="[version]"]');
+				var cur = v ? v.value.match(/\d+(?:\.\d+)*/) : null;
+				if (v && (!cur || cur[0] !== d.fileVersion)) {
+					v.value = cur ? v.value.replace(cur[0], d.fileVersion) : d.fileVersion;
+					v.dispatchEvent(new Event('input', { bubbles: true }));
+					msg += ' ' + fmt(T.says, d.fileVersion);
+				}
+			}
+			if (d.filePackage && d.postPackage && d.filePackage.toLowerCase() !== d.postPackage.toLowerCase()) {
+				msg += ' ' + fmt(T.other, d.filePackage, d.postPackage);
+			}
+			u.show(msg);
 			u.busy(false);
 		}).catch(function (e) {
 			u.busy(false);

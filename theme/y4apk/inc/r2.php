@@ -177,7 +177,7 @@ HTML;
 	}
 
 	/** A link that lets whoever has it make this one request for $expires seconds. */
-	public static function presign($method, $key, $query = [], $expires = 3600, $time = null) {
+	public static function presign($method, $key, $query = [], $expires = 3600, $time = null, $signed = []) {
 		$o = self::settings();
 		$endpoint = self::endpoint();
 		$host = wp_parse_url($endpoint, PHP_URL_HOST) . (wp_parse_url($endpoint, PHP_URL_PORT) ? ':' . wp_parse_url($endpoint, PHP_URL_PORT) : '');
@@ -193,13 +193,24 @@ HTML;
 			'X-Amz-Expires'       => (string) $expires,
 			'X-Amz-SignedHeaders' => 'host',
 		]);
+		// Headers signed with the host (2.50.5: a copy's source must be)
+		$heads = ['host' => $host];
+		foreach ((array) $signed as $hk => $hv) {
+			$heads[strtolower($hk)] = trim(preg_replace('/\s+/', ' ', (string) $hv));
+		}
+		ksort($heads, SORT_STRING);
+		$query['X-Amz-SignedHeaders'] = implode(';', array_keys($heads));
 		ksort($query, SORT_STRING);
 		$pairs = [];
 		foreach ($query as $k => $v) {
 			$pairs[] = rawurlencode($k) . '=' . rawurlencode($v);
 		}
 		$qs = implode('&', $pairs);
-		$canonical = $method . "\n" . $path . "\n" . $qs . "\nhost:" . $host . "\n\nhost\nUNSIGNED-PAYLOAD";
+		$canon_heads = '';
+		foreach ($heads as $hk => $hv) {
+			$canon_heads .= $hk . ':' . $hv . "\n";
+		}
+		$canonical = $method . "\n" . $path . "\n" . $qs . "\n" . $canon_heads . "\n" . implode(';', array_keys($heads)) . "\nUNSIGNED-PAYLOAD";
 		$to_sign = "AWS4-HMAC-SHA256\n" . $amz . "\n" . $scope . "\n" . hash('sha256', $canonical);
 		$k = hash_hmac('sha256', $day, 'AWS4' . $o['secret'], true);
 		foreach (['auto', 's3', 'aws4_request'] as $part) {
@@ -209,12 +220,15 @@ HTML;
 	}
 
 	/** One signed request from this server: [status, body, headers] or WP_Error. */
-	private static function call($method, $key, $query = [], $body = null, $headers = []) {
-		$r = wp_remote_request(self::presign($method, $key, $query, 600), [
+	private static function call($method, $key, $query = [], $body = null, $headers = [], $timeout = 30) {
+		$signed = array_filter($headers, function ($k) {
+			return stripos((string) $k, 'x-amz-') === 0;
+		}, ARRAY_FILTER_USE_KEY);
+		$r = wp_remote_request(self::presign($method, $key, $query, 600, null, $signed), [
 			'method'  => $method,
 			'body'    => $body,
 			'headers' => $headers,
-			'timeout' => 30,
+			'timeout' => $timeout,
 		]);
 		if (is_wp_error($r)) {
 			return $r;
@@ -361,6 +375,76 @@ HTML;
 		self::call('DELETE', $key, ['uploadId' => $upload_id]);
 	}
 
+	/**
+	 * A file on R2 under another name (2.50.5): R2 copies it itself — in 1 GB
+	 * parts above 5 GB — then the old name goes. true or a WP_Error (the file
+	 * is then still under its old name).
+	 */
+	public static function move($from, $to, $size = 0) {
+		if ($from === $to) {
+			return true;
+		}
+		$src = '/' . self::settings()['bucket'] . '/' . self::encode_key($from);
+		$size = $size > 0 ? (float) $size : self::size_of($from);
+		if ($size <= 0) {
+			return new WP_Error('y4apk_r2_move', __('The file is not on R2.', 'y4apk'));
+		}
+		if ($size <= 5 * 1073741824) {
+			$r = self::call('PUT', $to, [], '', ['x-amz-copy-source' => $src], 300);
+			if (is_wp_error($r) || $r[0] !== 200 || strpos($r[1], '<Error>') !== false) {
+				return self::r2_error($r, __('Renaming the file', 'y4apk'));
+			}
+		} else {
+			$id = self::mp_start($to);
+			if (is_wp_error($id)) {
+				return $id;
+			}
+			$part = 1073741824;
+			$count = (int) ceil($size / $part);
+			$etags = [];
+			for ($n = 1; $n <= $count; $n++) {
+				$range = 'bytes=' . sprintf('%.0f', ($n - 1) * $part) . '-' . sprintf('%.0f', min($size, $n * $part) - 1);
+				$r = self::call('PUT', $to, ['partNumber' => $n, 'uploadId' => $id], '', ['x-amz-copy-source' => $src, 'x-amz-copy-source-range' => $range], 300);
+				if (is_wp_error($r) || $r[0] !== 200 || !preg_match('~<ETag>(.*?)</ETag>~s', $r[1], $m)) {
+					self::mp_abort($to, $id);
+					return self::r2_error($r, __('Renaming the file', 'y4apk'));
+				}
+				$etags[$n] = trim(html_entity_decode($m[1], ENT_QUOTES), '"');
+			}
+			$done = self::mp_complete($to, $id, $count, $etags);
+			if (is_wp_error($done)) {
+				return $done;
+			}
+		}
+		self::remove($from);
+		return true;
+	}
+
+	/**
+	 * The name an uploaded file should have for its type and version:
+	 * "M/Name-MOD-v1.7.7-Y4APK.COM-IDv211092.apk" → "M/Name-MOD-v1.7.3-…" (its
+	 * number kept). A name of another kind is left as it is.
+	 */
+	public static function key_for($key, $type, $version) {
+		if (!preg_match('~^(.+?)-([A-Za-z0-9]+)(?:-v[0-9][0-9.]*)?-Y4APK\.COM-IDv(\d+)\.(\w+)$~', (string) $key, $m)) {
+			return (string) $key;
+		}
+		$n = Y4APK_App_Updates::number($version);
+		return $m[1] . '-' . (self::slug(strtoupper((string) $type)) ?: $m[2]) . ($n !== '' ? '-v' . $n : '') . '-Y4APK.COM-IDv' . $m[3] . '.' . $m[4];
+	}
+
+	/** The R2 file a download folder's page sends visitors to: its key, or ''. */
+	public static function folder_key($folder) {
+		$o = self::settings();
+		$file = $o['dir'] . '/' . $folder . '/default.php';
+		$html = is_file($file) ? (string) file_get_contents($file) : '';
+		$base = preg_quote(rtrim((string) $o['public'], '/'), '~');
+		if ($html === '' || $base === '' || !preg_match('~' . $base . '/([^"\'\s<>)]+?\.(?:' . implode('|', self::TYPES) . '))(?=["\'\s<>)])~i', $html, $m)) {
+			return '';
+		}
+		return implode('/', array_map('rawurldecode', explode('/', $m[1])));
+	}
+
 	/** The size of a file on R2 (0: not there). */
 	public static function size_of($key) {
 		$h = self::call('HEAD', $key);
@@ -475,7 +559,12 @@ HTML;
 		delete_transient('y4apk_r2_up_' . md5($u['id']));
 		// Save trusts only files finished here.
 		set_transient('y4apk_r2_done_' . md5($u['key']), ['key' => $u['key'], 'size' => $size, 'post' => $u['post']], 3 * DAY_IN_SECONDS);
-		wp_send_json_success(['key' => $u['key'], 'url' => self::public_url($u['key']), 'size' => self::size_text($size)]);
+		// 2.50.5: what the file itself says — its version goes into the form, a package not the post's is told
+		$check = class_exists('Y4APK_Apk_Check') ? Y4APK_Apk_Check::inspect($u['key'], $size, basename($u['key'])) : null;
+		$post_pkg = Y4APK_App_Updates::package_from(get_post_meta((int) $u['post'], 'wp_GP_ID', true));
+		wp_send_json_success(['key' => $u['key'], 'url' => self::public_url($u['key']), 'size' => self::size_text($size),
+			'fileVersion' => $check && preg_match('/^\d+(?:\.\d+)*/', (string) $check['version'], $vm) ? $vm[0] : '',
+			'filePackage' => $check ? (string) $check['package'] : '', 'postPackage' => $post_pkg]);
 	}
 
 	public static function ajax_abort() {
@@ -668,6 +757,8 @@ HTML;
 				'progress'  => __('%1$s%% · %2$s of %3$s · %4$s/s', 'y4apk'),
 				'finishing' => __('Finishing…', 'y4apk'),
 				'done'      => __('Uploaded ✓ %s — it becomes the download when you save.', 'y4apk'),
+				'says'      => __('The file says version %s: put in the version box.', 'y4apk'),
+				'other'     => __('Careful: this file is %1$s, the post is %2$s.', 'y4apk'),
 				'cancel'    => __('Cancel', 'y4apk'),
 				'cancelled' => __('Upload cancelled.', 'y4apk'),
 				'failed'    => __('Upload failed: %s', 'y4apk'),

@@ -711,6 +711,26 @@ download, and a new folder is named with it. The version's ending follows
   (by site) and takes them all off at once; what was taken off is kept and
   **Put them back** returns it.
 
+2.50.5:
+- **Which posts wait for a file**: the card on *Need a new file* says how many
+  posts lost their links to other sites and have no file of Y4APK's own yet,
+  and **Show them** lists just those (in the usual order, with their forms).
+  A post leaves the list — and the count — as soon as it is saved with your
+  file; posts that already had one when the update is installed leave it at
+  once. The links kept aside (Put them back) are a small line under it.
+- **The file's name follows the version you save**: an upload starts as soon
+  as the file is picked, named with the version the box had then ("…-v1.7.7-
+  …"); on Save, R2 renames it ("…-v1.7.3-…", a copy R2 makes itself, in 1 GB
+  parts above 5 GB) and the download page points at the new name. A file
+  uploaded earlier under the wrong version is renamed the same way when its
+  row is saved again with the right version. If R2 refuses, the post is still
+  saved and a notice says the file keeps its first name.
+- After an upload, the version the file itself says (from inside the APK,
+  XAPK…) goes into the version box, and a file of another app than the post's
+  is pointed out.
+- Requests to R2 can sign their x-amz-* headers (the copy source); checked
+  against botocore's signer.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and
