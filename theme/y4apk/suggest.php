@@ -83,10 +83,10 @@ foreach ($words as $w) {
 	$args[] = '%' . $wpdb->esc_like($w) . '%';
 }
 $in = implode(',', array_fill(0, count($types), '%s'));
-$rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_title, p.post_name, p.post_type, CAST(v.meta_value AS UNSIGNED) AS views FROM {$wpdb->posts} p
+$rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_title, p.post_name, p.post_type, CAST(v.meta_value AS UNSIGNED) AS views, k.meta_value AS parent FROM {$wpdb->posts} p
 	LEFT JOIN {$wpdb->postmeta} v ON v.post_id = p.ID AND v.meta_key = 'wpb_post_views_count'
 	LEFT JOIN {$wpdb->postmeta} k ON k.post_id = p.ID AND k.meta_key = '_y4apk_parent'
-	WHERE p.post_status = 'publish' AND p.post_type IN ($in) AND k.post_id IS NULL AND " . implode(' AND ', $where) . ' ORDER BY views DESC LIMIT 60', array_merge($types, $args)));
+	WHERE p.post_status = 'publish' AND p.post_type IN ($in) AND " . implode(' AND ', $where) . ' ORDER BY views DESC LIMIT 60', array_merge($types, $args)));
 $scored = [];
 foreach ((array) $rows as $r) {
 	$t = $low(html_entity_decode($r->post_title, ENT_QUOTES, 'UTF-8'));
@@ -99,9 +99,14 @@ foreach ((array) $rows as $r) {
 	if (strpos($t, $q) !== false) {
 		$s += 10;
 	}
+	if (!empty($r->parent)) {
+		$s -= 2; // a member's own version (2.54): under the main post
+	}
 	$scored[] = [$s, $r];
 }
 usort($scored, function ($a, $b) { return $b[0] <=> $a[0]; });
+$y4v = 0;
+$scored = array_values(array_filter($scored, function ($x) use (&$y4v) { return empty($x[1]->parent) || ++$y4v <= 2; })); // two members' versions at most
 $rows = array_map(function ($x) { return $x[1]; }, array_slice($scored, 0, 7));
 
 $items = [];
@@ -167,9 +172,37 @@ if ($rows) {
 				$icon = $gicon[$cat];
 			}
 		}
+		if (!empty($r->parent)) {
+			$kind = 'version';
+		}
 		$ver = isset($meta[$id]['wp_version_GP']) && preg_match('/\d+(?:\.\d+)*/', (string) $meta[$id]['wp_version_GP'], $vm) ? $vm[0] : '';
 		$items[] = ['t' => html_entity_decode($r->post_title, ENT_QUOTES, 'UTF-8'), 'n' => isset($meta[$id]['wp_title_GP']) ? html_entity_decode($meta[$id]['wp_title_GP'], ENT_QUOTES, 'UTF-8') : '',
-			'u' => $url, 'i' => $icon, 'v' => $kind === 'game' || $kind === 'app' ? $ver : '', 'k' => $kind === 'post' ? 'post' : $kind, 'c' => $cat];
+			'u' => $url, 'i' => $icon, 'v' => $kind === 'game' || $kind === 'app' || $kind === 'version' ? $ver : '', 'k' => $kind === 'post' ? 'post' : $kind, 'c' => $cat];
 	}
 }
-echo json_encode(['items' => $items, 'games' => $games], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+// Members (2.54): by name or @name, from the list inc/suggest.php keeps
+$people = [];
+$pfirst = false;
+$pq = ltrim($q, '@');
+if ((function_exists('mb_strlen') ? mb_strlen($pq) : strlen($pq)) >= 2) {
+	foreach (isset($top['people']) ? $top['people'] : [] as $p) {
+		$pt = $low((string) $p['t']);
+		$pl = $low((string) $p['l']);
+		if ($pl === $pq || $pt === $pq) {
+			$s = 100;
+		} elseif (strpos($pl, $pq) === 0 || strpos($pt, $pq) === 0) {
+			$s = 60;
+		} elseif (strpos($pl, $pq) !== false || strpos($pt, $pq) !== false) {
+			$s = 30;
+		} else {
+			continue;
+		}
+		$p['c'] = '@' . $p['l'];
+		$p['s'] = $s + 3 * log(1 + (int) $p['f']) + log(1 + (int) $p['p']);
+		$people[] = $p;
+	}
+	usort($people, function ($a, $b) { return $b['s'] <=> $a['s']; });
+	$pfirst = $people && $people[0]['s'] >= 100; // the exact name: the member first, as a channel
+	$people = array_map(function ($p) { unset($p['s'], $p['l'], $p['p']); return $p; }, array_slice($people, 0, 3));
+}
+echo json_encode(['items' => $items, 'games' => $games, 'people' => $people, 'pfirst' => $pfirst], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

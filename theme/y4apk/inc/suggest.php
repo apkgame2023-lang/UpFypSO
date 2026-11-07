@@ -116,7 +116,26 @@ class Y4APK_Suggest {
 				}
 			}
 		}
-		update_option(self::TOP, wp_json_encode(['top' => $top, 'games' => $games], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), false);
+		// Members (2.54): the ones who share or are followed, for "Members" in the box — never the site's own accounts
+		$people = [];
+		if (class_exists('Y4APK_Members') && class_exists('Y4APK_Social')) {
+			$fol = [];
+			foreach ((array) $wpdb->get_results($wpdb->prepare("SELECT meta_value AS uid, COUNT(DISTINCT user_id) AS n FROM {$wpdb->usermeta} WHERE meta_key = %s GROUP BY meta_value", Y4APK_Social::FOLLOWS)) as $r) {
+				$fol[(int) $r->uid] = (int) $r->n;
+			}
+			$users = get_users(['role' => Y4APK_Members::ROLE, 'number' => 3000, 'fields' => 'all_with_meta']);
+			$posts = $users ? count_many_users_posts(wp_list_pluck($users, 'ID'), 'post', true) : [];
+			foreach ($users as $u) {
+				$f = $fol[$u->ID] ?? 0;
+				$n = (int) ($posts[$u->ID] ?? 0);
+				if (($f || $n) && Y4APK_Members::is_public($u)) {
+					$people[] = ['t' => Y4APK_Social::name($u), 'l' => $u->user_login, 'u' => Y4APK_Members::profile_url($u), 'i' => Y4APK_Social::picture($u), 'f' => $f, 'p' => $n, 'k' => 'member'];
+				}
+			}
+			usort($people, function ($a, $b) { return ($b['f'] <=> $a['f']) ?: ($b['p'] <=> $a['p']); });
+			$people = array_slice($people, 0, 600);
+		}
+		update_option(self::TOP, wp_json_encode(['top' => $top, 'games' => $games, 'people' => $people], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), false);
 	}
 
 	/** One post as the box shows it (as suggest.php builds them). */
@@ -153,8 +172,10 @@ class Y4APK_Suggest {
 				'results' => __('Games, apps and scripts', 'y4apk'),
 				'all'     => __('See all results for “%s”', 'y4apk'),
 				'none'    => __('No quick matches. Press Enter to search everything.', 'y4apk'),
-				'kinds'   => ['game' => __('Game', 'y4apk'), 'app' => __('App', 'y4apk'), 'script' => __('Script', 'y4apk'), 'rbx' => __('Roblox game', 'y4apk'), 'articles' => __('Article', 'y4apk'), 'news' => __('News', 'y4apk'), 'y4apk_executor' => __('Executor', 'y4apk'), 'post' => ''],
+				'kinds'   => ['game' => __('Game', 'y4apk'), 'app' => __('App', 'y4apk'), 'script' => __('Script', 'y4apk'), 'rbx' => __('Roblox game', 'y4apk'), 'articles' => __('Article', 'y4apk'), 'news' => __('News', 'y4apk'), 'y4apk_executor' => __('Executor', 'y4apk'), 'version' => __('Member version', 'y4apk'), 'member' => __('Member', 'y4apk'), 'post' => ''],
 				'scripts' => __('%d scripts', 'y4apk'),
+				'members' => __('Members', 'y4apk'),
+				'followers' => __('%d followers', 'y4apk'),
 				'remove'  => __('Remove', 'y4apk'),
 			],
 		];
@@ -189,7 +210,8 @@ class Y4APK_Suggest {
 		if (x.c) { meta.push(esc(x.c)); }
 		if (x.v) { meta.push('v' + esc(x.v)); }
 		if (x.k === 'rbx' && x.n) { meta.push(esc(T.scripts.replace('%d', x.n))); }
-		return '<a class="y4sg-item" href="' + esc(here(x.u)) + '" role="option" data-y4sg-i>' + (n ? '<b class="y4sg-rank">' + n + '</b>' : '') + '<span class="y4sg-ico">' + icon(x) + '</span>' +
+		if (x.k === 'member' && x.f) { meta.push(esc(T.followers.replace('%d', x.f))); }
+		return '<a class="y4sg-item" href="' + esc(here(x.u)) + '" role="option" data-y4sg-i>' + (n ? '<b class="y4sg-rank">' + n + '</b>' : '') + '<span class="y4sg-ico' + (x.k === 'member' ? ' is-round' : '') + '">' + icon(x) + '</span>' +
 			'<span class="y4sg-text"><b>' + (q ? mark(x.t, q) : esc(x.t)) + '</b><small>' + meta.join('<i>·</i>') + '</small></span>' +
 			'<svg class="y4sg-go" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M13.2 5.3 19.9 12l-6.7 6.7-1.4-1.4 4.3-4.3H4v-2h12.1l-4.3-4.3 1.4-1.4Z"/></svg></a>';
 	};
@@ -227,6 +249,7 @@ class Y4APK_Suggest {
 				var h = '';
 				if (d.games && d.games.length) { h += '<div class="y4sg-head"><span>' + esc(T.games) + '</span></div>' + d.games.map(function (x) { return row(x, q); }).join(''); }
 				if (d.items && d.items.length) { h += '<div class="y4sg-head"><span>' + esc(T.results) + '</span></div>' + d.items.map(function (x) { return row(x, q); }).join(''); }
+				if (d.people && d.people.length) { var ph = '<div class="y4sg-head"><span>' + esc(T.members) + '</span></div>' + d.people.map(function (x) { return row(x, q.replace(/^@/, '')); }).join(''); h = d.pfirst ? ph + h : h + ph; }
 				if (!h) { h = '<p class="y4sg-none">' + esc(T.none) + '</p>'; }
 				h += '<a class="y4sg-all" href="' + esc(C.search + '?s=' + encodeURIComponent(q)) + '" data-y4sg-i data-q="' + esc(q) + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 6 12l4.7 4.8-1.4 1.4-4.8-4.7A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg><span>' + esc(T.all).replace('%s', '<b>' + esc(q) + '</b>') + '</span><kbd>Enter</kbd></a>';
 				show(h);

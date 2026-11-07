@@ -28,6 +28,7 @@ require $theme_dir . '/inc/updater.php';
 require $theme_dir . '/inc/migrate.php';
 require $theme_dir . '/inc/logo.php';
 require $theme_dir . '/inc/home-admin.php'; // Y4APK ▸ Home page (2.53.3)
+require $theme_dir . '/inc/search.php'; // the search page (2.54)
 require $theme_dir . '/inc/pwa.php';
 require $theme_dir . '/inc/direct-link.php';
 require $theme_dir . '/inc/stats.php';

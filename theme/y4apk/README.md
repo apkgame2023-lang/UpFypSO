@@ -638,6 +638,41 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Search, the way a search engine answers (2.54)
+
+**What it searches** (inc/search.php): everything on Y4APK — games and apps,
+members' own versions of them, Roblox scripts (a member's or the site's),
+executors, articles, news and the site's pages — and members.
+
+**How it ranks**: the game's or app's own name, or the post's title, exactly as
+typed; then a name that starts with it; the words together; every word in
+the name; a script of a Roblox game whose name matches; the words only in the
+text. Popular and recent posts go up a little; "script", "executor", "app" …
+in the search lift that kind. Nothing found: the closest name is searched
+instead ("minecarft" → *Showing results for Minecraft*). WordPress's own
+search query is not run on this page: titles and names first, the text only
+up to a few hundred rows, each answer kept 15 minutes (only answers that found
+something, so random words from bots leave nothing in the database).
+
+**The page** (search.php, assets/css/search.css): the search box, tabs per
+kind with their counts (All, Games, Apps, Scripts, Members' versions,
+Executors, Articles, Members …), "N results (0.01 seconds)", the best match
+as a card with Download / Get the script, then each result with its picture,
+kind, category or Roblox game, version, who shared it and the words around
+what was searched, in bold. Two members' versions of a game at most under
+"All", then *N more members' versions of …*. Beside the results (above them
+on phones): the matching Roblox games and members. A member whose name or
+@name is searched shows first as a channel card (picture, followers, posts,
+*View profile*); the *Members* tab lists all that match. Pages are ?pg=2
+(/page/2/ would 404). The breadcrumb reads Home → Search (it showed
+"Executors" before).
+
+**Suggestions** (suggest.php): members' versions are suggested too (two at
+most, under the main post), and members, by name or @name, under *Members*
+with their round picture and followers — first when the name is exact. The
+list of members is written with the rest every hour: members who share or are
+followed, never the site's own accounts.
+
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
 2.53.6: the download section is back to its two boxes (*Download MOD*,
