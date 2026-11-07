@@ -1227,6 +1227,8 @@ class Y4APK_I18n {
 			'check' => '<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/>',
 			'close' => '<path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4Z"/>',
 			'search' => '<path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.8l5 5 1.5-1.5-5-5Zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/>',
+			'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
+			'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
 		];
 	}
 
@@ -1282,7 +1284,10 @@ class Y4APK_I18n {
 			'toast' => $toast,
 			'geo'   => admin_url('admin-ajax.php?action=y4apk_geo'),
 			'cc'    => 'AF AX AL DZ AS AD AO AI AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BR BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UY UZ VU VE VN VG VI WF EH YE ZM ZW',
-			'i'     => array_intersect_key(self::icons(), array_flip(['globe', 'pin', 'next', 'back', 'check', 'close', 'search'])),
+			'i'     => array_intersect_key(self::icons(), array_flip(['globe', 'pin', 'next', 'back', 'check', 'close', 'search', 'help', 'chat'])),
+			// Help and the policies, under Language and Location (as YouTube's and UpFypSO's menus have them, 2.52)
+			'help'  => class_exists('Y4APK_Help') ? [['help', Y4APK_Help::url('contact'), __('Help and contact', 'y4apk')], ['chat', Y4APK_Help::url('feedback'), __('Send feedback', 'y4apk')]] : [],
+			'legal' => class_exists('Y4APK_Help') ? [[Y4APK_Help::url('terms'), __('Terms of Service', 'y4apk')], [Y4APK_Help::url('privacy'), __('Privacy Policy', 'y4apk')], [Y4APK_Help::url('dmca'), __('DMCA Policy', 'y4apk')]] : [],
 			'T'     => [
 				'title'     => __('Language and location', 'y4apk'),
 				'lang'      => __('Language: %s', 'y4apk'),
@@ -1347,6 +1352,10 @@ class Y4APK_I18n {
 .y4l-find input:focus{border-color:#29b1d8;background:#fff;box-shadow:0 0 0 3px rgba(41,177,216,.18)}
 .y4l-empty{padding:1rem .75rem;color:rgba(23,32,33,.55);font-size:.875rem}
 .y4l-sep{height:1px;margin:.25rem .75rem;background:rgba(23,32,33,.08)}
+a.y4l-item{color:#172021!important;text-decoration:none}
+.y4l-legal{margin:.375rem .75rem .5rem;font-size:.8125rem;line-height:1.6;color:rgba(23,32,33,.5)}
+.y4l-legal a{color:inherit!important;font-weight:600;text-decoration:none}
+.y4l-legal a:hover{color:#29b1d8!important}
 @media (max-width:61.9375rem){
 .y4l-pop{left:0!important;right:0!important;top:auto!important;bottom:0;width:auto;max-width:none;max-height:85vh;border-radius:1.25rem 1.25rem 0 0;padding-bottom:env(safe-area-inset-bottom);animation:y4l-up .2s ease-out}
 .y4l-pop::before{content:"";display:block;flex:none;width:2.5rem;height:.25rem;margin:.5rem auto 0;border-radius:1rem;background:rgba(23,32,33,.18)}
@@ -1435,7 +1444,9 @@ class Y4APK_I18n {
 		if (v === 'main') {
 			h = head(T.title) + '<div class="y4l-body" role="menu">'
 				+ item(' data-v="lang"', 'globe', T.lang.replace('%s', curName()), '', null, true)
-				+ item(' data-v="loc"', 'pin', T.loc.replace('%s', country(gl)), '', null, true) + '</div>';
+				+ item(' data-v="loc"', 'pin', T.loc.replace('%s', country(gl)), '', null, true)
+				+ (C.help.length ? '<div class="y4l-sep"></div>' + C.help.map(function (h) { return '<a class="y4l-item" href="' + esc(h[1]) + '">' + svg(h[0]) + '<span class="y4l-t"><b>' + esc(h[2]) + '</b></span></a>'; }).join('') : '')
+				+ (C.legal.length ? '<p class="y4l-legal">' + C.legal.map(function (l) { return '<a href="' + esc(l[0]) + '">' + esc(l[1]) + '</a>'; }).join('<span aria-hidden="true"> · </span>') + '</p>' : '') + '</div>';
 		} else if (v === 'lang') {
 			h = head(T.langTitle, true) + '<p class="y4l-note">' + esc(T.langNote) + '</p>'
 				+ (C.langs.length > 8 ? '<div class="y4l-find">' + svg('search', 18) + '<input type="search" data-find placeholder="' + esc(T.search) + '" aria-label="' + esc(T.search) + '" autocomplete="off"></div>' : '')

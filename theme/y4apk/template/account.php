@@ -73,13 +73,13 @@ $field = function ($label, $name, $type = 'text', $extra = []) use ($v) {
 $pitch = function ($title, $text) {
 	?>
 	<aside class="acc-pitch">
-		<span class="acc-pitch-tag"><?php esc_html_e('Roblox scripts', 'y4apk'); ?></span>
+		<span class="acc-pitch-tag"><?php esc_html_e('Games · Apps · Roblox scripts', 'y4apk'); ?></span>
 		<h2><?php echo esc_html($title); ?></h2>
 		<p><?php echo esc_html($text); ?></p>
 		<ul>
-			<li><?php esc_html_e('Share a loadstring in a minute: pick the game, paste the code.', 'y4apk'); ?></li>
-			<li><?php esc_html_e('Reach the people who look for scripts every day.', 'y4apk'); ?></li>
-			<li><?php esc_html_e('See how many people viewed each script.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('Share a game or app file (up to 10 GB), or a Roblox script in a minute.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('Reach the people who look for them every day.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('See how many people view and download what you share.', 'y4apk'); ?></li>
 		</ul>
 	</aside>
 	<?php
@@ -250,7 +250,7 @@ get_header();
 
 /* ======================================================= sign in */
 if ($screen === 'login') {
-	$shell_open(__('Welcome back', 'y4apk'), __('Sign in to see how your scripts are doing and to share new ones.', 'y4apk'));
+	$shell_open(__('Welcome back', 'y4apk'), __('Sign in to see how your uploads are doing and to share new ones.', 'y4apk'));
 	?>
 	<h1><?php esc_html_e('Sign in', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
@@ -275,7 +275,7 @@ if ($screen === 'login') {
 
 /* ======================================================= register */
 } elseif ($screen === 'register') {
-	$shell_open(__('Share your scripts', 'y4apk'), __('Make a free account to share Roblox scripts on Y4APK.', 'y4apk'));
+	$shell_open(__('Join Y4APK', 'y4apk'), __('Make a free account to share games, apps and Roblox scripts, and follow the people who share them.', 'y4apk'));
 	?>
 	<h1><?php esc_html_e('Create an account', 'y4apk'); ?></h1>
 	<?php if (!$M::open()) : ?>
@@ -286,12 +286,18 @@ if ($screen === 'login') {
 		<?php $form_open('register'); ?>
 			<input type="hidden" name="y4_land_ref" value=""><input type="hidden" name="y4_land_page" value=""><input type="hidden" name="y4_app" value="">
 			<?php $field(__('Username', 'y4apk'), 'handle', 'text', ['autocomplete' => 'username', 'required' => true, 'minlength' => '3', 'maxlength' => '20', 'pattern' => '[A-Za-z0-9_]{3,20}', 'autocapitalize' => 'none']); ?>
-			<p class="acc-hint"><?php esc_html_e('3–20 letters, numbers or underscores. It is shown on the scripts you share.', 'y4apk'); ?></p>
+			<p class="acc-hint"><?php esc_html_e('3–20 letters, numbers or underscores. It is shown on what you share.', 'y4apk'); ?></p>
 			<?php $field(__('Email', 'y4apk'), 'email', 'email', ['autocomplete' => 'email', 'required' => true, 'maxlength' => '100']); ?>
-			<p class="acc-hint"><?php esc_html_e('To confirm your account and tell you when a script is live. It is never shown.', 'y4apk'); ?></p>
+			<p class="acc-hint"><?php esc_html_e('To confirm your account and tell you when an upload is live. It is never shown.', 'y4apk'); ?></p>
 			<?php $field(__('Password', 'y4apk'), 'password', 'password', ['autocomplete' => 'new-password', 'required' => true, 'minlength' => '10', 'maxlength' => '100']); ?>
 			<p class="acc-hint"><?php esc_html_e('At least 10 characters.', 'y4apk'); ?></p>
-			<label class="acc-check acc-terms"><input type="checkbox" name="terms" value="1" required> <span><?php esc_html_e('I only share scripts I trust. No scripts that steal accounts or harm other players.', 'y4apk'); ?></span></label>
+			<label class="acc-check acc-terms"><input type="checkbox" name="terms" value="1" required> <span><?php
+				if (class_exists('Y4APK_Help')) { // as big sites ask: the rules, before the account (2.52)
+					echo wp_kses(sprintf(__('I agree to the <a href="%1$s" target="_blank">Terms of Service</a> and <a href="%2$s" target="_blank">Privacy Policy</a>, and I only share files and scripts I trust.', 'y4apk'), esc_url(Y4APK_Help::url('terms')), esc_url(Y4APK_Help::url('privacy'))), ['a' => ['href' => [], 'target' => []]]);
+				} else {
+					esc_html_e('I only share scripts I trust. No scripts that steal accounts or harm other players.', 'y4apk');
+				}
+			?></span></label>
 			<?php echo $M::trap_fields(); $M::turnstile_widget(); ?>
 			<button class="acc-btn acc-btn-primary" type="submit"><?php esc_html_e('Create account', 'y4apk'); ?></button>
 		</form>

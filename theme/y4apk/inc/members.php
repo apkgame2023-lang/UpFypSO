@@ -524,6 +524,11 @@ class Y4APK_Members {
 		wp_send_json(['now' => time(), 't' => self::trap_value(), 'n' => $n]);
 	}
 
+	/** For the theme's other forms (Contact, Feedback, copyright notices, 2.52): the bot trap, and Turnstile when asked. */
+	public static function human_ok($turnstile = true) {
+		return self::trap_ok() && (!$turnstile || self::turnstile_ok());
+	}
+
 	private static function trap_ok() {
 		if (!empty($_POST['website'])) {
 			return false;

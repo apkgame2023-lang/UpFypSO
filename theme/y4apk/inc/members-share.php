@@ -186,6 +186,16 @@ class Y4APK_Share {
 		});
 	}
 
+	/** A member's own title (2.52): with the game's name in it, so the page is found by it (added at the start when it is not). */
+	public static function own_title($title, $name) {
+		$title = trim((string) $title);
+		$name = trim((string) $name);
+		if ($name === '' || mb_stripos($title, $name) !== false) {
+			return $title;
+		}
+		return $name . ' – ' . $title;
+	}
+
 	/** "Name MOD APK v1.2.3 (Unlimited Money)", as the site's titles go. */
 	public static function title($name, $version, $mods, $label = 'APK') {
 		$v = Y4APK_App_Updates::number($version);
@@ -266,7 +276,14 @@ class Y4APK_Share {
 		if ($package === '') {
 			// On the site: by name, in the Games or Apps categories
 			$roots = self::roots();
-			$cats = array_filter([$roots['game'][0] ? $roots['game'][0]->term_id : 0, $roots['app'][0] ? $roots['app'][0]->term_id : 0]);
+			$cats = [];
+			foreach ([$roots['game'][0], $roots['app'][0]] as $root) {
+				if ($root) { // the category and the ones under it (a post is often only in "Action", under Games)
+					$cats[] = (int) $root->term_id;
+					$kids = get_term_children((int) $root->term_id, 'category');
+					$cats = array_merge($cats, is_array($kids) ? array_map('intval', $kids) : []);
+				}
+			}
 			$ids = get_posts(['post_type' => 'post', 'post_status' => 'publish', 's' => $q, 'posts_per_page' => 5, 'fields' => 'ids', 'category__in' => $cats ?: [0], 'no_found_rows' => true,
 				'meta_query' => [['key' => self::PARENT, 'compare' => 'NOT EXISTS']]]); // main posts: a version goes under one
 			foreach ($ids as $id) {
@@ -466,7 +483,7 @@ class Y4APK_Share {
 		if (empty($ctx['old'])) {
 			$d = $post ? self::data($post->ID) : null;
 			$ctx['old'] = $d ? ['kind' => $d['kind'], 'package' => $d['package'], 'name' => $d['name'], 'play' => $d['play'], 'cat' => (int) (wp_get_post_categories($post->ID)[0] ?? 0),
-				'version' => $d['version'], 'mods' => $d['mods'], 'requires' => $d['requires'], 'desc' => $d['desc'], 'files' => $d['files'], 'update_of' => (int) $d['update_of'], 'icon' => (int) $d['icon']]
+				'version' => $d['version'], 'mods' => $d['mods'], 'requires' => $d['requires'], 'desc' => $d['desc'], 'own_title' => (string) ($d['own_title'] ?? ''), 'files' => $d['files'], 'update_of' => (int) $d['update_of'], 'icon' => (int) $d['icon']]
 				: ['kind' => $kind, 'package' => '', 'name' => '', 'play' => [], 'cat' => 0, 'version' => '', 'mods' => '', 'requires' => '', 'desc' => '', 'files' => [], 'update_of' => 0, 'icon' => 0];
 			// "Newer version" on My uploads, or a post on the site: that post, ready for its new file
 			$newer = !$post && isset($_GET['newer']) ? get_post(absint($_GET['newer'])) : null;
@@ -502,7 +519,7 @@ class Y4APK_Share {
 			return 0;
 		}
 		$main = $d['files'] ? $d['files'][0] : ['label' => 'APK'];
-		$title = self::title($d['name'], $d['version'], $d['mods'], $main['label']) . ($user ? ' ' . self::by($user) : '');
+		$title = (!empty($d['own_title']) ? self::own_title($d['own_title'], $d['name']) : self::title($d['name'], $d['version'], $d['mods'], $main['label'])) . ($user ? ' ' . self::by($user) : '');
 		wp_update_post(wp_slash(['ID' => $id, 'post_title' => $title, 'post_category' => wp_get_post_categories($parent), 'post_date' => $post->post_date, 'edit_date' => true, 'post_parent' => $parent])); // still "sent 2 days ago"
 		update_post_meta($id, self::PARENT, $parent);
 		delete_post_meta($id, 'wp_GP_ID'); // Google Play stays with the main post (App updates, Write with AI)
@@ -572,6 +589,12 @@ class Y4APK_Share {
 		$mods = in_array('Original', $mods, true) ? 'Original' : implode(', ', array_unique($mods));
 		$requires = trim(mb_substr(preg_replace('/[^0-9.]/', '', (string) ($p['requires'] ?? '')), 0, 8));
 		$desc = trim(mb_substr(sanitize_textarea_field((string) ($p['desc'] ?? '')), 0, 1500));
+		// A title of their own (2.52), optional: empty, the site's usual one
+		$own_title = trim(preg_replace('/\s+/u', ' ', mb_substr(sanitize_text_field((string) ($p['post_title'] ?? '')), 0, 100)));
+		if ($own_title !== '' && preg_match('~https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|me|ly|link|app|site|top|info)\b~i', $name !== '' ? str_ireplace($name, '', $own_title) : $own_title)) { // "Agar.io" is a name, not a link
+			$err[] = __('No links in the title, please.', 'y4apk');
+			$step = 3;
+		}
 		// The files: ones this member finished here (or the post already has)
 		$have = $existing ? self::data($existing->ID)['files'] : [];
 		$have_keys = array_column($have, null, 'key');
@@ -601,7 +624,7 @@ class Y4APK_Share {
 			$err[] = __('Tick the box to say the file is safe and fine to share.', 'y4apk');
 		}
 		$old = ['kind' => $kind, 'package' => $package, 'name' => $name, 'play' => $play, 'cat' => $cat, 'version' => $version, 'mods' => $mods, 'requires' => $requires, 'desc' => $desc,
-			'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step, 'agree' => !empty($p['agree'])];
+			'own_title' => $own_title, 'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step, 'agree' => !empty($p['agree'])];
 		return [$old, $err];
 	}
 
@@ -664,7 +687,7 @@ class Y4APK_Share {
 		}
 		$main = $old['files'][0];
 		$parent = (int) $old['update_of'];
-		$title = self::title($old['name'], $old['version'], $old['mods'], $main['label']);
+		$title = $old['own_title'] !== '' ? self::own_title($old['own_title'], $old['name']) : self::title($old['name'], $old['version'], $old['mods'], $main['label']);
 		if ($parent) {
 			$title .= ' ' . self::by($user); // the member's own post, under the main one
 		}
@@ -720,7 +743,12 @@ class Y4APK_Share {
 		}
 		update_user_meta($user->ID, self::DONE_UP, $done);
 		update_post_meta($id, self::META, ['kind' => $old['kind'], 'package' => $old['package'], 'name' => $old['name'], 'play' => $old['play'], 'icon' => $icon, 'version' => $old['version'],
-			'mods' => $old['mods'], 'requires' => $old['requires'], 'desc' => $old['desc'], 'files' => $old['files'], 'update_of' => $old['update_of'], 'at' => time()]);
+			'mods' => $old['mods'], 'requires' => $old['requires'], 'desc' => $old['desc'], 'own_title' => $old['own_title'], 'files' => $old['files'], 'update_of' => $old['update_of'], 'at' => time()]);
+		if ($old['own_title'] !== '') {
+			update_post_meta($id, '_y4apk_own_title', 1); // Write with AI keeps it
+		} else {
+			delete_post_meta($id, '_y4apk_own_title');
+		}
 		update_post_meta($id, Y4APK_Members::MEMBER_POST, 1);
 		delete_post_meta($id, Y4APK_Members::REJECT);
 		$meta = ['wp_title_GP' => $old['name'], 'wp_version_GP' => Y4APK_App_Updates::number($old['version']), 'wp_sizes_GP' => Y4APK_R2::size_text($main['size']), 'wp_mods' => $old['mods'] === 'Original' ? '' : $old['mods'],

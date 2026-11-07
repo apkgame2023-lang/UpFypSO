@@ -638,6 +638,60 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Help and legal pages, Support, titles of one's own (2.52)
+
+**Pages** (inc/help.php, template/help.php, assets/css/help.css), laid out the
+way the big platforms do: a coloured card at the top, and on the legal ones
+*Last updated*, the reading time, tabs between them, *The short version* in
+four cards and a numbered *On this page* list.
+- **Terms of Service**, **Privacy Policy**, **DMCA Policy**: written for what
+  this site really does (accounts, member uploads checked and reviewed, MOD
+  files from others, no IP addresses in the statistics, what profiles show,
+  AI that writes pages from what a member wrote, ads and other sites). They
+  name no person, address or email of the owner. Their texts are in
+  inc/help-texts.php and are translated like the rest (the English version
+  applies).
+- **Copyright**: a notice form with what the law asks for (owner or agent,
+  the work, the links on Y4APK, the three statements, a signature).
+- **Contact**: topics (question, problem, copyright, privacy, account,
+  advertising), *Sending as @name* when signed in, *Your requests* with our
+  answers, tips, links.
+- **Feedback**: five faces, a few words, the page it came from.
+- They are ordinary WordPress pages, made once when the dashboard is opened.
+  A page the site already has at a usual address (/privacy-policy/,
+  /dmca-policy/, /feedback/, /contact-us/ …) is used as it is (its address
+  and Rank Math settings stay); WordPress's *Privacy Policy page* setting
+  points to ours. *Y4APK ▸ Support ▸ Pages* can show a page's own text again.
+- The footer lists them (and the menu's other items, such as FAQ), the globe
+  menu has *Help and contact*, *Send feedback* and the policies, the account
+  menu *Help and contact* and *Send feedback*.
+- The forms work on cached pages (AJAX), with the bot trap and Turnstile of
+  the sign-in forms (Turnstile only for people not signed in), five messages
+  an hour (ten for feedback) — only a message that is sent counts.
+
+**Y4APK ▸ Support**: every message, with *To answer*, *Copyright*,
+*Feedback* (the average of the last 30 days), *Closed*. Open one to answer by
+email (in the sender's language around your words; they get a number when
+they write), close it, or delete it. A copyright notice lists its links with
+the post each one is (a page, its download page, a member's version, a file
+folder on R2): *Hide the ticked posts* makes them drafts, *Put them back* is
+for a counter-notice. The owner gets one email at most every 10 minutes; the
+address is never on a page.
+
+**Sign in / Create an account**: the panel speaks of games, apps and
+scripts, its tag no longer stretches across the card, and making an account
+agrees to the Terms of Service and the Privacy Policy (linked).
+
+**A title of one's own** on the game and app share form (step 3, optional):
+empty, the post gets the site's usual title, shown in grey in the box as it is
+typed (“Name MOD APK v1.2 (Unlimited Money)”). A title must have the game's or
+app's name in it (it is added at the start when not), and no links. Write
+with AI keeps it; editing the upload shows it again.
+
+Fixed on the way: the share form's search found a game already on the site
+only when the post was in the top Games or Apps category, not in one under it
+(Action, Racing …), so members shared it again instead of adding a version.
+
 ## Languages and location, the way YouTube and TikTok do it (2.51)
 
 **How the big platforms do it**, and what this theme does the same way:

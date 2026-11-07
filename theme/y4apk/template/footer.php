@@ -32,8 +32,13 @@ $footer = wp_get_nav_menu_items($menu_locations['footer'] ?? 0);
                 </i>
             </a>
             <nav class="f-menu">
-                <?php 
-                    if($footer) :
+                <?php
+                    // Terms, Privacy, DMCA, Copyright, Contact, Feedback (2.52), then the menu's other items
+                    if (class_exists('Y4APK_Help')) :
+                    	foreach (Y4APK_Help::footer_links($footer) as $link) : ?>
+                <a href="<?php echo esc_url($link[0]); ?>"><?php echo esc_html(html_entity_decode($link[1], ENT_QUOTES, 'UTF-8')); ?></a>
+                <?php endforeach;
+                    elseif($footer) :
                     	foreach($footer as $menu) :
                     		$menu_name = $menu->title;
                     		$menu_url = $menu->url;

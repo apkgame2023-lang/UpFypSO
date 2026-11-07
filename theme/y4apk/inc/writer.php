@@ -1740,6 +1740,9 @@ class Y4APK_Writer {
 				$slug = $want;
 			}
 		}
+		if (get_post_meta($post_id, '_y4apk_own_title', true)) {
+			$new = ''; // a title the member wrote themselves (2.52): kept as it is
+		}
 		$update = ['ID' => $post_id];
 		if ($new !== '' && $new !== $title) {
 			$update['post_title'] = wp_slash($new);

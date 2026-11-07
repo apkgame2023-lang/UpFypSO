@@ -176,6 +176,11 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 			<section class="acc-wiz-step" data-step="3" hidden>
 				<h2 class="acc-wiz-title"><?php esc_html_e('About this file', 'y4apk'); ?></h2>
 				<p class="acc-wiz-lead"><?php esc_html_e('What people get when they download it.', 'y4apk'); ?></p>
+				<div class="acc-field shr-title">
+					<label for="f-title"><?php esc_html_e('Post title', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
+					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title></div>
+					<p class="acc-hint"><?php esc_html_e('Leave it empty and the post gets the title shown in grey, made like every page on the site (best for search). Your own must have the game’s or app’s name in it, or the name is added at the start. No links.', 'y4apk'); ?></p>
+				</div>
 				<div class="shr-row2">
 					<div class="acc-field">
 						<label for="f-version"><?php esc_html_e('Version', 'y4apk'); ?></label>
@@ -508,15 +513,26 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		steps.forEach(function (s) { s.hidden = +s.getAttribute('data-step') !== n; });
 		$$('.acc-wiz-steps li').forEach(function (li) { var k = +li.getAttribute('data-goto'); li.classList.toggle('is-on', k === n); li.classList.toggle('is-done', k < reached && k !== n && !problem(k)); li.classList.toggle('can-go', k <= reached); });
 		if (n === 5) { review(); tsFresh(); }
+		if (n === 3) { titleHint(); }
 		head();
 		var top = w.getBoundingClientRect().top + window.pageYOffset - 80; if (window.pageYOffset > top) { window.scrollTo({ top: top, behavior: 'smooth' }); }
 	}
 	var catName = function () { var id = +field('cat').value, n = ''; (C.cats[kind()] || []).forEach(function (c) { if (c.id === id) { n = c.name; } }); return n; };
 	var mods = function () { var o = $$('input[name="mod[]"]:checked').map(function (x) { return x.value; }), more = $('input[name="mod_more"]').value.trim(); if (more) { o.push(more); } return o.indexOf('Original') > -1 ? [] : o; };
-	function title() {
+	function autoTitle() {
 		var name = field('name').value.trim() || (pick && pick.title) || '', m = mods(), v = num(field('version').value), lb = slots[0].label || 'APK', type = ['XAPK', 'APKS', 'APKM'].indexOf(lb) > -1 ? lb : 'APK';
 		return (name + (m.length ? ' MOD ' : ' ') + type + (v ? ' v' + v : '') + (m.length ? ' (' + m.join(', ') + ')' : '')).trim();
 	}
+	/* ---- The post's title (2.52): the member's own, with the name in it, or the usual one (shown in grey in the box) ---- */
+	var own = $('[data-own-title]');
+	function title() {
+		var t = own ? own.value.replace(/\s+/g, ' ').trim() : '', name = field('name').value.trim() || (pick && pick.title) || '';
+		if (!t) { return autoTitle(); }
+		return !name || t.toLowerCase().indexOf(name.toLowerCase()) > -1 ? t : name + ' – ' + t;
+	}
+	var titleHint = function () { if (own) { own.placeholder = autoTitle(); } };
+	f.addEventListener('input', titleHint);
+	f.addEventListener('change', titleHint);
 	function head() {
 		var hi = $('[data-head-icon]');
 		if (pick && pick.icon) { hi.innerHTML = '<img src="' + esc(pick.icon) + '" alt="">'; }

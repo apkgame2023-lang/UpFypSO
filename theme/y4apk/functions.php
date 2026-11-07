@@ -49,6 +49,7 @@ require $theme_dir . '/inc/suggest.php';
 require $theme_dir . '/inc/executors.php';
 require $theme_dir . '/inc/mail.php';
 require $theme_dir . '/inc/members-admin.php';
+require $theme_dir . '/inc/help.php'; // Terms, Privacy, DMCA, Copyright, Contact, Feedback, Y4APK ▸ Support (2.52)
 require $theme_dir . '/inc/dashboard.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';

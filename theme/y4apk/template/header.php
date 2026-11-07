@@ -249,6 +249,8 @@ if ($subcategories_2) {
                 'gear'   => '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5-2.2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
                 'out'    => '<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.6 4.4-1.4 1.4 2.2 2.2H9v2h8.4l-2.2 2.2 1.4 1.4L21.2 12l-4.6-4.6Z"/>',
                 'down'   => '<path d="m7 10 5 5 5-5H7Z"/>',
+                'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
+                'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
                 'next'   => '<path d="m9.4 6-1.4 1.4 4.6 4.6-4.6 4.6L9.4 18l6-6-6-6Z"/>',
                 'globe'  => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.9a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4H4.3Zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 0 1 5.1 16ZM8 8H5.1a8 8 0 0 1 4.3-3.6C8.8 5.5 8.3 6.7 8 8Zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 0 1-4.3 3.6Zm1.7-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/>',
             );
@@ -273,6 +275,8 @@ if ($subcategories_2) {
                 'customize' => Y4APK_Members::url('customize'),
                 'settings'  => Y4APK_Members::url('settings'),
                 'logout'    => Y4APK_Members::url('logout'),
+                'help'      => class_exists('Y4APK_Help') ? Y4APK_Help::url('contact') : '',
+                'feedback'  => class_exists('Y4APK_Help') ? Y4APK_Help::url('feedback') : '',
                 'profile'   => home_url('/@'),
                 'ajax'      => admin_url('admin-ajax.php'),
             )); ?>;
@@ -285,6 +289,8 @@ if ($subcategories_2) {
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
                 'out'       => __('Sign out', 'y4apk'),
+                'help'      => __('Help and contact', 'y4apk'),
+                'feedback'  => __('Send feedback', 'y4apk'),
                 // The language menu from here too, as YouTube has it in its account menu (2.51)
                 'lang'      => class_exists('Y4APK_I18n') && count(Y4APK_I18n::ready()) > 1 ? sprintf(__('Language: %s', 'y4apk'), Y4APK_I18n::languages()[Y4APK_I18n::current()][0]) : '',
             )); ?>;
@@ -322,6 +328,7 @@ if ($subcategories_2) {
                 if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
             });
             list += '</nav>' + (T.lang ? '<button type="button" class="h-acct-lang" data-y4l-open>' + svg('globe') + '<span></span>' + svg('next', 16) + '</button>' : '')
+                + (U.help ? '<nav class="h-acct-list"><a href="' + U.help + '">' + svg('help') + '<span>' + T.help + '</span></a><a href="' + U.feedback + '">' + svg('chat') + '<span>' + T.feedback + '</span></a></nav>' : '')
                 + '<a class="h-acct-out" href="' + U.logout + '" data-out>' + svg('out') + '<span>' + T.out + '</span></a>';
             menu.insertAdjacentHTML('beforeend', list);
             if (T.lang) { menu.querySelector('.h-acct-lang span').textContent = T.lang; }
