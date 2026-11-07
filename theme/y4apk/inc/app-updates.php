@@ -45,6 +45,9 @@ class Y4APK_App_Updates {
 	const NO_FILE      = '_y4apk_no_file';    // the download folder Write with AI made, its page still waiting for a file
 	const PER_PAGE     = 50;
 	const PRIORITY     = 8;   // of the 20 checks a step, for the posts Google shows most and people follow
+	const ICON_BATCH   = 8;   // icons copied from Google Play to R2 per step (two pictures each)
+	const FOLLOW_BATCH = 40;  // posts brought up to Google Play's version per step from what is already known (no requests)
+	const ICON_SRC     = '_y4apk_icon_src';   // the Google Play icon the featured image is (as Write with AI keeps it)
 	const GSC          = 'y4apk_gsc';
 	const UA           = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -73,6 +76,7 @@ class Y4APK_App_Updates {
 		add_action('pre_get_posts', [__CLASS__, 'filter_list']);
 		add_filter('post_row_actions', [__CLASS__, 'row_action'], 10, 2);
 		add_action('admin_notices', [__CLASS__, 'check_notice']);
+		add_action('add_meta_boxes_post', [__CLASS__, 'meta_box']);
 	}
 
 	public static function enabled() {
@@ -132,6 +136,25 @@ class Y4APK_App_Updates {
 			}
 			update_option('y4apk_vc_schema', 5, true);
 		}
+		// 2.50: Roblox scripts are not apps. Earlier versions looked them up on
+		// Google Play like any post ("Steal An Egg Script" → the Play game Steal
+		// An Egg): forget what was found for them, and a Google Play ID this
+		// page set by itself.
+		if ((int) get_option('y4apk_vc_schema', 1) < 6) {
+			global $wpdb;
+			$ids = array_map('intval', $wpdb->get_col("SELECT p.ID FROM {$wpdb->posts} p WHERE p.post_type = 'post' AND " . self::scripts_sql('p')));
+			foreach (array_chunk($ids, 500) as $chunk) {
+				$in = implode(',', $chunk);
+				$wpdb->query($wpdb->prepare("DELETE g FROM {$wpdb->postmeta} g JOIN {$wpdb->postmeta} l ON l.post_id = g.post_id AND l.meta_key = %s
+					WHERE g.meta_key = 'wp_GP_ID' AND g.post_id IN ($in) AND l.meta_value IN ('content', 'search', 'confirmed')", self::LINK));
+				$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->postmeta} WHERE post_id IN ($in) AND meta_key IN (%s, %s, %s, %s, %s, %s, %s)",
+					self::LINK, self::SUGGEST, self::NEEDS, self::LATEST, self::SOURCE, self::CHECKED, self::INFO));
+				foreach ($chunk as $id) {
+					clean_post_cache($id);
+				}
+			}
+			update_option('y4apk_vc_schema', 6, true);
+		}
 		$next = wp_next_scheduled(self::HOOK);
 		if (self::enabled() && !$next) {
 			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'y4apk_15min', self::HOOK);
@@ -147,6 +170,31 @@ class Y4APK_App_Updates {
 	/** "v2.742.Android" → "2.742"; "" when there is no number. */
 	public static function number($version) {
 		return preg_match('/\d+(?:\.\d+)*/', (string) $version, $m) ? $m[0] : '';
+	}
+
+	/**
+	 * SQL: post $p is a Roblox script (2.50) — it has a Roblox game, script
+	 * codes, or "script" in its title in a Roblox category. Scripts are not apps:
+	 * no Google Play, no file to update.
+	 */
+	public static function scripts_sql($p = 'p') {
+		global $wpdb;
+		$sql = "(EXISTS (SELECT 1 FROM {$wpdb->term_relationships} xr JOIN {$wpdb->term_taxonomy} xt ON xt.term_taxonomy_id = xr.term_taxonomy_id WHERE xr.object_id = $p.ID AND xt.taxonomy = 'roblox_game')"
+			. " OR EXISTS (SELECT 1 FROM {$wpdb->postmeta} xm WHERE xm.post_id = $p.ID AND xm.meta_key = '_y4apk_scripts')";
+		$cats = class_exists('Y4APK_Roblox') ? array_map('intval', Y4APK_Roblox::categories()) : [];
+		if ($cats) {
+			$sql .= " OR (LOCATE('script', LOWER($p.post_title)) > 0 AND EXISTS (SELECT 1 FROM {$wpdb->term_relationships} xr2 JOIN {$wpdb->term_taxonomy} xt2 ON xt2.term_taxonomy_id = xr2.term_taxonomy_id"
+				. " WHERE xr2.object_id = $p.ID AND xt2.taxonomy = 'category' AND xt2.term_id IN (" . implode(',', $cats) . ')))';
+		}
+		return $sql . ')';
+	}
+
+	public static function is_script_post($post_id) {
+		if (!class_exists('Y4APK_Roblox')) {
+			return false;
+		}
+		return (bool) Y4APK_Roblox::game_of($post_id) || (bool) get_post_meta($post_id, '_y4apk_scripts', true)
+			|| (stripos((string) get_post_field('post_title', $post_id), 'script') !== false && Y4APK_Roblox::is_roblox_post($post_id));
 	}
 
 	/** Is this download an Android app file (APK, MOD…), rather than OBB, IPA…? */
@@ -534,9 +582,12 @@ class Y4APK_App_Updates {
 		return ['version' => $apt, 'source' => $apt !== '' ? 'aptoide' : ($varies ? 'varies' : '')];
 	}
 
+	/** Icons a background step may still copy to R2 (each is two downloads and two uploads). */
+	private static $icon_budget = null;
+
 	public static function check_post($post_id) {
 		$package = self::package_from(get_post_meta($post_id, 'wp_GP_ID', true));
-		if ($package === '') {
+		if ($package === '' || self::is_script_post($post_id) || get_post_meta($post_id, '_y4apk_parent', true)) {
 			return false;
 		}
 		$play = self::play_app($package);
@@ -546,13 +597,212 @@ class Y4APK_App_Updates {
 		}
 		if ($play['status'] === 'ok') {
 			self::apply_info($post_id, $play);
+			$icons = self::$icon_budget === null || self::$icon_budget > 0;
+			$done = self::sync_images($post_id, $play, $icons);
+			if ($done['icon'] && self::$icon_budget !== null) {
+				self::$icon_budget--;
+			}
 		}
 		self::fill_size($post_id); // a download with no size: Aptoide's, once
 		update_post_meta($post_id, self::LATEST, $latest['version']);
 		update_post_meta($post_id, self::SOURCE, $latest['source']);
 		update_post_meta($post_id, self::CHECKED, time());
 		self::refresh_flag($post_id);
+		self::follow_version($post_id, $latest['version'], $latest['source']);
 		return true;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Following Google Play by itself (2.50)
+	 * ---------------------------------------------------------------- */
+
+	/** What follows Google Play by itself: key => [label, default]. */
+	public static function auto_parts() {
+		return [
+			'version' => [__('The version: when Google Play has a newer one, it goes at once into App Version, the title and the Rank Math title and description, and the post is marked updated. Its download keeps the version of its file — and the post stays in “Need a new file” — until you upload the new file. A version you uploaded that is newer than Google Play’s is never lowered.', 'y4apk'), 1],
+			'icon'    => [__('The icon (featured image): kept on Cloudflare R2, at your files address, so it takes no space on this server. A picture of your own that is not square is never replaced.', 'y4apk'), 1],
+			'shots'   => [__('The screenshots: shown from Google Play’s own servers, so they take no space anywhere. Screenshots you uploaded yourself are kept.', 'y4apk'), 1],
+			'free'    => [__('When an icon is replaced, delete the old one from this server (only when nothing else uses it). With this, icons already on this server move to R2 too, a few each step.', 'y4apk'), 1],
+		];
+	}
+
+	public static function auto_on($key) {
+		$on = get_option('y4apk_vc_auto', []);
+		$parts = self::auto_parts();
+		return is_array($on) && isset($on[$key]) ? (bool) $on[$key] : !empty($parts[$key][1]);
+	}
+
+	/**
+	 * Google Play has a newer version than the post shows: the post says so at
+	 * once — App Version, the version in the title and in Rank Math's title,
+	 * description and social titles — and is marked updated. The downloads keep
+	 * their own versions: the file is still the old one, so the post stays in
+	 * "Need a new file" until it is uploaded. Never lowers a version, and only
+	 * Google Play's own number counts (Aptoide lists other builds too). true
+	 * when the post changed.
+	 */
+	public static function follow_version($post_id, $latest, $source = 'play') {
+		if ($source !== 'play' || !self::auto_on('version')) {
+			return false;
+		}
+		$new = self::number($latest);
+		$shown = self::number(get_post_meta($post_id, 'wp_version_GP', true));
+		$file = self::number(self::current_version($post_id));
+		$old = $shown !== '' ? $shown : $file;
+		if ($new === '' || ($old !== '' && !version_compare($new, $old, '>')) || ($file !== '' && !version_compare($new, $file, '>'))) {
+			return false;
+		}
+		update_post_meta($post_id, 'wp_version_GP', $new);
+		$args = ['ID' => (int) $post_id];
+		self::put_version($post_id, [$shown, $file], $new, $args);
+		self::update_quietly($args); // also marks it as just updated
+		update_option('y4apk_vc_followed', (int) get_option('y4apk_vc_followed', 0) + 1, false);
+		return true;
+	}
+
+	/**
+	 * The new version in place of the old one in the title and Rank Math's
+	 * texts, when the old one is plainly there ("v2.742" → "v2.750"; a bare
+	 * "1" is left alone). $olds: the versions it may say, most likely first.
+	 */
+	private static function put_version($post_id, $olds, $new, &$args) {
+		$keys = ['rank_math_title', 'rank_math_description', 'rank_math_facebook_title', 'rank_math_twitter_title'];
+		$title = (string) get_post_field('post_title', $post_id, 'raw');
+		foreach (array_unique($olds) as $old) {
+			if ($old === '' || $old === $new || strpos($old, '.') === false) {
+				continue;
+			}
+			$re = '/(?<![\d.])' . preg_quote($old, '/') . '(?!\.?\d)/';
+			$found = false;
+			if (preg_match($re, $title)) {
+				$args['post_title'] = preg_replace($re, $new, $title);
+				$found = true;
+			}
+			foreach ($keys as $key) {
+				$value = (string) get_post_meta($post_id, $key, true);
+				if ($value !== '' && preg_match($re, $value)) {
+					update_post_meta($post_id, $key, wp_slash(preg_replace($re, $new, $value)));
+					$found = true;
+				}
+			}
+			if ($found) {
+				return;
+			}
+		}
+	}
+
+	/**
+	 * wp_update_post, from a background step too: there is no user then, so
+	 * WordPress would put the article through its HTML filter on the way (and
+	 * take out its iframes and scripts). Nothing in the article changes here.
+	 */
+	private static function update_quietly($args) {
+		$kses = has_filter('content_save_pre', 'wp_filter_post_kses');
+		if ($kses) {
+			kses_remove_filters();
+		}
+		if (isset($args['post_title'])) {
+			$args['post_title'] = wp_slash($args['post_title']);
+		}
+		$r = wp_update_post($args, true);
+		if ($kses) {
+			kses_init_filters();
+		}
+		return $r;
+	}
+
+	/** The icon and screenshots the same as Google Play's: ['icon' => replaced, 'shots' => replaced]. */
+	public static function sync_images($post_id, $play, $icons = true) {
+		$done = ['icon' => false, 'shots' => false];
+		if (self::auto_on('shots') && !empty($play['screenshots'])) {
+			$list = [];
+			foreach (array_slice($play['screenshots'], 0, class_exists('Y4APK_Writer') ? Y4APK_Writer::SCREENS : 5) as $u) {
+				$list[] = ['ss_url' => esc_url_raw($u . '=w1052-h592-rw')]; // as Write with AI keeps them
+			}
+			$old = get_post_meta($post_id, 'ss_images', true);
+			if ($old !== $list && self::play_pictures($old)) {
+				update_post_meta($post_id, 'ss_images', $list);
+				$done['shots'] = true;
+			}
+		}
+		if ($icons && self::auto_on('icon') && !empty($play['icon'])) {
+			$done['icon'] = self::sync_icon($post_id, $play['icon']) === true;
+		}
+		return $done;
+	}
+
+	/** No screenshots, or only Google Play's: they may follow Google Play. */
+	private static function play_pictures($rows) {
+		if (!is_array($rows) || !$rows) {
+			return true;
+		}
+		foreach ($rows as $r) {
+			$u = is_array($r) ? trim((string) ($r['ss_url'] ?? '')) : '';
+			if ($u !== '' && !preg_match('~^https?://[a-z0-9.-]*googleusercontent\.com/~i', $u)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * The featured image as Google Play's icon, kept on R2: true when it was
+	 * replaced, false when it already is (or it is the owner's own picture: not
+	 * square), a WP_Error when it could not be.
+	 */
+	public static function sync_icon($post_id, $src) {
+		if (!class_exists('Y4APK_Icons') || !Y4APK_Icons::ready()) {
+			return false;
+		}
+		$src = self::play_image($src);
+		if ($src === '') {
+			return false;
+		}
+		$thumb = (int) get_post_thumbnail_id($post_id);
+		$mine = Y4APK_Icons::data($thumb);
+		if ($mine && $mine['src'] === $src) {
+			return false;
+		}
+		if ($thumb && !$mine && !Y4APK_Icons::square($thumb)) {
+			return false; // a picture of the owner's own
+		}
+		if ($thumb && !$mine && !self::auto_on('free') && self::play_image(get_post_meta($post_id, self::ICON_SRC, true)) === $src) {
+			return false; // Google Play's icon already, kept on this server as asked
+		}
+		$name = trim(html_entity_decode(wp_strip_all_tags((string) get_post_meta($post_id, 'wp_title_GP', true)), ENT_QUOTES, 'UTF-8'));
+		$name = $name !== '' ? $name : self::name_from_title(get_post_field('post_title', $post_id));
+		$title = $thumb ? (string) get_post_field('post_title', $thumb, 'raw') : '';
+		$alt = $thumb ? (string) get_post_meta($thumb, '_wp_attachment_image_alt', true) : '';
+		$att = Y4APK_Icons::make($post_id, $src, $title !== '' ? $title : $name, $alt !== '' ? $alt : $name); // its words as they were (Write with AI chose them for Rank Math)
+		if (is_wp_error($att)) {
+			return $att;
+		}
+		set_post_thumbnail($post_id, $att);
+		update_post_meta($post_id, self::ICON_SRC, $src);
+		if ($thumb) {
+			global $wpdb;
+			// Members' versions under this post that show its icon follow it
+			foreach ($wpdb->get_col($wpdb->prepare("SELECT pm.post_id FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = '_thumbnail_id' AND pm.meta_value = %s AND p.post_parent = %d",
+				(string) $thumb, (int) $post_id)) as $kid) {
+				update_post_meta((int) $kid, '_thumbnail_id', $att);
+			}
+			self::drop_icon($thumb, $post_id);
+		}
+		if (class_exists('Y4APK_Versions')) {
+			Y4APK_Versions::purge($post_id);
+		}
+		return true;
+	}
+
+	/** The icon a post no longer shows: gone from R2, or from this server when asked — never while anything else uses it. */
+	private static function drop_icon($att, $post_id) {
+		if (Y4APK_Icons::used_elsewhere($att, $post_id)) {
+			return;
+		}
+		$parent = (int) get_post_field('post_parent', $att);
+		if (Y4APK_Icons::data($att) || (self::auto_on('free') && in_array($parent, [0, (int) $post_id], true))) {
+			wp_delete_attachment($att, true);
+		}
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -897,7 +1147,7 @@ class Y4APK_App_Updates {
 		}
 		$out = [];
 		foreach ($top as $id) {
-			if (isset($linked[$id]) && (!isset($checked[$id]) || $checked[$id] < time() - DAY_IN_SECONDS) && get_post_status($id) === 'publish') {
+			if (isset($linked[$id]) && (!isset($checked[$id]) || $checked[$id] < time() - DAY_IN_SECONDS) && get_post_status($id) === 'publish' && !self::is_script_post($id)) {
 				$out[] = $id;
 				if (count($out) >= $limit) {
 					break;
@@ -995,8 +1245,8 @@ class Y4APK_App_Updates {
 			"SELECT DISTINCT p.ID FROM {$wpdb->posts} p
 			 LEFT JOIN {$wpdb->postmeta} g ON g.post_id = p.ID AND g.meta_key = 'wp_GP_ID'
 			 LEFT JOIN {$wpdb->postmeta} l ON l.post_id = p.ID AND l.meta_key = %s
-			 WHERE p.post_type = 'post' AND p.post_status = 'publish'
-			   AND (g.meta_value IS NULL OR g.meta_value = '') AND $where
+			 WHERE p.post_type = 'post' AND p.post_status = 'publish' AND p.post_parent = 0
+			   AND (g.meta_value IS NULL OR g.meta_value = '') AND $where AND NOT " . self::scripts_sql('p') . "
 			 ORDER BY p.ID DESC LIMIT %d", self::LINK, $limit)));
 	}
 
@@ -1101,6 +1351,7 @@ class Y4APK_App_Updates {
 			return $done;
 		}
 		set_transient('y4apk_vc_lock', 1, 5 * MINUTE_IN_SECONDS);
+		self::$icon_budget = self::ICON_BATCH;
 
 		$scan = self::unlinked(null, self::SCAN_BATCH);
 		if ($scan) {
@@ -1138,7 +1389,7 @@ class Y4APK_App_Updates {
 			$ids = $wpdb->get_col($wpdb->prepare(
 				"SELECT DISTINCT pm.post_id FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 				 WHERE pm.meta_key = 'wp_GP_ID' AND pm.meta_value <> '' AND pm.post_id > %d
-				   AND p.post_type = 'post' AND p.post_status = 'publish'
+				   AND p.post_type = 'post' AND p.post_status = 'publish' AND NOT " . self::scripts_sql('p') . "
 				 ORDER BY pm.post_id LIMIT %d", $cursor, self::BATCH - $done['priority']));
 			$all = true;
 			foreach ($ids as $id) {
@@ -1158,6 +1409,10 @@ class Y4APK_App_Updates {
 			update_option('y4apk_vc_cursor', $cursor, false);
 		}
 
+		// Posts already known to be behind Google Play (checked before 2.50, or
+		// with the setting just switched on): their version, from what is known.
+		$done['followed'] = self::follow_known(self::FOLLOW_BATCH);
+
 		// Google Search numbers once a day, as the administrator who first synced them.
 		$gsc_user = (int) get_option('y4apk_gsc_user', 0);
 		if ($gsc_user && self::sitekit_active() && self::gsc()['source'] !== 'csv' && self::gsc()['synced'] < time() - 20 * HOUR_IN_SECONDS
@@ -1169,7 +1424,28 @@ class Y4APK_App_Updates {
 
 		update_option('y4apk_vc_last_step', time(), false);
 		delete_transient('y4apk_vc_lock');
+		self::$icon_budget = null;
 		return $done;
+	}
+
+	/** Up to $n posts that need a new file, brought up to Google Play's version from the stored check (no requests). */
+	public static function follow_known($n) {
+		if (!self::auto_on('version')) {
+			return 0;
+		}
+		global $wpdb;
+		$cursor = (int) get_option('y4apk_vc_follow_cursor', 0);
+		$ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
+			"SELECT n.post_id FROM {$wpdb->postmeta} n JOIN {$wpdb->postmeta} s ON s.post_id = n.post_id AND s.meta_key = %s AND s.meta_value = 'play'
+			 WHERE n.meta_key = %s AND n.post_id > %d ORDER BY n.post_id LIMIT %d", self::SOURCE, self::NEEDS, $cursor, $n)));
+		$changed = 0;
+		foreach ($ids as $id) {
+			if (get_post_status($id) === 'publish' && self::follow_version($id, (string) get_post_meta($id, self::LATEST, true), 'play')) {
+				$changed++;
+			}
+		}
+		update_option('y4apk_vc_follow_cursor', count($ids) < $n ? 0 : end($ids), false);
+		return $changed;
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -1250,11 +1526,55 @@ class Y4APK_App_Updates {
 	}
 
 	public static function row_action($actions, $post) {
+		if ($post->post_type === 'post' && $post->post_status === 'publish' && current_user_can('edit_post', $post->ID) && !$post->post_parent
+			&& get_post_meta($post->ID, 'repeatable_download_link', true) && !self::is_script_post($post->ID)) {
+			$actions['y4apk_file'] = '<a href="' . esc_url(add_query_arg(['page' => self::SLUG, 'view' => 'file', 'post' => $post->ID], admin_url('admin.php'))) . '">'
+				. esc_html__('Update file', 'y4apk') . '</a>';
+		}
 		if ($post->post_type === 'post' && get_post_meta($post->ID, 'wp_GP_ID', true) && current_user_can('edit_post', $post->ID)) {
 			$actions['y4apk_check'] = '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_vc_check&post=' . $post->ID), 'y4apk-vc-check-' . $post->ID)) . '">'
 				. esc_html__('Check version now', 'y4apk') . '</a>';
 		}
 		return $actions;
+	}
+
+	/** The editor's "File and Google Play" box (2.50): the file's version against Google Play's, and a way to upload a new one any time. */
+	public static function meta_box($post) {
+		if ($post->post_status === 'auto-draft' || self::is_script_post($post->ID) || get_post_meta($post->ID, '_y4apk_parent', true)) {
+			return;
+		}
+		add_meta_box('y4apk-file', __('File and Google Play', 'y4apk'), [__CLASS__, 'meta_box_html'], 'post', 'side', 'high');
+	}
+
+	public static function meta_box_html($post) {
+		list($i, $link) = self::download($post->ID);
+		$file = $i !== null ? self::current_version($post->ID) : '';
+		$package = (string) get_post_meta($post->ID, 'wp_GP_ID', true);
+		$latest = (string) get_post_meta($post->ID, self::LATEST, true);
+		$checked = (int) get_post_meta($post->ID, self::CHECKED, true);
+		$behind = $i !== null && self::needs_update($post->ID);
+		$row = 'display:flex;justify-content:space-between;gap:8px;margin:0 0 6px';
+		echo '<p style="' . esc_attr($row) . '"><span>' . esc_html__('Your file', 'y4apk') . '</span><strong>'
+			. esc_html($i === null ? __('No download yet', 'y4apk') : trim(($link['download_name'] ?? '') . ' ' . ($file !== '' ? 'v' . ltrim($file, 'vV') : ''))) . '</strong></p>';
+		if ($package === '') {
+			echo '<p style="' . esc_attr($row) . '"><span>' . esc_html__('Google Play', 'y4apk') . '</span><span style="color:#8c8f94">' . esc_html__('Not linked', 'y4apk') . '</span></p>';
+		} else {
+			$state = $latest === '' ? '<span style="color:#8c8f94">' . esc_html($checked ? __('No version shown', 'y4apk') : __('Not checked yet', 'y4apk')) . '</span>'
+				: ($behind ? '<strong style="color:#b32d2e">v' . esc_html(ltrim($latest, 'vV')) . ' · ' . esc_html__('newer', 'y4apk') . '</strong>'
+				: '<span style="color:#008a20">v' . esc_html(ltrim($latest, 'vV')) . ' ✓</span>');
+			echo '<p style="' . esc_attr($row) . '"><span>' . esc_html__('Google Play', 'y4apk') . '</span>' . $state . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped above
+			if ($checked) {
+				echo '<p style="margin:0 0 10px;color:#8c8f94;font-size:12px">' . esc_html(sprintf(__('Checked %s ago', 'y4apk'), human_time_diff($checked))) . '</p>';
+			}
+		}
+		if ($i !== null) {
+			echo '<p style="margin:0 0 8px"><a class="button' . ($behind ? ' button-primary' : '') . '" style="width:100%;text-align:center" target="_blank" href="'
+				. esc_url(add_query_arg(['page' => self::SLUG, 'view' => 'file', 'post' => $post->ID], admin_url('admin.php'))) . '">' . esc_html__('Update the file', 'y4apk') . '</a></p>';
+		}
+		if ($package !== '') {
+			echo '<p style="margin:0"><a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_vc_check&post=' . $post->ID), 'y4apk-vc-check-' . $post->ID)) . '">'
+				. esc_html__('Check Google Play now', 'y4apk') . '</a></p>';
+		}
 	}
 
 	public static function handle_check() {
@@ -1296,6 +1616,11 @@ class Y4APK_App_Updates {
 			$parts[$key] = empty($_POST['parts'][$key]) ? 0 : 1;
 		}
 		update_option('y4apk_post_parts', $parts, true);
+		$auto = [];
+		foreach (array_keys(self::auto_parts()) as $key) {
+			$auto[$key] = empty($_POST['auto'][$key]) ? 0 : 1;
+		}
+		update_option('y4apk_vc_auto', $auto, false);
 		self::schedule();
 		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'view' => 'settings', 'y4apk_settings' => 1], admin_url('admin.php')));
 		exit;
@@ -1361,7 +1686,9 @@ class Y4APK_App_Updates {
 		$version = sanitize_text_field(isset($in['version']) ? $in['version'] : '');
 		$size = sanitize_text_field(isset($in['size']) ? $in['size'] : '');
 		$url = esc_url_raw(isset($in['url']) ? trim($in['url']) : '');
-		$back = add_query_arg(['page' => self::SLUG, 'paged' => isset($in['paged']) ? absint($in['paged']) : 1], admin_url('admin.php'));
+		$back = isset($in['back']) && $in['back'] === 'file'
+			? add_query_arg(['page' => self::SLUG, 'view' => 'file', 'post' => $post_id], admin_url('admin.php'))
+			: add_query_arg(['page' => self::SLUG, 'paged' => isset($in['paged']) ? absint($in['paged']) : 1], admin_url('admin.php'));
 
 		$add = isset($in['mode']) && $in['mode'] === 'add';
 
@@ -1454,31 +1781,26 @@ class Y4APK_App_Updates {
 
 		$old = self::number(isset($link['download_version']) ? $link['download_version'] : '');
 		$new = self::number($version);
+		$shown = self::number(get_post_meta($post_id, 'wp_version_GP', true)); // may be ahead of the file (2.50: it follows Google Play)
 		if ($size !== '') {
 			update_post_meta($post_id, 'wp_sizes_GP', $size);
 		}
 		update_post_meta($post_id, 'repeatable_download_link', $new_links);
-		if ($new !== '') {
+		// A post already showing Google Play's newer version keeps it (the file catches up later).
+		$ahead = $shown !== '' && $new !== '' && self::auto_on('version') && version_compare($shown, $new, '>');
+		if ($new !== '' && !$ahead) {
 			update_post_meta($post_id, 'wp_version_GP', $new);
 		}
 
 		// The version follows in the title and the Rank Math SEO title,
 		// description and social titles, when the old one is plainly there
-		// ("v2.742" → "v2.750"); a bare number like "1" is left alone.
+		// ("v2.742" → "v2.750"); a bare number like "1" is left alone. The one
+		// the post shows first (it may already be Google Play's), then the file's.
 		$args = ['ID' => $post_id];
-		if ($old !== '' && $new !== '' && strpos($old, '.') !== false) {
-			$title = get_post_field('post_title', $post_id);
-			if (strpos($title, $old) !== false) {
-				$args['post_title'] = str_replace($old, $new, $title);
-			}
-			foreach (['rank_math_title', 'rank_math_description', 'rank_math_facebook_title', 'rank_math_twitter_title'] as $key) {
-				$value = (string) get_post_meta($post_id, $key, true);
-				if ($value !== '' && strpos($value, $old) !== false) {
-					update_post_meta($post_id, $key, str_replace($old, $new, $value));
-				}
-			}
+		if ($new !== '' && !$ahead) {
+			self::put_version($post_id, [$shown, $old], $new, $args);
 		}
-		wp_update_post($args); // also marks the post as just updated
+		self::update_quietly($args); // also marks the post as just updated
 		self::refresh_flag($post_id);
 
 		wp_safe_redirect(add_query_arg('y4apk_saved', $post_id, $back));
@@ -1522,6 +1844,105 @@ class Y4APK_App_Updates {
 	}
 
 	/** Small "★ 4.4 (56,612) · 12+ · Android 5.1+ · Publisher" chips from the last Google Play read. */
+
+	/** One post's "new file" form (Need a new file, and Update any file). */
+	private static function file_row($id, $c) {
+		$paged = isset($c['paged']) ? (int) $c['paged'] : 1;
+		$gsc = isset($c['gsc']) ? $c['gsc'] : ['posts' => []];
+		$downloads = isset($c['downloads']) ? $c['downloads'] : [];
+		$followers = isset($c['followers']) ? $c['followers'] : [];
+		$back = isset($c['back']) ? (string) $c['back'] : '';
+		list(, $link) = self::download($id);
+			$others = self::other_downloads($id);
+			$current = self::current_version($id);
+			$latest = (string) get_post_meta($id, self::LATEST, true);
+			$new_n = self::number($latest);
+			$source = get_post_meta($id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
+			// Google Play's version when it is newer (else the file's own, to change: one newer than Google Play's is fine)
+			$ahead = $new_n !== '' && (self::number($current) === '' || version_compare($new_n, self::number($current), '>'));
+			$suggest = !$ahead ? $current : (self::number($current) !== '' ? self::with_number($current, $new_n) : $latest);
+			$package = (string) get_post_meta($id, 'wp_GP_ID', true);
+			$uploads = class_exists('Y4APK_R2') && Y4APK_R2::ready();
+			$title = get_the_title($id); ?>
+			<div class="au-card au-row" data-title="<?php echo esc_attr(strtolower($title)); ?>">
+				<div class="au-app">
+					<?php echo self::icon($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in icon() ?>
+					<div style="min-width:0">
+						<a class="au-title" href="<?php echo esc_url(get_edit_post_link($id)); ?>"><?php echo esc_html($title); ?></a>
+						<div class="au-links">
+							<a href="<?php echo esc_url(get_permalink($id)); ?>" target="_blank"><?php esc_html_e('View post', 'y4apk'); ?> ↗</a>
+							<?php if ($package !== '') : ?><a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode($package)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Google Play', 'y4apk'); ?> ↗</a><?php endif; ?>
+						</div>
+						<?php echo self::info_chips($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in info_chips() ?>
+					</div>
+				</div>
+				<div class="au-vers">
+					<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
+					<?php if (get_post_meta($id, self::NO_FILE, true) !== '') : ?>
+						<span class="au-ver" title="<?php esc_attr_e('Write with AI made its download folder; upload the file here.', 'y4apk'); ?>"><?php esc_html_e('No file yet', 'y4apk'); ?></span>
+					<?php else : ?>
+						<span class="au-ver"><?php echo esc_html($current); ?></span>
+					<?php endif; ?>
+					<?php if ($package === '') : ?>
+						<span class="au-label"><?php esc_html_e('Google Play', 'y4apk'); ?></span>
+						<span class="au-ver"><?php esc_html_e('Not linked', 'y4apk'); ?></span>
+					<?php else : ?>
+						<span class="au-label"><?php echo esc_html(sprintf(__('Latest · %s', 'y4apk'), $source)); ?></span>
+						<span class="au-ver<?php echo $ahead ? ' is-new' : ''; ?>"><?php echo esc_html($latest !== '' ? $latest : '—'); ?></span>
+					<?php endif; ?>
+					<?php if (isset($gsc['posts'][$id])) : $g = $gsc['posts'][$id]; ?>
+						<span class="au-meta au-google" title="<?php esc_attr_e('Google Search, last 28 days', 'y4apk'); ?>"><?php echo esc_html(sprintf(_n('%s impression', '%s impressions', $g[0], 'y4apk'), number_format_i18n($g[0])) . ' · ' . sprintf(_n('%s click on Google', '%s clicks on Google', $g[1], 'y4apk'), number_format_i18n($g[1]))); ?></span>
+					<?php endif; ?>
+					<span class="au-meta"><?php echo esc_html(sprintf(_n('%s download in 30 days', '%s downloads in 30 days', isset($downloads[$id]) ? $downloads[$id] : 0, 'y4apk'), number_format_i18n(isset($downloads[$id]) ? $downloads[$id] : 0))); ?></span>
+					<?php if (!empty($followers[$id])) : ?>
+						<span class="au-meta au-follow"><?php echo esc_html(sprintf(_n('🔔 %s follower waits for this', '🔔 %s followers wait for this', $followers[$id], 'y4apk'), number_format_i18n($followers[$id]))); ?></span>
+					<?php endif; ?>
+				</div>
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-form">
+					<input type="hidden" name="action" value="y4apk_vc_save">
+					<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
+					<input type="hidden" name="paged" value="<?php echo esc_attr($paged); ?>">
+					<?php if ($back !== '') : ?><input type="hidden" name="back" value="<?php echo esc_attr($back); ?>"><?php endif; ?>
+					<input type="hidden" name="sig" value="<?php echo esc_attr(self::links_sig($id)); ?>">
+					<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
+					<span class="au-label"><?php esc_html_e('New file', 'y4apk'); ?></span>
+					<div class="au-line" data-row="main">
+						<span class="au-type"><?php echo esc_html($link && !empty($link['download_name']) ? $link['download_name'] : 'APK'); ?></span>
+						<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
+						<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
+						<input type="url" name="url" required value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+						<?php if ($uploads) { Y4APK_R2::upload_control('r2', 'main'); } ?>
+					</div>
+					<?php foreach ($others['same'] as $i => $o) :
+						// OBB and other Android files follow the APK; an iOS file only when ticked.
+						$on = !in_array(strtolower(trim(isset($o['download_name']) ? (string) $o['download_name'] : '')), ['ipa', 'ios'], true); ?>
+						<div class="au-line" data-row="<?php echo esc_attr($i); ?>">
+							<label class="au-type" title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
+								onchange="this.closest('.au-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"> <?php echo esc_html($o['download_name']); ?></label>
+							<input type="text" name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
+							<input type="text" name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
+							<input type="url" name="rows[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
+							<?php if ($uploads) { Y4APK_R2::upload_control('rows[' . $i . '][r2]', (string) $i, !$on); } ?>
+						</div>
+					<?php endforeach; ?>
+					<div class="au-foot">
+						<label><input type="radio" name="mode" value="replace" checked> <?php esc_html_e('Replace the old file', 'y4apk'); ?></label>
+						<label><input type="radio" name="mode" value="add"> <?php esc_html_e('Add as new, keep the old file below it', 'y4apk'); ?></label>
+						<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
+					</div>
+					<p class="au-warn" hidden><?php esc_html_e('“Add as new” keeps the old download, so the new one needs another link: upload the new file or paste its link — or choose “Replace the old file” to keep this link.', 'y4apk'); ?></p>
+					<?php if ($others['kept']) : ?>
+						<div class="au-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
+							<?php echo esc_html(implode(' · ', array_map(function ($o) {
+								return trim((isset($o['download_name']) ? $o['download_name'] : '') . ' ' . (isset($o['download_version']) ? $o['download_version'] : '')
+									. (!empty($o['download_size']) ? ' (' . $o['download_size'] . ')' : ''));
+							}, $others['kept']))); ?></div>
+					<?php endif; ?>
+				</form>
+			</div>
+		<?php
+	}
+
 	private static function info_chips($post_id) {
 		$i = json_decode((string) get_post_meta($post_id, self::INFO, true), true);
 		if (!is_array($i)) {
@@ -1637,6 +2058,7 @@ class Y4APK_App_Updates {
 			.au-srow form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0; }
 			.au-srow form input[name=id] { flex: 1; min-width: 200px; border-radius: 6px; }
 			.au-small { display: block; font-size: 12px; color: var(--au-muted); margin-top: 2px; }
+			.au-srow.au-hit { grid-template-columns: minmax(0, 1fr) auto; }
 			.au-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--au-muted); margin-bottom: 2px; }
 			.au-dl { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 0; margin: 0; }
 			.au-dl dt, .au-dl dd { margin: 0; padding: 9px 0; border-bottom: 1px solid #f0f0f1; }
@@ -1653,6 +2075,7 @@ class Y4APK_App_Updates {
 				.au-row .au-form { grid-column: 1 / -1; }
 				.au-srow { grid-template-columns: 22px 1fr 1fr; }
 				.au-srow form { grid-column: 2 / -1; }
+				.au-srow.au-hit { grid-template-columns: minmax(0, 1fr) auto; }
 			}
 			@media (max-width: 782px) {
 				.y4apk-au { margin-right: 10px; }
@@ -1674,9 +2097,10 @@ class Y4APK_App_Updates {
 
 	public static function render_page() {
 		global $wpdb;
-		$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish'");
+		// Games and apps: not Roblox scripts, not members' versions (their main post is checked)
+		$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} p WHERE p.post_type = 'post' AND p.post_status = 'publish' AND p.post_parent = 0 AND NOT " . self::scripts_sql('p'));
 		$linked = (int) $wpdb->get_var("SELECT COUNT(DISTINCT pm.post_id) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-			WHERE pm.meta_key = 'wp_GP_ID' AND pm.meta_value <> '' AND p.post_type = 'post' AND p.post_status = 'publish'");
+			WHERE pm.meta_key = 'wp_GP_ID' AND pm.meta_value <> '' AND p.post_type = 'post' AND p.post_status = 'publish' AND NOT " . self::scripts_sql('p'));
 		$checked = self::count_meta(self::CHECKED);
 		$suggested = self::count_meta(self::LINK, 'suggested');
 		$waiting = max(0, $total - $linked - $suggested - self::count_meta(self::LINK, 'nomatch') - self::count_meta(self::LINK, 'rejected'));
@@ -1687,7 +2111,7 @@ class Y4APK_App_Updates {
 		$round_done = (int) get_option('y4apk_vc_round_done', 0);
 		$last_step = (int) get_option('y4apk_vc_last_step', 0);
 
-		$views = ['needs', 'suggest', 'test', 'settings'];
+		$views = ['needs', 'file', 'suggest', 'test', 'settings'];
 		$view = isset($_GET['view']) && in_array($_GET['view'], $views, true) ? $_GET['view'] : (!empty($_GET['test']) ? 'test' : 'needs');
 		if ($view === 'settings' && !current_user_can('manage_options')) {
 			$view = 'needs';
@@ -1749,7 +2173,7 @@ class Y4APK_App_Updates {
 			<div class="au-head">
 				<div>
 					<h1><?php esc_html_e('App updates', 'y4apk'); ?></h1>
-					<p><?php esc_html_e('Every 15 minutes, posts are linked to their Google Play app and checked against its latest version. Posts whose file is older are listed — those Google Search shows most first (or the most downloaded) — and nothing changes on them until you save a new file. App Information (publisher, age rating, Android version, rating) follows Google Play as set in Settings.', 'y4apk'); ?></p>
+					<p><?php esc_html_e('Every 15 minutes, games and apps (not Roblox scripts) are linked to their Google Play app and checked against its latest version. A newer version goes into the post by itself — its title, App Version, icon and screenshots follow Google Play, as set in Settings — and the post is listed here until you upload the new file, those Google Search shows most first. Update any file shows any post’s file, any time.', 'y4apk'); ?></p>
 				</div>
 				<div class="au-actions">
 					<span class="au-pill"><span class="au-dot <?php echo esc_attr($status[0]); ?>"></span><?php echo esc_html($status[1]); ?></span>
@@ -1814,13 +2238,14 @@ class Y4APK_App_Updates {
 					<span class="au-kpi-label"><?php esc_html_e('App Information from Play', 'y4apk'); ?></span>
 					<span class="au-kpi-value"><?php echo esc_html(number_format_i18n($info_read)); ?> <small><?php esc_html_e('posts read', 'y4apk'); ?></small></span>
 					<span class="au-kpi-sub"><?php echo $info_any
-						? esc_html(sprintf(__('%1$s updates applied · %2$s store', 'y4apk'), number_format_i18n($info_updated), self::country()))
+						? esc_html(sprintf(__('%1$s updates applied · %2$s new versions put in · %3$s store', 'y4apk'), number_format_i18n($info_updated), number_format_i18n((int) get_option('y4apk_vc_followed', 0)), self::country()))
 						: esc_html__('Not applied (switched off in Settings)', 'y4apk'); ?></span>
 				</div>
 			</div>
 
 			<nav class="au-tabs" aria-label="<?php esc_attr_e('App updates', 'y4apk'); ?>">
 				<a class="au-tab<?php echo $view === 'needs' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('needs')); ?>"><?php esc_html_e('Need a new file', 'y4apk'); ?><span class="au-count"><?php echo esc_html(number_format_i18n(count($needs_ids))); ?></span></a>
+				<a class="au-tab<?php echo $view === 'file' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('file')); ?>"><?php esc_html_e('Update any file', 'y4apk'); ?></a>
 				<a class="au-tab<?php echo $view === 'suggest' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('suggest')); ?>"><?php esc_html_e('Suggestions', 'y4apk'); ?><span class="au-count"><?php echo esc_html(number_format_i18n($suggested)); ?></span></a>
 				<a class="au-tab<?php echo $view === 'test' ? ' is-on' : ''; ?>" href="<?php echo esc_url($url('test')); ?>"><?php esc_html_e('Test one app', 'y4apk'); ?></a>
 				<?php if (current_user_can('manage_options')) : ?>
@@ -1851,92 +2276,62 @@ class Y4APK_App_Updates {
 						? esc_html__('Every checked post is up to date.', 'y4apk')
 						: esc_html__('Nothing checked yet — results appear as posts get linked and checked.', 'y4apk'); ?></div>
 				<?php endif; ?>
-				<?php foreach ($page_ids as $id) :
-					list(, $link) = self::download($id);
-					$others = self::other_downloads($id);
-					$current = self::current_version($id);
-					$latest = (string) get_post_meta($id, self::LATEST, true);
-					$new_n = self::number($latest);
-					$source = get_post_meta($id, self::SOURCE, true) === 'aptoide' ? 'Aptoide' : 'Google Play';
-					$suggest = self::number($current) !== '' ? self::with_number($current, $new_n) : $latest;
-					$uploads = class_exists('Y4APK_R2') && Y4APK_R2::ready();
-					$title = get_the_title($id); ?>
-					<div class="au-card au-row" data-title="<?php echo esc_attr(strtolower($title)); ?>">
-						<div class="au-app">
-							<?php echo self::icon($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in icon() ?>
-							<div style="min-width:0">
-								<a class="au-title" href="<?php echo esc_url(get_edit_post_link($id)); ?>"><?php echo esc_html($title); ?></a>
-								<div class="au-links">
-									<a href="<?php echo esc_url(get_permalink($id)); ?>" target="_blank"><?php esc_html_e('View post', 'y4apk'); ?> ↗</a>
-									<a href="<?php echo esc_url('https://play.google.com/store/apps/details?id=' . rawurlencode(get_post_meta($id, 'wp_GP_ID', true))); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Google Play', 'y4apk'); ?> ↗</a>
-								</div>
-								<?php echo self::info_chips($id); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in info_chips() ?>
-							</div>
-						</div>
-						<div class="au-vers">
-							<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
-							<?php if (get_post_meta($id, self::NO_FILE, true) !== '') : ?>
-								<span class="au-ver" title="<?php esc_attr_e('Write with AI made its download folder; upload the file here.', 'y4apk'); ?>"><?php esc_html_e('No file yet', 'y4apk'); ?></span>
-							<?php else : ?>
-								<span class="au-ver"><?php echo esc_html($current); ?></span>
-							<?php endif; ?>
-							<span class="au-label"><?php echo esc_html(sprintf(__('Latest · %s', 'y4apk'), $source)); ?></span>
-							<span class="au-ver is-new"><?php echo esc_html($latest); ?></span>
-							<?php if (isset($gsc['posts'][$id])) : $g = $gsc['posts'][$id]; ?>
-								<span class="au-meta au-google" title="<?php esc_attr_e('Google Search, last 28 days', 'y4apk'); ?>"><?php echo esc_html(sprintf(_n('%s impression', '%s impressions', $g[0], 'y4apk'), number_format_i18n($g[0])) . ' · ' . sprintf(_n('%s click on Google', '%s clicks on Google', $g[1], 'y4apk'), number_format_i18n($g[1]))); ?></span>
-							<?php endif; ?>
-							<span class="au-meta"><?php echo esc_html(sprintf(_n('%s download in 30 days', '%s downloads in 30 days', isset($downloads[$id]) ? $downloads[$id] : 0, 'y4apk'), number_format_i18n(isset($downloads[$id]) ? $downloads[$id] : 0))); ?></span>
-							<?php if (!empty($followers[$id])) : ?>
-								<span class="au-meta au-follow"><?php echo esc_html(sprintf(_n('🔔 %s follower waits for this', '🔔 %s followers wait for this', $followers[$id], 'y4apk'), number_format_i18n($followers[$id]))); ?></span>
-							<?php endif; ?>
-						</div>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-form">
-							<input type="hidden" name="action" value="y4apk_vc_save">
-							<input type="hidden" name="post" value="<?php echo esc_attr($id); ?>">
-							<input type="hidden" name="paged" value="<?php echo esc_attr($paged); ?>">
-							<input type="hidden" name="sig" value="<?php echo esc_attr(self::links_sig($id)); ?>">
-							<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
-							<span class="au-label"><?php esc_html_e('New file', 'y4apk'); ?></span>
-							<div class="au-line" data-row="main">
-								<span class="au-type"><?php echo esc_html($link && !empty($link['download_name']) ? $link['download_name'] : 'APK'); ?></span>
-								<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
-								<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
-								<input type="url" name="url" required value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
-								<?php if ($uploads) { Y4APK_R2::upload_control('r2', 'main'); } ?>
-							</div>
-							<?php foreach ($others['same'] as $i => $o) :
-								// OBB and other Android files follow the APK; an iOS file only when ticked.
-								$on = !in_array(strtolower(trim(isset($o['download_name']) ? (string) $o['download_name'] : '')), ['ipa', 'ios'], true); ?>
-								<div class="au-line" data-row="<?php echo esc_attr($i); ?>">
-									<label class="au-type" title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
-										onchange="this.closest('.au-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"> <?php echo esc_html($o['download_name']); ?></label>
-									<input type="text" name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-									<input type="text" name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-									<input type="url" name="rows[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
-									<?php if ($uploads) { Y4APK_R2::upload_control('rows[' . $i . '][r2]', (string) $i, !$on); } ?>
-								</div>
-							<?php endforeach; ?>
-							<div class="au-foot">
-								<label><input type="radio" name="mode" value="replace" checked> <?php esc_html_e('Replace the old file', 'y4apk'); ?></label>
-								<label><input type="radio" name="mode" value="add"> <?php esc_html_e('Add as new, keep the old file below it', 'y4apk'); ?></label>
-								<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
-							</div>
-							<p class="au-warn" hidden><?php esc_html_e('“Add as new” keeps the old download, so the new one needs another link: upload the new file or paste its link — or choose “Replace the old file” to keep this link.', 'y4apk'); ?></p>
-							<?php if ($others['kept']) : ?>
-								<div class="au-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
-									<?php echo esc_html(implode(' · ', array_map(function ($o) {
-										return trim((isset($o['download_name']) ? $o['download_name'] : '') . ' ' . (isset($o['download_version']) ? $o['download_version'] : '')
-											. (!empty($o['download_size']) ? ' (' . $o['download_size'] . ')' : ''));
-									}, $others['kept']))); ?></div>
-							<?php endif; ?>
-						</form>
-					</div>
-				<?php endforeach; ?>
+				<?php foreach ($page_ids as $id) {
+					self::file_row($id, ['paged' => $paged, 'gsc' => $gsc, 'downloads' => $downloads, 'followers' => $followers]);
+				} ?>
 				</div>
 				<?php if ($pages > 1) : ?>
 					<div class="au-pages"><?php echo paginate_links(['base' => add_query_arg('paged', '%#%'), 'format' => '', 'current' => $paged, 'total' => $pages]); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
 				<?php endif; ?>
 				<p class="au-note"><?php esc_html_e('Save puts the new version, size and link on the post’s newest APK download and in App Information, changes the version in the title and in the Rank Math SEO title, description and social titles (for example v2.742 → v2.750), and marks the post as updated today. Downloads with the same version (OBB, IPA) are listed under it with the new version filled in: ticked ones are updated too (an iOS file starts unticked). Older versions are left as they are. Replace (the default) swaps the old files for the new ones and keeps their links; Add puts each new file just above its old one, which stays as an older version (it needs another link: upload the file, or paste one). The size and link start with what the post has now, so change only what is different for the new file.', 'y4apk'); ?></p>
+
+			<?php elseif ($view === 'file') :
+				$file_id = isset($_GET['post']) ? absint($_GET['post']) : 0;
+				$q = isset($_GET['q']) ? trim(sanitize_text_field(wp_unslash($_GET['q']))) : '';
+				if (!$file_id && $q !== '' && ($found = url_to_postid($q))) {
+					$file_id = $found; // its address
+				} elseif (!$file_id && ctype_digit($q)) {
+					$file_id = (int) $q;
+				}
+				$file_ok = $file_id && get_post_type($file_id) === 'post' && current_user_can('edit_post', $file_id) && !self::is_script_post($file_id) && !get_post_meta($file_id, '_y4apk_parent', true); ?>
+				<div class="au-card au-pad" style="margin-bottom:14px">
+					<form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" class="au-toolbar" style="margin:0">
+						<input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>">
+						<input type="hidden" name="view" value="file">
+						<input type="search" name="q" class="au-search" style="flex:1" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('Game or app name, or its post’s address', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Find a post', 'y4apk'); ?>">
+						<button class="button button-primary"><?php esc_html_e('Find', 'y4apk'); ?></button>
+					</form>
+					<p class="au-note" style="margin-top:10px"><?php esc_html_e('Upload a new file for any post, whenever you like — also when Google Play has nothing newer, or a version newer than Google Play’s (a beta, a new MOD). The editor’s “File and Google Play” box opens this too.', 'y4apk'); ?></p>
+				</div>
+				<?php if ($file_ok) :
+					list($fi) = self::download($file_id);
+					if ($fi === null) : ?>
+						<div class="au-card au-empty"><?php printf(esc_html__('%s has no download yet: add one in the post’s Download Links box first.', 'y4apk'), '<a href="' . esc_url(get_edit_post_link($file_id)) . '">' . esc_html(get_the_title($file_id)) . '</a>'); ?></div>
+					<?php else : ?>
+						<div class="au-list"><?php self::file_row($file_id, ['back' => 'file', 'gsc' => self::gsc()]); ?></div>
+					<?php endif;
+				elseif ($q !== '') :
+					$hits = array_values(array_filter(get_posts(['post_type' => 'post', 'post_status' => 'publish', 's' => $q, 'numberposts' => 30, 'post_parent' => 0, 'orderby' => 'relevance', 'suppress_filters' => false]), function ($p) {
+						return !self::is_script_post($p->ID);
+					})); ?>
+					<div class="au-list">
+						<?php if (!$hits) : ?>
+							<div class="au-card au-empty"><?php esc_html_e('No game or app post with that name.', 'y4apk'); ?></div>
+						<?php endif; ?>
+						<?php foreach (array_slice($hits, 0, 20) as $p) :
+							$cur = self::current_version($p->ID);
+							$lat = (string) get_post_meta($p->ID, self::LATEST, true); ?>
+							<div class="au-card au-srow au-hit">
+								<div class="au-app">
+									<?php echo self::icon($p->ID); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+									<div style="min-width:0"><a class="au-title" href="<?php echo esc_url($url('file', ['post' => $p->ID])); ?>"><?php echo esc_html(get_the_title($p)); ?></a>
+										<span class="au-small"><?php echo esc_html(trim(sprintf(__('File %s', 'y4apk'), $cur !== '' ? $cur : '—') . ($lat !== '' ? ' · ' . sprintf(__('Google Play %s', 'y4apk'), $lat) : ''))); ?></span></div>
+								</div>
+								<a class="button button-primary" href="<?php echo esc_url($url('file', ['post' => $p->ID])); ?>"><?php esc_html_e('Update the file', 'y4apk'); ?></a>
+							</div>
+						<?php endforeach; ?>
+					</div>
+				<?php endif; ?>
 
 			<?php elseif ($view === 'suggest') : ?>
 				<form id="y4apk-bulk" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -2022,6 +2417,16 @@ class Y4APK_App_Updates {
 							<?php foreach (self::info_fields() as $key => $field) : ?>
 								<label><input type="checkbox" name="info[<?php echo esc_attr($key); ?>]" value="1" <?php checked(self::info_on($key)); ?>> <?php echo esc_html($field[0]); ?></label>
 							<?php endforeach; ?>
+						</div>
+						<div class="au-card au-pad">
+							<h2><?php esc_html_e('Follow Google Play by itself', 'y4apk'); ?></h2>
+							<p><?php esc_html_e('Each time a post is checked (the posts Google shows most every day, the others every few days). Roblox scripts are left out: they are not on Google Play.', 'y4apk'); ?></p>
+							<?php foreach (self::auto_parts() as $key => $part) : ?>
+								<label><input type="checkbox" name="auto[<?php echo esc_attr($key); ?>]" value="1" <?php checked(self::auto_on($key)); ?>> <?php echo esc_html($part[0]); ?></label>
+							<?php endforeach; ?>
+							<?php if (!class_exists('Y4APK_Icons') || !Y4APK_Icons::ready()) : ?>
+								<p class="au-note" style="color:#b32d2e"><?php esc_html_e('Icons need R2 (below): until it is set up, they are left as they are.', 'y4apk'); ?></p>
+							<?php endif; ?>
 						</div>
 						<div class="au-card au-pad">
 							<h2><?php esc_html_e('On each post', 'y4apk'); ?></h2>

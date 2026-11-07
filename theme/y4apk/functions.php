@@ -32,6 +32,8 @@ require $theme_dir . '/inc/stats.php';
 require $theme_dir . '/inc/app-updates.php';
 require $theme_dir . '/inc/push.php';
 require $theme_dir . '/inc/r2.php';
+require $theme_dir . '/inc/r2-images.php';
+require $theme_dir . '/inc/apk-check.php';
 require $theme_dir . '/inc/writer.php';
 require $theme_dir . '/inc/discover.php';
 require $theme_dir . '/inc/members.php';

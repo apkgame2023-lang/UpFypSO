@@ -1413,6 +1413,18 @@ class Y4APK_Writer {
 			self::icon_text($thumb, $ctx); // the same icon: its words follow the name and MOD
 			return 0;
 		}
+		if (class_exists('Y4APK_Icons') && Y4APK_Icons::ready()) {
+			// 2.50: on R2, not in this server's uploads (Y4APK_Icons)
+			$att = Y4APK_Icons::make($post_id, $src, $ctx['show'] . ' MOD', $ctx['show'] . ' MOD APK' . ($ctx['mod'] !== '' ? ' (' . $ctx['mod'] . ')' : ''));
+			if (is_wp_error($att)) {
+				return new WP_Error('icon', $att->get_error_message());
+			}
+			self::icon_text($att, $ctx);
+			set_post_thumbnail($post_id, $att);
+			self::remember($post_id, 'thumb', $thumb, $att);
+			update_post_meta($post_id, self::ICON, $src);
+			return $att;
+		}
 		$r = wp_remote_get($src . '=s512-rw', ['timeout' => 25, 'user-agent' => Y4APK_App_Updates::UA]);
 		if (is_wp_error($r) || (int) wp_remote_retrieve_response_code($r) !== 200) {
 			return new WP_Error('icon', __('could not download it', 'y4apk'));

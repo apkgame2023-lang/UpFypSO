@@ -373,6 +373,18 @@ HTML;
 		return is_wp_error($r) || !in_array((int) wp_remote_retrieve_response_code($r), [200, 206], true) ? '' : substr((string) wp_remote_retrieve_body($r), 0, (int) $n);
 	}
 
+	/** $length bytes of a file on R2 from $start (2.50, to look inside a member's file); '' when they cannot be read. */
+	public static function bytes($key, $start, $length) {
+		$start = max(0, (int) $start);
+		$length = max(1, (int) $length);
+		$r = wp_remote_get(self::presign('GET', $key, [], 300), ['timeout' => 25, 'headers' => ['Range' => 'bytes=' . $start . '-' . ($start + $length - 1)], 'limit_response_size' => $length]);
+		$code = is_wp_error($r) ? 0 : (int) wp_remote_retrieve_response_code($r);
+		if ($code === 206) {
+			return substr((string) wp_remote_retrieve_body($r), 0, $length);
+		}
+		return $code === 200 && $start === 0 ? substr((string) wp_remote_retrieve_body($r), 0, $length) : ''; // a server that ignores Range sends the whole file from 0
+	}
+
 	/* ---------------------------------------------------------------- *
 	 * Upload steps (admin-ajax, from assets/js/y4apk-r2-upload.js)
 	 * ---------------------------------------------------------------- */

@@ -39,6 +39,12 @@ class Y4APK_Members {
 	const HOSTS    = '_y4apk_hosts';       // addresses the code loads from
 	const HASHES   = '_y4apk_code_hash';
 	const MEMBER_POST = '_y4apk_member_post';
+	const AUTO     = '_y4apk_auto';        // 2.50: when it went live at once, its checks passed (not approved by hand)
+	// 2.50: what keeps a script from going live at once — it calls the web
+	// itself, writes files, copies to the clipboard, buys, loads Roblox assets
+	// by number (a classic backdoor), or hides its code (escapes, string.char,
+	// long encoded blobs, environment tricks).
+	const RISKY = '/\b(?:syn\.request|http_request|http\.request|fluxus\.request|request)\s*\(|\b(?:writefile|appendfile|delfile|makefolder|delfolder|setclipboard|toclipboard|queue_on_teleport|queueonteleport)\b|MarketplaceService|Prompt(?:Product|GamePass)?Purchase|\brequire\s*\(\s*\d|\\\\x[0-9a-f]{2}|\\\\\d{2,3}\\\\\d{2,3}|\bstring\.char\s*\(|\b(?:getfenv|setfenv|getrenv)\b|[A-Za-z0-9+\/=]{180,}/i';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
 		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'customize' => 'customize', 'share' => 'share'];
@@ -85,6 +91,10 @@ class Y4APK_Members {
 			'per_day'     => 5,   // scripts a member may send in 24 hours
 			'max_pending' => 15,  // waiting for review at once
 			'report_hide' => 5,   // reports that put a member's script back in review (0: never)
+			'report_show' => 3,   // 2.50: reports before a published post is listed in Review
+			'auto_scripts' => 1,  // 2.50: scripts whose checks pass go live at once
+			'auto_files'  => 1,   // 2.50: games and apps whose file checks pass go live at once
+			'auto_after'  => 1,   // 2.50: uploads the owner approved before a member's go live at once
 			'notify'      => 1,   // email the site owner when a script arrives
 			'from_name'   => 'Y4APK',
 			'reply_to'    => '',  // where replies go (optional; mail comes from a no-reply address)
@@ -110,11 +120,62 @@ class Y4APK_Members {
 		$o['per_day'] = max(1, min(50, (int) $o['per_day']));
 		$o['max_pending'] = max(1, min(200, (int) $o['max_pending']));
 		$o['report_hide'] = max(0, min(50, (int) $o['report_hide']));
+		$o['report_show'] = max(1, min(50, (int) $o['report_show']));
+		$o['auto_after'] = max(0, min(50, (int) $o['auto_after']));
 		return $o;
 	}
 
 	public static function open() {
 		return !empty(self::settings()['on']);
+	}
+
+	/**
+	 * 2.50: may this member's uploads go live at once when their checks pass?
+	 * Once the owner has approved enough of them by hand (Members ▸ Publish at once).
+	 */
+	public static function trusted($user_id) {
+		$need = (int) self::settings()['auto_after'];
+		if ($need <= 0) {
+			return true;
+		}
+		global $wpdb;
+		$approved = (int) $wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+			 LEFT JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+			 WHERE p.post_author = %d AND p.post_type = 'post' AND p.post_status = 'publish' AND a.post_id IS NULL",
+			self::MEMBER_POST, self::AUTO, (int) $user_id));
+		return $approved >= $need;
+	}
+
+	/**
+	 * 2.50: does a member's script pass the checks to go live at once? A game
+	 * already on the site; code that loads only from the trusted addresses and
+	 * has nothing that steals, buys, writes files or hides what it does; no
+	 * links in the description.
+	 */
+	public static function script_ok($post_id, $user, $d) {
+		$s = self::settings();
+		if (empty($s['auto_scripts']) || !self::trusted($user->ID) || !Y4APK_Roblox::game_of($post_id) || get_post_meta($post_id, self::WANTED, true)
+			|| get_post_meta($post_id, Y4APK_Members_Admin::HOLD, true)) { // hidden by reports: the owner looks first
+			return false;
+		}
+		if (preg_match('~https?://|www\.|\b[a-z0-9-]+\.(?:com|net|org|xyz|gg|io|me|ly|link|site|top|club)\b~i', (string) $d['desc'])) {
+			return false;
+		}
+		if (!$d['hosts']) {
+			return false; // nothing loaded from an address: nothing to check it against
+		}
+		foreach ($d['hosts'] as $h) {
+			if (!Y4APK_Members_Admin::host_ok($h)) {
+				return false;
+			}
+		}
+		foreach ($d['rows'] as $row) {
+			if (preg_match(self::RISKY, $row['code'])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public static function turnstile_on() {
@@ -1446,6 +1507,11 @@ class Y4APK_Members {
 			$ctx['errors'][] = __('Could not save the script. Try again.', 'y4apk');
 			return;
 		}
+		if (self::script_ok($id, $user, $d)) {
+			Y4APK_Members_Admin::publish_script($id, (int) Y4APK_Roblox::game_of($id)->term_id, true); // 2.50: its checks pass
+			wp_safe_redirect(self::url('home', ['ok' => 'autolive']));
+			exit;
+		}
 		self::tell_owner($id, $user);
 		wp_safe_redirect(self::url('home', ['ok' => 'submitted']));
 		exit;
@@ -1477,6 +1543,11 @@ class Y4APK_Members {
 		if (!self::save_script($user, $d, $post)) {
 			$ctx['errors'][] = __('Could not save the script. Try again.', 'y4apk');
 			return;
+		}
+		if (self::script_ok($post->ID, $user, $d)) {
+			Y4APK_Members_Admin::publish_script($post->ID, (int) Y4APK_Roblox::game_of($post->ID)->term_id, true);
+			wp_safe_redirect(self::url('home', ['ok' => 'autolive']));
+			exit;
 		}
 		self::tell_owner($post->ID, $user);
 		wp_safe_redirect(self::url('home', ['ok' => 'resubmitted']));

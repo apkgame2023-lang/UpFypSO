@@ -638,6 +638,65 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## App updates follow Google Play; members' safe uploads go live at once (2.50)
+
+**App updates** (Y4APK ▸ App updates):
+- Roblox scripts are left out. They are not apps, but earlier versions looked
+  them up on Google Play like any post ("Steal An Egg Script" → the Play game
+  Steal An Egg) and listed them in Suggestions. What was found for them, and a
+  Google Play ID the page set by itself, is cleared once. A script is a post
+  with a Roblox game, script codes, or "script" in its title in a Roblox
+  category; members' versions (child posts) are never looked up either.
+- A newer version goes into the post by itself (Settings ▸ Follow Google Play
+  by itself, each part can be switched off):
+  - **Version**: App Version, the version in the title and in Rank Math's
+    title, description and social titles, and the post is marked updated. Its
+    download keeps the version of its file, so the post stays in *Need a new
+    file* until the file is uploaded. A version newer than Google Play's is
+    never lowered; only Google Play's own number counts (not Aptoide's). Posts
+    already known to be behind catch up 40 a step, without asking Google.
+  - **Icon** (featured image): kept on Cloudflare R2 (`files…/i/…`, 512 and
+    192 px), not in wp-content/uploads. WordPress, the theme, Rank Math and
+    the search box see a normal image (inc/r2-images.php). A picture of your
+    own that is not square is never replaced; members' versions showing the
+    old icon follow. The old icon is deleted: from R2 always, from this server
+    when *delete the old one* is on and nothing else uses it (another post, a
+    Roblox game, the site logo, an article). So icons already on the server
+    move to R2 too, 8 a step. Write with AI makes its icons on R2 as well.
+  - **Screenshots**: shown from Google Play's own servers (no space anywhere).
+    Screenshots you uploaded yourself are kept.
+- **Update any file**: a tab that finds any game or app post and shows its
+  new-file form, any time, also with a version newer than Google Play's. The
+  editor has a *File and Google Play* box (your file, Google Play's version,
+  *Update the file*, *Check Google Play now*), and the Posts list an *Update
+  file* link. Saving keeps a newer version the post already shows.
+- Background steps change posts with WordPress's HTML filter off: a cron step
+  has no user, and the filter would take the article's iframes out.
+
+**Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
+people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
+and review again remembers who reported it: they cannot report it again, and
+it comes back only with reports from other people. Approving a post that
+reports hid clears its reports too.
+
+**Publish at once** (Members ▸ Publish at once, both on):
+- Scripts go live at once when: the game is already on the site, every
+  address the code loads from is on the trusted list, the code has nothing
+  that calls the web itself, writes files, copies to the clipboard, buys,
+  loads Roblox assets by number or hides itself (escapes, `string.char`,
+  long encoded blobs, `getfenv`), and the description has no links.
+- Games and apps go live at once when every file is really the app chosen:
+  read on R2 with a few small range requests (inc/apk-check.php) — the APK's
+  binary AndroidManifest.xml, XAPK manifest.json, APKM info.json, APKS
+  meta.sai or its base.apk, the OBB folders in a ZIP, an OBB's name — and its
+  package name is the Google Play app's or the main post's. An APK with no app
+  inside is refused at upload. A new game the site already has, or one not on
+  Google Play, waits for you.
+- Only for members with at least 1 upload you approved yourself (set 0 for
+  everyone). Review lists what went live at once this week, with *Hide and
+  review again*; visitors can report a member's file (*Report this file*)
+  as they report scripts. The member sees "Checked and live!".
+
 ## Game and app wizards look like the script one (2.49)
 
 Step 1 of */upload/game/* and */upload/app/* now has what the Roblox script

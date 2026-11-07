@@ -11,8 +11,10 @@ if (!defined('ABSPATH')) {
 
 class Y4APK_Members_Admin {
 
-	const REPORTS = '_y4apk_reports'; // [ip hash => [time, why]]
+	const REPORTS = '_y4apk_reports'; // [ip hash => [time, why]] since the last time the owner looked
 	const HOLD    = '_y4apk_hold';    // a member's script put back in review by reports
+	const SEEN    = '_y4apk_reports_seen'; // 2.50: [ip hash => time] people whose report was already dealt with (they cannot report it again)
+	const COUNT   = '_y4apk_report_n';     // 2.50: how many reports since the owner last looked (Review lists it at "report_show")
 
 	public static function init() {
 		add_action('admin_menu', [__CLASS__, 'menu'], 20);
@@ -27,6 +29,45 @@ class Y4APK_Members_Admin {
 		add_action('transition_post_status', function () { delete_transient('y4apk_review_counts'); }); // the badge on the menu follows what is waiting
 		add_action('wp_ajax_y4apk_report', [__CLASS__, 'report']);
 		add_action('wp_ajax_nopriv_y4apk_report', [__CLASS__, 'report']);
+		add_action('admin_init', [__CLASS__, 'upgrade']);
+	}
+
+	/** 2.50: reports are counted, so Review lists a post only when enough people reported it. */
+	public static function upgrade() {
+		if ((int) get_option('y4apk_reports_v', 0) >= 1) {
+			return;
+		}
+		global $wpdb;
+		foreach ($wpdb->get_results($wpdb->prepare("SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", self::REPORTS)) as $r) {
+			$rep = maybe_unserialize($r->meta_value);
+			update_post_meta((int) $r->post_id, self::COUNT, is_array($rep) ? count($rep) : 0);
+		}
+		update_option('y4apk_reports_v', 1, true);
+		delete_transient('y4apk_review_counts');
+	}
+
+	/** Published posts with enough reports to look at (the owner's setting), newest reports first. */
+	public static function reported_ids($limit = 50) {
+		global $wpdb;
+		return array_map('intval', $wpdb->get_col($wpdb->prepare(
+			"SELECT p.ID FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+			 WHERE p.post_status = 'publish' AND p.post_type = 'post' AND CAST(m.meta_value AS UNSIGNED) >= %d ORDER BY CAST(m.meta_value AS UNSIGNED) DESC, p.ID DESC LIMIT %d",
+			self::COUNT, max(1, (int) Y4APK_Members::settings()['report_show']), $limit)));
+	}
+
+	/** The owner looked: these reporters are done with, and the count starts again. */
+	public static function seen($id) {
+		$rep = get_post_meta($id, self::REPORTS, true);
+		$seen = get_post_meta($id, self::SEEN, true);
+		$seen = is_array($seen) ? $seen : [];
+		foreach (is_array($rep) ? $rep : [] as $hash => $r) {
+			$seen[$hash] = time();
+		}
+		if ($seen) {
+			update_post_meta($id, self::SEEN, array_slice($seen, -1000, null, true));
+		}
+		delete_post_meta($id, self::REPORTS);
+		delete_post_meta($id, self::COUNT);
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -39,7 +80,8 @@ class Y4APK_Members_Admin {
 		if (!is_array($c)) {
 			global $wpdb;
 			$waiting = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.post_status = 'pending' AND p.post_type = 'post'", Y4APK_Members::MEMBER_POST));
-			$reported = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.post_status = 'publish' AND p.post_type = 'post'", self::REPORTS));
+			$reported = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.post_status = 'publish' AND p.post_type = 'post' AND CAST(m.meta_value AS UNSIGNED) >= %d",
+				self::COUNT, max(1, (int) Y4APK_Members::settings()['report_show'])));
 			$c = [$waiting, $reported];
 			set_transient('y4apk_review_counts', $c, 60);
 		}
@@ -69,7 +111,7 @@ class Y4APK_Members_Admin {
 		return is_array($list) ? $list : [];
 	}
 
-	private static function host_ok($host) {
+	public static function host_ok($host) {
 		foreach (self::allowed_hosts() as $h) {
 			if ($host === $h || substr($host, -strlen($h) - 1) === '.' . $h) {
 				return true;
@@ -103,6 +145,12 @@ class Y4APK_Members_Admin {
 		if (!$term || !get_term($term, Y4APK_Roblox::TAX) || is_wp_error(get_term($term, Y4APK_Roblox::TAX))) {
 			self::back('y4apk-review', ['msg' => 'nogame']);
 		}
+		self::publish_script($id, (int) $term);
+		self::back('y4apk-review', ['msg' => 'approved']);
+	}
+
+	/** A member's script goes live under its game: approved here, or at once when its checks pass (2.50, $auto). */
+	public static function publish_script($id, $term, $auto = false) {
 		wp_set_object_terms($id, [(int) $term], Y4APK_Roblox::TAX);
 		if (!get_post_thumbnail_id($id) && ($att = (int) get_term_meta($term, Y4APK_Roblox::M_ICON, true))) {
 			set_post_thumbnail($id, $att);
@@ -110,9 +158,16 @@ class Y4APK_Members_Admin {
 		update_post_meta($id, 'wp_title_GP', wp_slash(Y4APK_Roblox::clean_name(get_term($term, Y4APK_Roblox::TAX)->name, false) . ' Script - [' . (Y4APK_Roblox::hub_name($id) ?: __('Script', 'y4apk')) . ']'));
 		delete_post_meta($id, Y4APK_Members::REJECT);
 		delete_post_meta($id, Y4APK_Members::WANTED);
+		if (get_post_meta($id, self::HOLD, true)) {
+			self::seen($id); // hidden by reports, and you approved it again: those reports are dealt with
+		}
 		delete_post_meta($id, self::HOLD);
+		if ($auto) {
+			update_post_meta($id, Y4APK_Members::AUTO, time());
+		} else {
+			delete_post_meta($id, Y4APK_Members::AUTO);
+		}
 		wp_update_post(['ID' => $id, 'post_status' => 'publish']); // Y4APK_Members::on_publish() tells the member
-		self::back('y4apk-review', ['msg' => 'approved']);
 	}
 
 	public static function review_reject() {
@@ -167,7 +222,7 @@ class Y4APK_Members_Admin {
 	public static function review_dismiss() {
 		$id = isset($_POST['post']) ? absint($_POST['post']) : 0;
 		self::guard('dismiss', $id);
-		delete_post_meta($id, self::REPORTS);
+		self::seen($id); // the same people cannot bring it back
 		delete_post_meta($id, self::HOLD);
 		self::back('y4apk-review', ['msg' => 'dismissed']);
 	}
@@ -176,7 +231,7 @@ class Y4APK_Members_Admin {
 		$id = isset($_POST['post']) ? absint($_POST['post']) : 0;
 		self::guard('rereview', $id);
 		wp_update_post(['ID' => $id, 'post_status' => 'pending']);
-		delete_post_meta($id, self::REPORTS);
+		self::seen($id);
 		self::back('y4apk-review', ['msg' => 'rereview']);
 	}
 
@@ -206,7 +261,9 @@ class Y4APK_Members_Admin {
 		}
 		$bad = isset($_GET['msg']) && in_array($_GET['msg'], ['nogame', 'noreason', 'gone', 'sharefail'], true);
 		$pending = get_posts(['post_type' => 'post', 'post_status' => 'pending', 'meta_key' => Y4APK_Members::MEMBER_POST, 'numberposts' => 50, 'orderby' => 'date', 'order' => 'ASC']);
-		$reported = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => self::REPORTS, 'numberposts' => 50]);
+		$reported_ids = self::reported_ids(50);
+		$reported = $reported_ids ? get_posts(['post_type' => 'post', 'post_status' => 'publish', 'post__in' => $reported_ids, 'orderby' => 'post__in', 'numberposts' => 50]) : [];
+		$show = max(1, (int) Y4APK_Members::settings()['report_show']);
 		$games = get_terms(['taxonomy' => Y4APK_Roblox::TAX, 'hide_empty' => false, 'orderby' => 'name']);
 		$games = is_array($games) ? $games : [];
 		self::styles();
@@ -214,7 +271,7 @@ class Y4APK_Members_Admin {
 		<div class="wrap y4rv">
 			<h1><?php esc_html_e('Review', 'y4apk'); ?></h1>
 			<?php if ($msg) : ?><div class="notice <?php echo $bad ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($msg); ?></p></div><?php endif; ?>
-			<p class="description"><?php esc_html_e('Scripts, games and apps members sent. Nothing shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'); ?></p>
+			<p class="description"><?php esc_html_e('Scripts, games and apps members sent that did not pass the checks for going live at once (Members ▸ Publish at once), or that you asked to see. Nothing here shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'); ?></p>
 
 			<?php if (class_exists('Y4APK_Versions')) {
 				Y4APK_Versions::restore_box(); // 2.46: a post a 2.44–2.45 approval pointed at a member's file
@@ -232,8 +289,29 @@ class Y4APK_Members_Admin {
 				Y4APK_Share::review_styles();
 			} ?>
 
+			<?php $auto = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => Y4APK_Members::AUTO, 'orderby' => 'meta_value_num', 'order' => 'DESC', 'numberposts' => 20,
+				'meta_query' => [['key' => Y4APK_Members::AUTO, 'value' => time() - 7 * DAY_IN_SECONDS, 'compare' => '>=', 'type' => 'NUMERIC']]]);
+			if ($auto) : ?>
+				<h2><?php echo esc_html(sprintf(_n('%s went live at once this week', '%s went live at once this week', count($auto), 'y4apk'), number_format_i18n(count($auto)))); ?></h2>
+				<p class="description"><?php esc_html_e('They passed the checks (Members ▸ Publish at once). Have a look if you like: Hide and review again takes one off the site.', 'y4apk'); ?></p>
+				<div class="y4rv-auto">
+				<?php foreach ($auto as $p) :
+					$who = get_userdata($p->post_author);
+					$chk = class_exists('Y4APK_Share') && Y4APK_Share::is_share($p->ID) ? Y4APK_Share::check_line($p->ID) : ''; ?>
+					<div class="y4rv-card y4rv-autorow">
+						<div class="y4rv-head"><div><strong><a href="<?php echo esc_url(get_permalink($p)); ?>" target="_blank"><?php echo esc_html(get_the_title($p)); ?></a></strong>
+							<span class="y4rv-sub"><?php echo esc_html(trim(($who ? '@' . $who->user_login . ' · ' : '') . sprintf(__('%s ago', 'y4apk'), human_time_diff((int) get_post_meta($p->ID, Y4APK_Members::AUTO, true))) . ($chk !== '' ? ' · ' . $chk : ''))); ?></span></div>
+							<div class="y4rv-actions">
+								<?php self::form('rereview', $p->ID, '<input type="hidden" name="post" value="' . esc_attr($p->ID) . '">', __('Hide and review again', 'y4apk')); ?>
+							</div></div>
+					</div>
+				<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
+
 			<?php if ($reported) : ?>
-				<h2><?php echo esc_html(sprintf(_n('%s published script was reported', '%s published scripts were reported', count($reported), 'y4apk'), number_format_i18n(count($reported)))); ?></h2>
+				<h2><?php echo esc_html(sprintf(_n('%s published post was reported', '%s published posts were reported', count($reported), 'y4apk'), number_format_i18n(count($reported)))); ?></h2>
+				<p class="description"><?php echo esc_html(sprintf(_n('Listed once %s different person has reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', 'Listed once %s different people have reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', $show, 'y4apk'), number_format_i18n($show))); ?></p>
 				<?php foreach ($reported as $p) :
 					$rep = get_post_meta($p->ID, self::REPORTS, true);
 					$rep = is_array($rep) ? $rep : [];
@@ -356,10 +434,10 @@ class Y4APK_Members_Admin {
 	 * ---------------------------------------------------------------- */
 
 	/** The small "Report" link under a script's code. */
-	public static function report_ui($post_id) {
+	public static function report_ui($post_id, $what = 'script') {
 		?>
 		<div class="y4-report" data-post="<?php echo esc_attr($post_id); ?>">
-			<button type="button" class="y4-report-open"><?php esc_html_e('Report this script', 'y4apk'); ?></button>
+			<button type="button" class="y4-report-open"><?php echo esc_html($what === 'file' ? __('Report this file', 'y4apk') : __('Report this script', 'y4apk')); ?></button>
 			<form class="y4-report-form" hidden>
 				<select name="why" aria-label="<?php esc_attr_e('What is wrong?', 'y4apk'); ?>">
 					<option value="broken"><?php esc_html_e('It does not work', 'y4apk'); ?></option>
@@ -403,7 +481,8 @@ class Y4APK_Members_Admin {
 		$why = isset($_POST['why']) ? sanitize_key(wp_unslash($_POST['why'])) : 'other';
 		$why = in_array($why, ['broken', 'harmful', 'spam', 'other'], true) ? $why : 'other';
 		$post = $id ? get_post($id) : null;
-		if (!empty($_POST['website']) || !$post || $post->post_type !== 'post' || $post->post_status !== 'publish' || !Y4APK_Roblox::is_roblox_post($id)) {
+		$file = $post && class_exists('Y4APK_Share') && Y4APK_Share::is_share($id); // 2.50: a member's game or app (published at once when its checks pass)
+		if (!empty($_POST['website']) || !$post || $post->post_type !== 'post' || $post->post_status !== 'publish' || (!$file && !Y4APK_Roblox::is_roblox_post($id))) {
 			wp_send_json_error(['message' => 'no'], 400);
 		}
 		$ip = Y4APK_Members::ip_hash();
@@ -412,9 +491,11 @@ class Y4APK_Members_Admin {
 		}
 		$rep = get_post_meta($id, self::REPORTS, true);
 		$rep = is_array($rep) ? $rep : [];
-		if (!isset($rep[$ip]) && count($rep) < 60) {
+		$seen = get_post_meta($id, self::SEEN, true);
+		if (!isset($rep[$ip]) && !isset($seen[$ip]) && count($rep) < 60) {
 			$rep[$ip] = [time(), $why];
 			update_post_meta($id, self::REPORTS, $rep);
+			update_post_meta($id, self::COUNT, count($rep));
 			delete_transient('y4apk_review_counts');
 			$limit = Y4APK_Members::settings()['report_hide'];
 			$author = get_userdata($post->post_author);
@@ -456,6 +537,10 @@ class Y4APK_Members_Admin {
 			'per_day'     => max(1, min(50, (int) (isset($in['per_day']) ? $in['per_day'] : 5))),
 			'max_pending' => max(1, min(200, (int) (isset($in['max_pending']) ? $in['max_pending'] : 15))),
 			'report_hide' => max(0, min(50, (int) (isset($in['report_hide']) ? $in['report_hide'] : 5))),
+			'report_show' => max(1, min(50, (int) (isset($in['report_show']) ? $in['report_show'] : 3))),
+			'auto_scripts' => empty($in['auto_scripts']) ? 0 : 1,
+			'auto_files'  => empty($in['auto_files']) ? 0 : 1,
+			'auto_after'  => max(0, min(50, (int) (isset($in['auto_after']) ? $in['auto_after'] : 1))),
 			'notify'      => empty($in['notify']) ? 0 : 1,
 			'from_name'   => trim(mb_substr(sanitize_text_field(isset($in['from_name']) ? (string) $in['from_name'] : 'Y4APK'), 0, 40)) ?: 'Y4APK',
 			'hosts'       => implode("\n", array_keys($hosts)),
@@ -627,7 +712,13 @@ class Y4APK_Members_Admin {
 					<tr><th scope="row"><?php esc_html_e('Limits', 'y4apk'); ?></th>
 						<td><p><label><input type="number" min="1" max="50" name="per_day" value="<?php echo esc_attr($s['per_day']); ?>" style="width:5rem"> <?php esc_html_e('scripts a member can send in a day', 'y4apk'); ?></label></p>
 							<p><label><input type="number" min="1" max="200" name="max_pending" value="<?php echo esc_attr($s['max_pending']); ?>" style="width:5rem"> <?php esc_html_e('waiting for review at once, per member', 'y4apk'); ?></label></p>
-							<p><label><input type="number" min="0" max="50" name="report_hide" value="<?php echo esc_attr($s['report_hide']); ?>" style="width:5rem"> <?php esc_html_e('different visitors’ reports that put a member’s script back in review (0: never)', 'y4apk'); ?></label></p></td></tr>
+							<p><label><input type="number" min="1" max="50" name="report_show" value="<?php echo esc_attr($s['report_show']); ?>" style="width:5rem"> <?php esc_html_e('different visitors’ reports before a published post is listed in Review (counted again after you dismiss or hide it; the same people cannot report it again)', 'y4apk'); ?></label></p>
+							<p><label><input type="number" min="0" max="50" name="report_hide" value="<?php echo esc_attr($s['report_hide']); ?>" style="width:5rem"> <?php esc_html_e('different visitors’ reports that put a member’s post back in review (0: never)', 'y4apk'); ?></label></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Publish at once', 'y4apk'); ?></th>
+						<td><p><label><input type="checkbox" name="auto_scripts" value="1" <?php checked($s['auto_scripts']); ?>> <?php esc_html_e('Scripts whose checks pass go live at once: a game already on the site, code that only loads from your trusted addresses (below), nothing that steals accounts, buys, writes files or hides itself, and no links in the description.', 'y4apk'); ?></label></p>
+							<p><label><input type="checkbox" name="auto_files" value="1" <?php checked($s['auto_files']); ?>> <?php esc_html_e('Games and apps whose checks pass go live at once: the file is read on R2 and is really that app (its package name, from inside the APK, XAPK or OBB, is the Google Play app the member chose, or the main post’s).', 'y4apk'); ?></label></p>
+							<p><label><input type="number" min="0" max="50" name="auto_after" value="<?php echo esc_attr($s['auto_after']); ?>" style="width:5rem"> <?php esc_html_e('of a member’s uploads you approved yourself before theirs can go live at once (0: from their first)', 'y4apk'); ?></label></p>
+							<p class="description" style="max-width:720px"><?php esc_html_e('Anything else waits here for you, as before. What went live at once can be reported by visitors, and goes back in review at the number of reports above.', 'y4apk'); ?></p></td></tr>
 					<tr><th scope="row"><label for="y4m-hosts"><?php esc_html_e('Trusted addresses', 'y4apk'); ?></label></th>
 						<td><textarea id="y4m-hosts" name="hosts" rows="6" class="large-text code" style="max-width:420px"><?php echo esc_textarea($s['hosts']); ?></textarea>
 							<p class="description" style="max-width:640px"><?php esc_html_e('One per line. In Review, the addresses a code loads from are green when they are here and amber when they are not. It does not block anything: it tells you where to look first.', 'y4apk'); ?></p></td></tr>

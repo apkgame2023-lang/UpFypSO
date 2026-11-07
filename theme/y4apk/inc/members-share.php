@@ -400,12 +400,17 @@ class Y4APK_Share {
 		if ($bad === '' && in_array($ext, self::ZIPPED, true) && substr(Y4APK_R2::first_bytes($up['key'], 4), 0, 2) !== 'PK') {
 			$bad = __('This is not an APK, XAPK, APKS, APKM or ZIP file inside. Check that it opens on a phone, then send it again.', 'y4apk');
 		}
+		// 2.50: what it really is, from inside (a few small reads): the package name
+		$check = $bad === '' && class_exists('Y4APK_Apk_Check') ? Y4APK_Apk_Check::inspect($up['key'], $size, $up['name']) : null;
+		if ($check && $check['why'] === 'nomanifest') {
+			$bad = __('This APK has no app inside. Check that it installs on a phone, then send it again.', 'y4apk');
+		}
 		if ($bad !== '') {
 			Y4APK_R2::remove($up['key']);
 			wp_send_json_error(['message' => $bad], 400);
 		}
 		$done = self::done_ups($u->ID);
-		$done[$up['key']] = ['size' => $size, 'name' => $up['name'], 'time' => time()];
+		$done[$up['key']] = ['size' => $size, 'name' => $up['name'], 'time' => time(), 'check' => $check];
 		update_user_meta($u->ID, self::DONE_UP, array_slice($done, -10, null, true));
 		wp_send_json_success(['key' => $up['key'], 'size' => $size, 'sizeText' => Y4APK_R2::size_text($size), 'label' => self::label($up['name'])]);
 	}
@@ -568,7 +573,8 @@ class Y4APK_Share {
 		foreach (array_slice((array) ($p['file'] ?? []), 0, 2) as $key) {
 			$key = sanitize_text_field((string) $key);
 			if (isset($done[$key])) {
-				$files[] = ['key' => $key, 'size' => (float) $done[$key]['size'], 'name' => $done[$key]['name'], 'label' => self::label($done[$key]['name'])];
+				$files[] = ['key' => $key, 'size' => (float) $done[$key]['size'], 'name' => $done[$key]['name'], 'label' => self::label($done[$key]['name']),
+					'check' => isset($done[$key]['check']) && is_array($done[$key]['check']) ? $done[$key]['check'] : null];
 			} elseif (isset($have_keys[$key])) {
 				$files[] = $have_keys[$key];
 			}
@@ -721,9 +727,64 @@ class Y4APK_Share {
 				update_post_meta($id, $k, wp_slash($val));
 			}
 		}
+		if (self::file_ok($user, $old, $parent, $id)) {
+			// 2.50: its file is really that app: live at once (or once Write with AI has written its page)
+			$ai = self::writer_ready();
+			$r = self::go_live($id, $parent ? 'now' : ($ai ? 'ai' : 'now'), 0, $parent && $ai && self::words($old['desc']) < self::SHORT_DESC, true);
+			if ($r[0] !== 'sharefail') {
+				wp_safe_redirect(Y4APK_Members::url('home', ['ok' => $r[0] === 'writing' ? 'autosoon' : 'autolive']));
+				exit;
+			}
+		}
 		self::tell_owner($id, $user);
 		wp_safe_redirect(Y4APK_Members::url('home', ['ok' => $existing ? 'reshared' : 'shared']));
 		exit;
+	}
+
+	/**
+	 * 2.50: can this upload go live at once? Members ▸ Publish at once is on,
+	 * the member is trusted, the game or app is on Google Play (or is a version
+	 * of a post here), and every file was read from inside and is that app —
+	 * the same package name. A new game or app the site already has waits
+	 * (it belongs under that post).
+	 */
+	public static function file_ok($user, $old, $parent, $post_id = 0) {
+		$s = Y4APK_Members::settings();
+		$pkg = (string) $old['package'];
+		if (empty($s['auto_files']) || !Y4APK_Members::trusted($user->ID) || $pkg === '' || (!$parent && empty($old['play']))
+			|| ($post_id && get_post_meta($post_id, Y4APK_Members_Admin::HOLD, true))) { // hidden by reports: the owner looks first
+			return false;
+		}
+		foreach ($old['files'] as $f) {
+			$c = isset($f['check']) && is_array($f['check']) ? $f['check'] : null;
+			if (!$c || strcasecmp((string) $c['package'], $pkg) !== 0) {
+				return false;
+			}
+		}
+		if (!$parent) {
+			global $wpdb;
+			if ($wpdb->get_var($wpdb->prepare("SELECT p.ID FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = 'wp_GP_ID'
+				WHERE m.meta_value = %s AND p.post_type = 'post' AND p.post_status = 'publish' AND p.post_parent = 0 LIMIT 1", $pkg))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** "Checked: com.example.game ✓" for the Review page: what was read from inside the files. */
+	public static function check_line($post_id) {
+		$d = self::data($post_id);
+		$out = [];
+		foreach ($d ? $d['files'] : [] as $f) {
+			$c = isset($f['check']) && is_array($f['check']) ? $f['check'] : null;
+			if (!$c) {
+				continue;
+			}
+			$out[] = $c['package'] !== ''
+				? ($d['package'] !== '' && strcasecmp($c['package'], $d['package']) === 0 ? sprintf(__('%s ✓', 'y4apk'), $c['package']) : sprintf(__('%s (not the chosen app)', 'y4apk'), $c['package']))
+				: __('could not be read', 'y4apk');
+		}
+		return $out ? sprintf(__('File: %s', 'y4apk'), implode(', ', array_unique($out))) : '';
 	}
 
 	private static function tell_owner($post_id, $user) {
@@ -828,6 +889,13 @@ class Y4APK_Share {
 			<ul class="y4sh-files">
 				<?php foreach ($d['files'] as $f) : ?>
 				<li><span class="y4sh-label"><?php echo esc_html($f['label']); ?></span><span class="y4sh-fname"><?php echo esc_html($f['name']); ?></span><span class="y4sh-size"><?php echo esc_html(Y4APK_R2::size_text($f['size'])); ?></span>
+					<?php $c = isset($f['check']) && is_array($f['check']) ? $f['check'] : null;
+					if ($c) :
+						$same = $c['package'] !== '' && $d['package'] !== '' && strcasecmp($c['package'], $d['package']) === 0; ?>
+						<span class="y4sh-chk <?php echo $same ? 'is-ok' : 'is-no'; ?>" title="<?php esc_attr_e('Read from inside the file', 'y4apk'); ?>"><?php echo esc_html($c['package'] === ''
+							? __('Package not readable', 'y4apk')
+							: ($same ? sprintf(__('Package %s ✓', 'y4apk'), $c['package']) : sprintf(__('Package %s — not the chosen app', 'y4apk'), $c['package']))) . ($c['version'] !== '' ? ' · v' . ltrim($c['version'], 'vV') : ''); ?></span>
+					<?php endif; ?>
 					<a class="button button-small" href="<?php echo esc_url(Y4APK_R2::public_url($f['key'])); ?>" target="_blank" rel="noopener nofollow"><?php esc_html_e('Download to check', 'y4apk'); ?></a></li>
 				<?php endforeach; ?>
 			</ul>
@@ -877,6 +945,7 @@ class Y4APK_Share {
 			. '.y4sh-into{display:block;margin-top:4px;font-size:12px;padding:4px 8px;border-radius:6px;background:#fff8e5;color:#7a4d00}'
 			. '.y4sh-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 18px;margin:12px 0 4px}.y4sh-facts dt{font-size:11px;font-weight:700;color:#646970;text-transform:uppercase}.y4sh-facts dd{margin:2px 0 0;overflow-wrap:anywhere}'
 			. '.y4sh-files{margin:10px 0 4px;padding:0;list-style:none}.y4sh-files li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 10px;margin:0 0 6px;border:1px solid #e6e7e9;border-radius:8px;background:#f9fafb}'
+			. '.y4sh-chk{padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600}.y4sh-chk.is-ok{background:#e7f6ec;color:#0a6b2c}.y4sh-chk.is-no{background:#fff1e6;color:#8a3b00}'
 			. '.y4sh-label{padding:1px 8px;border-radius:6px;background:#1d2327;color:#fff;font-size:11px;font-weight:700}.y4sh-fname{flex:1;min-width:120px;overflow-wrap:anywhere;font-family:monospace;font-size:12px}.y4sh-size{color:#646970;font-weight:600}'
 			. '.y4sh-tip{margin:4px 0 10px;font-size:12px;color:#646970}.y4sh-ai{display:inline-flex;align-items:center;gap:6px;margin-right:8px;font-size:13px}.y4sh-writing{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border-radius:8px;background:#eef6ee;color:#14602a}</style>';
 	}
@@ -920,8 +989,21 @@ class Y4APK_Share {
 		if (!$d || $post->post_status === 'trash' || $post->post_status === 'publish') {
 			$back('gone');
 		}
-		$how = sanitize_key($_POST['how'] ?? 'now');
-		$user = get_userdata($post->post_author);
+		$r = self::go_live($id, sanitize_key($_POST['how'] ?? 'now'), absint($_POST['cat'] ?? 0), !empty($_POST['ai']));
+		$back($r[0], $r[1]);
+	}
+
+	/**
+	 * Make a member's upload live (approved in Review, or at once when its
+	 * checks pass — $auto, 2.50). $how: 'now' | 'ai' (Write with AI writes it,
+	 * then it goes live). [message code, error] for the Review page.
+	 */
+	public static function go_live($id, $how, $cat, $ai, $auto = false) {
+		$post = get_post($id);
+		$d = $post ? self::data($id) : null;
+		if (!$d || $post->post_status === 'trash' || $post->post_status === 'publish') {
+			return ['gone', ''];
+		}
 
 		$parent = (int) get_post_meta($id, self::PARENT, true);
 		if (!$parent && $d['update_of'] && get_post_status($d['update_of']) === 'publish') {
@@ -931,24 +1013,32 @@ class Y4APK_Share {
 			$how = 'now'; // a member's version under a main post: its own post, as the member wrote it
 		}
 
-		$cat = absint($_POST['cat'] ?? 0);
 		if ($cat && self::category_ok($d['kind'], $cat)) {
 			wp_set_post_categories($id, [$cat]);
 		}
 		if (!get_post_meta($id, 'repeatable_download_link', true)) {
 			list($rows, $err) = self::rows_for($id, $d);
 			if ($err !== '') {
-				$back('sharefail', $err);
+				return ['sharefail', $err];
 			}
 			update_post_meta($id, 'repeatable_download_link', $rows);
 		}
 		update_post_meta($id, self::LIVE, 1);
 		delete_post_meta($id, Y4APK_Members::REJECT);
+		if ($auto) {
+			update_post_meta($id, Y4APK_Members::AUTO, time());
+		} else {
+			delete_post_meta($id, Y4APK_Members::AUTO);
+		}
+		if (get_post_meta($id, Y4APK_Members_Admin::HOLD, true)) {
+			Y4APK_Members_Admin::seen($id); // hidden by reports, approved again
+			delete_post_meta($id, Y4APK_Members_Admin::HOLD);
+		}
 		if ($how === 'ai' && self::writer_ready() && $d['package'] !== '') {
 			update_post_meta($id, Y4APK_Discover::PUBLISH, 1); // Write with AI publishes it with its article
 			update_post_meta($id, self::OK, time());
 			Y4APK_Writer::enqueue([$id], Y4APK_Writer::ARTICLE | Y4APK_Writer::ICONS | Y4APK_Writer::SHOTS | Y4APK_Writer::DETAILS, true);
-			$back('writing');
+			return ['writing', ''];
 		}
 		delete_post_meta($id, self::OK);
 		delete_post_meta($id, Y4APK_Discover::PUBLISH);
@@ -963,16 +1053,16 @@ class Y4APK_Share {
 		}
 		wp_update_post($live); // the member is told (Y4APK_Members::on_publish)
 		if ($parent) {
-			if (!empty($_POST['ai']) && self::writer_ready()) {
+			if ($ai && self::writer_ready()) {
 				Y4APK_Writer::enqueue([$id], Y4APK_Writer::ARTICLE, true); // the member wrote little: Write with AI writes its article, from their words
-				$back('underai');
+				return ['underai', ''];
 			}
-			$back('under'); // listed on the main post's page (Y4APK_Versions)
+			return ['under', '']; // listed on the main post's page (Y4APK_Versions)
 		}
 		if ($d['package'] !== '' && class_exists('Y4APK_Writer') && !get_post_thumbnail_id($id)) {
 			Y4APK_Writer::enqueue([$id], Y4APK_Writer::ICONS | Y4APK_Writer::SHOTS, true); // its icon and screenshots from Google Play, in the background
 		}
-		$back('shared');
+		return ['shared', ''];
 	}
 
 	/* ---------------------------------------------------------------- *
