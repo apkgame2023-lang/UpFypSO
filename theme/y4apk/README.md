@@ -652,6 +652,9 @@ wizard has:
 
 The picked card shows the game's name, not the whole post title.
 
+2.49.1: under *Its name* (Not on Google Play), the line about the icon no
+longer runs into the box above it.
+
 ## Live status dots (2.48)
 
 Every green (working, live, online) and red (outdated, needs changes) dot now
