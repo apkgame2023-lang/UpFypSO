@@ -73,7 +73,10 @@
 	Upload.prototype.busy = function (on) {
 		running += on ? 1 : -1;
 		this.box.classList.toggle('is-busy', on);
-		this.form.querySelector('.au-foot .button-primary').disabled = on;
+		var save = this.form.querySelector('.au-save .button-primary, .au-foot .button-primary'); // Save sits under the downloads since 2.50.4
+		if (save) {
+			save.disabled = running > 0;
+		}
 	};
 
 	Upload.prototype.url = function (n) {

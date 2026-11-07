@@ -49,6 +49,7 @@ class Y4APK_App_Updates {
 	const FOLLOW_BATCH = 40;  // posts brought up to Google Play's version per step from what is already known (no requests)
 	const ICON_SRC     = '_y4apk_icon_src';   // the Google Play icon the featured image is (as Write with AI keeps it)
 	const NEW_TYPES    = ['MOD', 'APK', 'XAPK', 'APKS', 'OBB']; // a first download's type (2.50.1)
+	const OUTSIDE      = '_y4apk_outside_links'; // 2.50.4: downloads on other sites taken off the post: [['at' => index, 'row' => row], …] (to put back)
 	const GSC          = 'y4apk_gsc';
 	const UA           = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -71,6 +72,7 @@ class Y4APK_App_Updates {
 		add_action('admin_post_y4apk_vc_settings', [__CLASS__, 'handle_settings']);
 		add_action('admin_post_y4apk_gsc_sync', [__CLASS__, 'handle_gsc_sync']);
 		add_action('admin_post_y4apk_gsc_upload', [__CLASS__, 'handle_gsc_upload']);
+		add_action('admin_post_y4apk_vc_outside', [__CLASS__, 'handle_outside']);
 		add_filter('manage_post_posts_columns', [__CLASS__, 'column']);
 		add_action('manage_post_posts_custom_column', [__CLASS__, 'column_value'], 10, 2);
 		add_filter('views_edit-post', [__CLASS__, 'view_link']);
@@ -277,6 +279,44 @@ class Y4APK_App_Updates {
 		return $out;
 	}
 
+	/** The site's own addresses (2.50.4): its domain, the download pages' and R2's — "y4apk.com", "y4apk.net" and their subdomains. */
+	public static function own_domains() {
+		static $d = null;
+		if ($d === null) {
+			$hosts = [wp_parse_url(home_url(), PHP_URL_HOST)];
+			if (class_exists('Y4APK_R2')) {
+				$o = Y4APK_R2::settings();
+				$hosts[] = wp_parse_url((string) $o['dir_url'], PHP_URL_HOST);
+				$hosts[] = wp_parse_url((string) $o['public'], PHP_URL_HOST);
+			}
+			$d = ['y4apk.com', 'y4apk.net']; // always the site's own, whatever the settings say
+			foreach (array_filter($hosts) as $h) {
+				$h = strtolower(preg_replace('/^www\./', '', $h));
+				$parts = explode('.', $h);
+				$d[] = count($parts) > 2 ? implode('.', array_slice($parts, -2)) : $h;
+			}
+			$d = array_values(array_unique(apply_filters('y4apk_own_domains', $d)));
+		}
+		return $d;
+	}
+
+	/** A download on another site (files.modyolo.com…), not one of Y4APK's own. */
+	public static function outside_link($link) {
+		if (self::no_link($link)) {
+			return false;
+		}
+		$host = strtolower((string) wp_parse_url(trim(html_entity_decode((string) $link['download_url'])), PHP_URL_HOST));
+		if ($host === '') {
+			return false; // a link on this site ("/files/up/…")
+		}
+		foreach (self::own_domains() as $d) {
+			if ($host === $d || substr($host, -strlen($d) - 1) === '.' . $d) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/** A download row with no link to a file yet (empty, or "#"). */
 	public static function no_link($link) {
 		return !is_array($link) || in_array(trim(html_entity_decode((string) (isset($link['download_url']) ? $link['download_url'] : ''))), ['', '#'], true);
@@ -302,9 +342,11 @@ class Y4APK_App_Updates {
 	/** Is the stored latest version newer than the post's download — or is its download a folder still waiting for a file? */
 	public static function needs_update($post_id) {
 		list($first, $first_link) = self::download($post_id);
-		if ($first === null || self::no_link($first_link)) {
+		if ($first === null || self::no_link($first_link) || self::outside_link($first_link)) {
 			// 2.50.1: a game or app on Google Play with no download at all: it needs its first file
-			return self::package_from(get_post_meta($post_id, 'wp_GP_ID', true)) !== '' && !wp_get_post_parent_id($post_id) && !self::is_script_post($post_id);
+			// 2.50.4: so does one whose download is on another site, or was (taken off, waiting for yours)
+			return (self::package_from(get_post_meta($post_id, 'wp_GP_ID', true)) !== '' || get_post_meta($post_id, self::OUTSIDE, true))
+				&& !wp_get_post_parent_id($post_id) && !self::is_script_post($post_id);
 		}
 		$waiting = (string) get_post_meta($post_id, self::NO_FILE, true);
 		if ($waiting !== '') {
@@ -1741,7 +1783,80 @@ class Y4APK_App_Updates {
 				wp_safe_redirect(add_query_arg('y4apk_error', 'nofile', $back));
 				exit;
 			}
-		} elseif ($version === '' || ($url === '' && empty($in['r2']))) {
+		}
+
+		// 2.50.4: the post's other downloads as the form has them — changed,
+		// uploaded again, or taken off — and files added on the page.
+		$others = self::other_downloads($post_id);
+		$rows = isset($in['rows']) && is_array($in['rows']) ? $in['rows'] : [];
+		$drops = [];
+		foreach ($others['same'] as $i => $o) {
+			if (!empty($rows[$i]['del'])) {
+				$drops[$i] = true;
+			}
+		}
+		$kept_in = isset($in['kept']) && is_array($in['kept']) ? $in['kept'] : [];
+		$edits = [];
+		$edit_up = [];
+		foreach ($others['kept'] as $i => $o) {
+			$r = isset($kept_in[$i]) && is_array($kept_in[$i]) ? $kept_in[$i] : null;
+			if (!$r) {
+				continue;
+			}
+			if (!empty($r['del'])) {
+				$drops[$i] = true;
+				continue;
+			}
+			$e = [];
+			foreach (['version' => 'download_version', 'size' => 'download_size'] as $f => $k) {
+				$val = sanitize_text_field(isset($r[$f]) ? $r[$f] : '');
+				if ($val !== '' && $val !== trim((string) (isset($o[$k]) ? $o[$k] : ''))) {
+					$e[$k] = $val;
+				}
+			}
+			$u = esc_url_raw(isset($r['url']) ? trim($r['url']) : '');
+			if ($u !== '' && $u !== html_entity_decode((string) (isset($o['download_url']) ? $o['download_url'] : ''))) {
+				$e['download_url'] = $u;
+			}
+			$t = strtoupper(sanitize_text_field(isset($r['type']) ? $r['type'] : ''));
+			if ($t !== '' && strcasecmp($t, trim((string) (isset($o['download_name']) ? $o['download_name'] : ''))) !== 0 && in_array($t, self::NEW_TYPES, true)) {
+				$e['download_name'] = $t;
+			}
+			if (!empty($r['r2'])) {
+				$edit_up[$i] = sanitize_text_field($r['r2']);
+			}
+			if ($e) {
+				$edits[$i] = $e;
+			}
+		}
+		$extras = [];
+		foreach (array_slice(isset($in['extra']) && is_array($in['extra']) ? $in['extra'] : [], 0, 10) as $r) {
+			if (!is_array($r)) {
+				continue;
+			}
+			$k = sanitize_text_field(isset($r['r2']) ? $r['r2'] : '');
+			$u = esc_url_raw(isset($r['url']) ? trim($r['url']) : '');
+			if ($k === '' && $u === '') {
+				continue; // a line left empty
+			}
+			$t = strtoupper(sanitize_text_field(isset($r['type']) ? $r['type'] : ''));
+			$v = sanitize_text_field(isset($r['version']) ? $r['version'] : '');
+			if ($v === '') {
+				wp_safe_redirect(add_query_arg('y4apk_error', 'missing', $back));
+				exit;
+			}
+			$extras[] = ['r2' => $k, 'row' => ['download_name' => in_array($t, self::NEW_TYPES, true) ? $t : 'MOD', 'download_version' => $v,
+				'download_size' => sanitize_text_field(isset($r['size']) ? $r['size'] : ''), 'download_url' => $u,
+				'download_mod_info' => isset($link['download_mod_info']) ? $link['download_mod_info'] : '']];
+		}
+		// The new file is saved when it was touched — or when nothing else was (Save as before)
+		$main_out = !$fresh && self::outside_link($link) && empty($in['r2']) && empty($in['main_dirty']);
+		$touch_main = $fresh || !empty($in['main_dirty']) || !empty($in['r2']) || (!$drops && !$edits && !$edit_up && !$extras && !$main_out);
+		if (!$touch_main && !$fresh && self::outside_link($link) && empty($in['r2'])) {
+			$drops[$index] = true; // its link is another site's and no file came for it: off, waiting for yours
+		}
+
+		if ($touch_main && !$fresh && ($version === '' || ($url === '' && empty($in['r2'])))) {
 			// 2.50.2: an uploaded file is enough: its download link is the post's folder, or a new one
 			wp_safe_redirect(add_query_arg('y4apk_error', self::no_link($link) ? 'nofile' : 'missing', $back));
 			exit;
@@ -1766,10 +1881,8 @@ class Y4APK_App_Updates {
 		if (!empty($in['r2'])) {
 			$uploads[$index] = sanitize_text_field($in['r2']);
 		}
-		$rows = isset($in['rows']) && is_array($in['rows']) ? $in['rows'] : [];
-		$others = self::other_downloads($post_id);
 		foreach ($others['same'] as $i => $other) {
-			if (empty($rows[$i]['on'])) {
+			if (empty($rows[$i]['on']) || isset($drops[$i])) {
 				continue;
 			}
 			$r = $rows[$i];
@@ -1785,6 +1898,11 @@ class Y4APK_App_Updates {
 			if (!empty($r['r2'])) {
 				$uploads[$i] = sanitize_text_field($r['r2']);
 			}
+		}
+
+		if (!$touch_main) {
+			$updates = [];
+			$uploads = [];
 		}
 
 		// Replace: the new files take the old ones' place. Add: each new file
@@ -1819,25 +1937,88 @@ class Y4APK_App_Updates {
 			}
 		}
 
+		// 2.50.4: another download uploaded again keeps its folder; an added file gets its own
+		foreach ($edit_up as $i => $key) {
+			$name = isset($edits[$i]['download_name']) ? $edits[$i]['download_name'] : (isset($links[$i]['download_name']) ? $links[$i]['download_name'] : 'MOD');
+			$r = class_exists('Y4APK_R2') ? Y4APK_R2::attach($post_id, $key, html_entity_decode((string) $links[$i]['download_url']), $name, true) : new WP_Error('y4apk_r2', 'R2 uploads are not available.');
+			if (is_wp_error($r)) {
+				set_transient('y4apk_upload_error', $r->get_error_message(), 5 * MINUTE_IN_SECONDS);
+				wp_safe_redirect(add_query_arg('y4apk_error', 'upload', $back));
+				exit;
+			}
+			$edits[$i] = array_merge(isset($edits[$i]) ? $edits[$i] : [], ['download_url' => $r['url'], 'download_size' => $r['size']]);
+		}
+		foreach ($extras as $n => $x) {
+			if ($x['r2'] === '') {
+				continue;
+			}
+			$r = class_exists('Y4APK_R2') ? Y4APK_R2::attach($post_id, $x['r2'], '', $x['row']['download_name'], false) : new WP_Error('y4apk_r2', 'R2 uploads are not available.');
+			if (is_wp_error($r)) {
+				set_transient('y4apk_upload_error', $r->get_error_message(), 5 * MINUTE_IN_SECONDS);
+				wp_safe_redirect(add_query_arg('y4apk_error', 'upload', $back));
+				exit;
+			}
+			$extras[$n]['row']['download_url'] = $r['url'];
+			$extras[$n]['row']['download_size'] = $r['size'];
+		}
+
 		// A folder Write with AI made has its file now (or the post another link).
-		if (isset($uploads[$index]) || $updates[$index]['download_url'] !== (string) get_post_meta($post_id, self::NO_FILE, true)) {
+		if (isset($updates[$index]) && (isset($uploads[$index]) || $updates[$index]['download_url'] !== (string) get_post_meta($post_id, self::NO_FILE, true))) {
 			delete_post_meta($post_id, self::NO_FILE);
 		}
 
 		$new_links = [];
+		$placed = false;
+		$gone = [];
+		$pos = 0;
 		foreach ($links as $i => $entry) {
-			if (!isset($updates[$i])) {
+			$at = $pos++;
+			if (isset($drops[$i])) {
+				if (is_array($entry) && self::outside_link($entry)) {
+					$gone[] = ['at' => $at, 'row' => $entry]; // another site's: kept, Put them back can return it
+				}
+				continue; // taken off the post (its file stays on R2)
+			}
+			if (isset($edits[$i])) {
+				$new_links[] = array_merge($entry, $edits[$i]);
+			} elseif (!isset($updates[$i])) {
 				$new_links[] = $entry;
-				continue;
+			} else {
+				$u = $updates[$i];
+				if ($u['download_size'] === '') {
+					unset($u['download_size']);
+				}
+				$new_links[] = array_merge($entry, $u);
 			}
-			$u = $updates[$i];
-			if ($u['download_size'] === '') {
-				unset($u['download_size']);
+			if ($i === $index && !$placed) {
+				foreach ($extras as $x) {
+					$new_links[] = $x['row']; // added files: just under the new one
+				}
+				$placed = true;
 			}
-			$new_links[] = array_merge($entry, $u);
-			if ($add) {
+			if (isset($updates[$i]) && $add) {
 				$new_links[] = $entry;
 			}
+		}
+		if (!$placed) {
+			foreach ($extras as $x) {
+				$new_links[] = $x['row'];
+			}
+		}
+		if ($gone) {
+			$prev = get_post_meta($post_id, self::OUTSIDE, true);
+			update_post_meta($post_id, self::OUTSIDE, array_merge(is_array($prev) ? $prev : [], $gone));
+			delete_transient('y4apk_outside_scan');
+		}
+		if (!$touch_main) {
+			// Only the other downloads changed: the post's version and title stay
+			update_post_meta($post_id, 'repeatable_download_link', $new_links);
+			self::refresh_flag($post_id);
+			if (class_exists('Y4APK_Versions')) {
+				Y4APK_Versions::purge($post_id);
+			}
+			wp_safe_redirect(add_query_arg('y4apk_saved', $post_id, $back));
+			exit;
 		}
 
 		$old = self::number(isset($link['download_version']) ? $link['download_version'] : '');
@@ -1865,6 +2046,122 @@ class Y4APK_App_Updates {
 		self::refresh_flag($post_id);
 
 		wp_safe_redirect(add_query_arg('y4apk_saved', $post_id, $back));
+		exit;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Downloads on other sites (2.50.4)
+	 * ---------------------------------------------------------------- */
+
+	/** Posts with downloads on other sites: ['posts', 'links', 'hosts' => [host => n], 'ids', 'back' (posts whose were taken off)], kept 30 minutes. */
+	public static function outside_scan($fresh = false) {
+		$c = $fresh ? false : get_transient('y4apk_outside_scan');
+		if (is_array($c)) {
+			return $c;
+		}
+		global $wpdb;
+		$c = ['posts' => 0, 'links' => 0, 'hosts' => [], 'ids' => [], 'back' => 0];
+		$last = 0;
+		do {
+			$rows = $wpdb->get_results($wpdb->prepare("SELECT m.post_id, m.meta_value FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id
+				WHERE m.meta_key = 'repeatable_download_link' AND p.post_type = 'post' AND p.post_status IN ('publish', 'future', 'draft', 'pending', 'private') AND m.post_id > %d
+				ORDER BY m.post_id LIMIT 2000", $last));
+			foreach ($rows as $r) {
+				$last = (int) $r->post_id;
+				$links = maybe_unserialize($r->meta_value);
+				$n = 0;
+				foreach (is_array($links) ? $links : [] as $l) {
+					if (is_array($l) && self::outside_link($l)) {
+						$n++;
+						$h = strtolower((string) wp_parse_url(trim(html_entity_decode((string) $l['download_url'])), PHP_URL_HOST));
+						$c['hosts'][$h] = (isset($c['hosts'][$h]) ? $c['hosts'][$h] : 0) + 1;
+					}
+				}
+				if ($n) {
+					$c['posts']++;
+					$c['links'] += $n;
+					$c['ids'][] = (int) $r->post_id;
+				}
+			}
+		} while (count($rows) === 2000);
+		arsort($c['hosts']);
+		$c['back'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = %s", self::OUTSIDE));
+		set_transient('y4apk_outside_scan', $c, 30 * MINUTE_IN_SECONDS);
+		return $c;
+	}
+
+	/** A post's downloads on other sites off it (kept in OUTSIDE, to put back): true when there were any. */
+	public static function take_outside($post_id) {
+		$links = get_post_meta($post_id, 'repeatable_download_link', true);
+		if (!is_array($links)) {
+			return false;
+		}
+		$keep = [];
+		$gone = [];
+		$at = 0;
+		foreach ($links as $l) {
+			if (is_array($l) && self::outside_link($l)) {
+				$gone[] = ['at' => $at, 'row' => $l];
+			} else {
+				$keep[] = $l;
+			}
+			$at++;
+		}
+		if (!$gone) {
+			return false;
+		}
+		$prev = get_post_meta($post_id, self::OUTSIDE, true);
+		update_post_meta($post_id, self::OUTSIDE, array_merge(is_array($prev) ? $prev : [], $gone));
+		update_post_meta($post_id, 'repeatable_download_link', $keep);
+		self::refresh_flag($post_id); // waits in "Need a new file" when no file of the site's own is left
+		clean_post_cache($post_id);
+		return true;
+	}
+
+	/** What take_outside() took off, back where it was. */
+	public static function put_outside_back($post_id) {
+		$back = get_post_meta($post_id, self::OUTSIDE, true);
+		if (!is_array($back) || !$back) {
+			delete_post_meta($post_id, self::OUTSIDE);
+			return false;
+		}
+		$links = get_post_meta($post_id, 'repeatable_download_link', true);
+		$links = is_array($links) ? array_values($links) : [];
+		usort($back, function ($a, $b) {
+			return (int) $a['at'] <=> (int) $b['at'];
+		});
+		foreach ($back as $b) {
+			array_splice($links, min((int) $b['at'], count($links)), 0, [$b['row']]);
+		}
+		update_post_meta($post_id, 'repeatable_download_link', $links);
+		delete_post_meta($post_id, self::OUTSIDE);
+		self::refresh_flag($post_id);
+		clean_post_cache($post_id);
+		return true;
+	}
+
+	public static function handle_outside() {
+		if (!current_user_can('manage_options')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
+		}
+		check_admin_referer('y4apk-vc-outside');
+		if (function_exists('set_time_limit')) {
+			@set_time_limit(600);
+		}
+		global $wpdb;
+		$undo = !empty($_POST['undo']);
+		$n = 0;
+		if ($undo) {
+			foreach (array_map('intval', $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::OUTSIDE))) as $id) {
+				$n += self::put_outside_back($id) ? 1 : 0;
+			}
+		} else {
+			foreach (self::outside_scan(true)['ids'] as $id) {
+				$n += self::take_outside($id) ? 1 : 0;
+			}
+		}
+		delete_transient('y4apk_outside_scan');
+		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'outside' => $undo ? 'back' : 'off', 'n' => $n], admin_url('admin.php')));
 		exit;
 	}
 
@@ -1906,6 +2203,27 @@ class Y4APK_App_Updates {
 
 	/** Small "★ 4.4 (56,612) · 12+ · Android 5.1+ · Publisher" chips from the last Google Play read. */
 
+	/** A download's type, to choose (2.50.3): the usual ones, and the row's own when it is another. */
+	private static function type_select($name, $is) {
+		$is = trim((string) $is) !== '' ? trim((string) $is) : 'MOD';
+		$types = self::NEW_TYPES;
+		if (!in_array(strtoupper($is), $types, true)) {
+			$types[] = $is;
+		}
+		echo '<select class="au-type" name="' . esc_attr($name) . '" aria-label="' . esc_attr__('Type', 'y4apk') . '">';
+		foreach ($types as $t) {
+			echo '<option value="' . esc_attr($t) . '"' . selected(strtoupper($t) === strtoupper($is), true, false) . '>' . esc_html(strtoupper($t)) . '</option>';
+		}
+		echo '</select>';
+	}
+
+	/** A download taken off the post when saved (2.50.4): $name is its "del" field, '' for a row added on the page. */
+	private static function del_button($name, $on = false) {
+		echo '<label class="au-del" title="' . esc_attr__('Remove this download from the post', 'y4apk') . '">'
+			. ($name !== '' ? '<input type="checkbox" name="' . esc_attr($name) . '" value="1" hidden' . ($on ? ' checked' : '') . '>' : '')
+			. '<span class="dashicons dashicons-trash" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__('Remove', 'y4apk') . '</span></label>';
+	}
+
 	/** One post's "new file" form (Need a new file, and Update any file). */
 	private static function file_row($id, $c) {
 		$paged = isset($c['paged']) ? (int) $c['paged'] : 1;
@@ -1915,7 +2233,8 @@ class Y4APK_App_Updates {
 		$back = isset($c['back']) ? (string) $c['back'] : '';
 		list(, $link) = self::download($id);
 		$none = $link === null; // 2.50.1: no download yet — saving makes it
-		$nolink = $none || self::no_link($link); // 2.50.2: or a row whose link is empty: the upload makes its folder
+		$outside = !$none && self::outside_link($link); // 2.50.4: a link to another site: no file of the site's own
+		$nolink = $none || self::no_link($link) || $outside; // 2.50.2: or a row whose link is empty: the upload makes its folder
 			$others = self::other_downloads($id);
 			$current = self::current_version($id);
 			$latest = (string) get_post_meta($id, self::LATEST, true);
@@ -1946,7 +2265,9 @@ class Y4APK_App_Updates {
 				</div>
 				<div class="au-vers">
 					<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
-					<?php if ($nolink || get_post_meta($id, self::NO_FILE, true) !== '') : ?>
+					<?php if ($outside) : ?>
+						<span class="au-ver is-out" title="<?php echo esc_attr(html_entity_decode((string) $link['download_url'])); ?>"><?php echo esc_html(sprintf(__('On %s', 'y4apk'), wp_parse_url(html_entity_decode((string) $link['download_url']), PHP_URL_HOST))); ?></span>
+					<?php elseif ($nolink || get_post_meta($id, self::NO_FILE, true) !== '') : ?>
 						<span class="au-ver" title="<?php esc_attr_e('Write with AI made its download folder; upload the file here.', 'y4apk'); ?>"><?php esc_html_e('No file yet', 'y4apk'); ?></span>
 					<?php else : ?>
 						<span class="au-ver"><?php echo esc_html($current); ?></span>
@@ -1975,49 +2296,72 @@ class Y4APK_App_Updates {
 					<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
 					<span class="au-label"><?php esc_html_e('New file', 'y4apk'); ?></span>
 					<div class="au-line" data-row="main">
-						<?php // 2.50.3: its type, to change (MOD, APK, XAPK…); a type of the post's own stays in the list
-						$is = $link && !empty($link['download_name']) ? trim((string) $link['download_name']) : 'MOD';
-						$types = self::NEW_TYPES;
-						if (!in_array(strtoupper($is), $types, true)) {
-							$types[] = $is;
-						} ?>
-						<select class="au-type" name="type" aria-label="<?php esc_attr_e('Type', 'y4apk'); ?>"><?php foreach ($types as $t) : ?><option value="<?php echo esc_attr($t); ?>" <?php selected(strtoupper($t) === strtoupper($is)); ?>><?php echo esc_html(strtoupper($t)); ?></option><?php endforeach; ?></select>
+						<?php self::type_select('type', $link && !empty($link['download_name']) ? $link['download_name'] : 'MOD'); // 2.50.3: its type, to change ?>
 						<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
 						<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
 						<input type="url" name="url" value="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" placeholder="<?php echo esc_attr($nolink ? __('Made for you when you upload (or paste a link)', 'y4apk') : __('Link to the new file', 'y4apk')); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
 						<?php if ($uploads) { Y4APK_R2::upload_control('r2', 'main'); } ?>
+						<span class="au-del-none"></span>
 					</div>
 					<?php foreach ($others['same'] as $i => $o) :
 						// OBB and other Android files follow the APK; an iOS file only when ticked.
 						$on = !in_array(strtolower(trim(isset($o['download_name']) ? (string) $o['download_name'] : '')), ['ipa', 'ios'], true); ?>
-						<div class="au-line" data-row="<?php echo esc_attr($i); ?>">
+						<?php $out_i = self::outside_link($o); ?>
+						<div class="au-line<?php echo $out_i ? ' is-del is-out' : ''; ?>" data-row="<?php echo esc_attr($i); ?>">
 							<label class="au-type" title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
 								onchange="this.closest('.au-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"> <?php echo esc_html($o['download_name']); ?></label>
 							<input type="text" name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 							<input type="text" name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 							<input type="url" name="rows[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 							<?php if ($uploads) { Y4APK_R2::upload_control('rows[' . $i . '][r2]', (string) $i, !$on); } ?>
+							<?php self::del_button('rows[' . $i . '][del]', $out_i); ?>
 						</div>
 					<?php endforeach; ?>
+					<div class="au-extras"></div>
+					<button type="button" class="button au-add">+ <?php esc_html_e('Add a file', 'y4apk'); ?></button>
+					<template class="au-extra-tpl"><div class="au-line au-extra" data-row="x__N__">
+						<?php self::type_select('extra[__N__][type]', 'OBB'); ?>
+						<input type="text" name="extra[__N__][version]" value="" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
+						<input type="text" name="extra[__N__][size]" value="" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
+						<input type="url" name="extra[__N__][url]" value="" placeholder="<?php esc_attr_e('Made for you when you upload (or paste a link)', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+						<?php if ($uploads) { Y4APK_R2::upload_control('extra[__N__][r2]', 'x__N__'); } ?>
+						<?php self::del_button(''); ?>
+					</div></template>
 					<div class="au-foot">
 						<?php if ($nolink) : ?>
 							<input type="hidden" name="mode" value="replace">
-							<span class="au-first"><?php esc_html_e('First file: upload it and Save — its download link (a new folder in files/up) and the download on the post are made for you.', 'y4apk'); ?></span>
+							<span class="au-first"><?php echo esc_html($outside
+								? __('Upload your file and Save: its download link (a new folder in files/up) takes the place of the other site’s. Save without a file just takes that link off.', 'y4apk')
+								: __('First file: upload it and Save — its download link (a new folder in files/up) and the download on the post are made for you.', 'y4apk')); ?></span>
 						<?php else : ?>
 						<label><input type="radio" name="mode" value="replace" checked> <?php esc_html_e('Replace the old file', 'y4apk'); ?></label>
 						<label><input type="radio" name="mode" value="add"> <?php esc_html_e('Add as new, keep the old file below it', 'y4apk'); ?></label>
 						<?php endif; ?>
-						<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 					</div>
 					<p class="au-warn" hidden><?php esc_html_e('“Add as new” keeps the old download, so the new one needs another link: upload the new file or paste its link — or choose “Replace the old file” to keep this link.', 'y4apk'); ?></p>
-					<p class="au-warn au-need" hidden><?php esc_html_e('Upload the file first (or paste a link to it): its download link is made for you.', 'y4apk'); ?></p>
-					<?php if ($others['kept']) : ?>
-						<div class="au-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
-							<?php echo esc_html(implode(' · ', array_map(function ($o) {
-								return trim((isset($o['download_name']) ? $o['download_name'] : '') . ' ' . (isset($o['download_version']) ? $o['download_version'] : '')
-									. (!empty($o['download_size']) ? ' (' . $o['download_size'] . ')' : ''));
-							}, $others['kept']))); ?></div>
+					<?php if ($nolink && !$outside) : ?><p class="au-warn au-need" hidden><?php esc_html_e('Upload the file first (or paste a link to it): its download link is made for you.', 'y4apk'); ?></p><?php endif; ?>
+					<?php if ($others['kept']) : // 2.50.4: the post's other downloads (older versions, other files), to change, upload again or take off ?>
+						<span class="au-label au-label-kept"><?php esc_html_e('Other downloads on the post', 'y4apk'); ?></span>
+						<?php foreach ($others['kept'] as $i => $o) : ?>
+							<?php $out_i = self::outside_link($o); ?>
+							<div class="au-line au-keptline<?php echo $out_i ? ' is-del is-out' : ''; ?>" data-row="k<?php echo esc_attr($i); ?>">
+								<?php self::type_select('kept[' . $i . '][type]', isset($o['download_name']) ? $o['download_name'] : ''); ?>
+								<input type="text" name="kept[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(isset($o['download_version']) ? $o['download_version'] : ''); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
+								<input type="text" name="kept[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
+								<input type="url" name="kept[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+								<?php if ($uploads) { Y4APK_R2::upload_control('kept[' . $i . '][r2]', 'k' . $i); } ?>
+								<?php self::del_button('kept[' . $i . '][del]', $out_i); ?>
+							</div>
+						<?php endforeach; ?>
 					<?php endif; ?>
+					<?php if ($outside || array_filter(array_merge($others['same'], $others['kept']), [__CLASS__, 'outside_link'])) : ?>
+						<p class="au-outnote"><?php esc_html_e('Links to other sites are not Y4APK’s: Save takes them off (the bin keeps one), and the post waits for your file. Upload it for the new one and its download link is made for you.', 'y4apk'); ?></p>
+					<?php endif; ?>
+					<input type="hidden" name="main_dirty" value="">
+					<div class="au-save">
+						<span class="au-save-note"><?php esc_html_e('Save puts every change in: the new file, added files, and the other downloads (changed, uploaded again, or removed with the bin — their files stay on R2).', 'y4apk'); ?></span>
+						<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
+					</div>
 				</form>
 			</div>
 		<?php
@@ -2114,7 +2458,22 @@ class Y4APK_App_Updates {
 			.au-toolbar-info a { text-decoration: none; }
 			.au-toolbar-info a.is-on { font-weight: 600; color: var(--au-ink); }
 			.au-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
-			.au-line { display: grid; grid-template-columns: 66px 150px 115px minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
+			.au-line { display: grid; grid-template-columns: 78px 140px 105px minmax(160px, 1fr) auto 30px; gap: 8px; align-items: center; }
+			.au-line + .au-line, .au-extras .au-line { margin-top: 6px; }
+			.au-del { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; color: #8c8f94; cursor: pointer; }
+			.au-del:hover { background: #fcf0f1; color: #b32d2e; }
+			.au-line.is-del .au-del { background: #b32d2e; color: #fff; }
+			.au-line.is-del > :not(.au-del):not(.au-up-status) { opacity: .35; text-decoration: line-through; pointer-events: none; }
+			.au-add { margin-top: 8px; align-self: flex-start; justify-self: start; width: auto; }
+			.au-label-kept { display: block; margin-top: 16px; padding-top: 12px; border-top: 1px dashed #dcdcde; }
+			.au-save { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+			.au-save-note { font-size: 12px; color: var(--au-muted); }
+			.au-ver.is-out { background: #fcf0f1; color: #b32d2e; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+			.au-outnote { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fcf9e8; color: #6b5300; font-size: 12.5px; }
+			.au-outside { margin-bottom: 14px; border-left: 4px solid #d63638; }
+			.au-outside strong { font-size: 14px; margin-right: 8px; }
+			.au-outside .au-note { margin: 8px 0 10px; }
+			.au-outside-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
 			.au-warn { margin: 0; padding: 8px 12px; border-radius: 8px; background: #fcf0f1; color: #8a2424; font-size: 12.5px; }
 			.au-up-btn { white-space: nowrap; }
 			.au-up-btn.disabled { opacity: .45; pointer-events: none; }
@@ -2140,7 +2499,7 @@ class Y4APK_App_Updates {
 			.au-small { display: block; font-size: 12px; color: var(--au-muted); margin-top: 2px; }
 			.au-first { flex: 1; min-width: 200px; font-size: 12px; color: var(--au-muted); }
 			select.au-type { width: 100%; min-width: 0; min-height: 30px; padding: 0 18px 0 6px; font-size: 12px; background-position: right 2px center; }
-			.au-line:has(select.au-type) { grid-template-columns: 78px 140px 105px minmax(160px, 1fr) auto; }
+
 			.au-srow.au-hit { grid-template-columns: minmax(0, 1fr) auto; }
 			.au-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--au-muted); margin-bottom: 2px; }
 			.au-dl { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 0; margin: 0; }
@@ -2274,6 +2633,10 @@ class Y4APK_App_Updates {
 				<div class="notice notice-success is-dismissible"><p><?php printf(esc_html__('Saved: %s', 'y4apk'), '<a href="' . esc_url(get_permalink($sid)) . '" target="_blank">' . esc_html(get_the_title($sid)) . '</a>'); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_gsc'])) : $g = self::gsc(); ?>
 				<div class="notice notice-success is-dismissible"><p><?php echo esc_html(sprintf(__('Google Search numbers updated: %1$s pages, %2$s posts matched.', 'y4apk'), number_format_i18n($g['rows']), number_format_i18n(count($g['posts'])))); ?></p></div>
+			<?php elseif (isset($_GET['outside'])) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php echo esc_html($_GET['outside'] === 'back'
+					? sprintf(__('Put back on %s posts.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0)))
+					: sprintf(__('Downloads on other sites taken off %s posts: those with no file of Y4APK’s own wait in Need a new file. Clear the 10Web cache so visitors see it.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0)))); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_settings'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Settings saved.', 'y4apk'); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_error'])) : ?>
@@ -2337,7 +2700,28 @@ class Y4APK_App_Updates {
 				<?php endif; ?>
 			</nav>
 
-			<?php if ($view === 'needs') : ?>
+			<?php if ($view === 'needs') :
+				$os = current_user_can('manage_options') ? self::outside_scan() : null;
+				if ($os && ($os['posts'] || $os['back'])) : ?>
+				<div class="au-card au-pad au-outside">
+					<?php if ($os['posts']) : ?>
+						<strong><?php echo esc_html(sprintf(_n('%1$s post has a download on another site (%2$s link)', '%1$s posts have downloads on other sites (%2$s links)', $os['posts'], 'y4apk'), number_format_i18n($os['posts']), number_format_i18n($os['links']))); ?></strong>
+						<span class="au-small"><?php echo esc_html(implode(' · ', array_map(function ($h, $n) { return $h . ' ' . number_format_i18n($n); }, array_slice(array_keys($os['hosts']), 0, 5), array_slice($os['hosts'], 0, 5)))); ?></span>
+						<p class="au-note"><?php esc_html_e('Take them off: those links leave the posts, and a post with no file of Y4APK’s own left waits here as “No file yet” for your upload — visitors see no download on it until then. What is taken off is kept: Put them back undoes it. Clear the 10Web cache afterwards.', 'y4apk'); ?></p>
+					<?php else : ?>
+						<strong><?php esc_html_e('No download on another site left.', 'y4apk'); ?></strong>
+					<?php endif; ?>
+					<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-outside-actions">
+						<input type="hidden" name="action" value="y4apk_vc_outside"><?php wp_nonce_field('y4apk-vc-outside'); ?>
+						<?php if ($os['posts']) : ?>
+							<button class="button button-primary" onclick="return confirm(<?php echo esc_attr(wp_json_encode(sprintf(__('Take the downloads on other sites off %s posts? They wait for your files after that.', 'y4apk'), number_format_i18n($os['posts'])))); ?>)"><?php esc_html_e('Take them off', 'y4apk'); ?></button>
+						<?php endif; ?>
+						<?php if ($os['back']) : ?>
+							<button class="button" name="undo" value="1" onclick="return confirm(<?php echo esc_attr(wp_json_encode(__('Put the links taken off back on their posts?', 'y4apk'))); ?>)"><?php echo esc_html(sprintf(_n('Put them back (%s post)', 'Put them back (%s posts)', $os['back'], 'y4apk'), number_format_i18n($os['back']))); ?></button>
+						<?php endif; ?>
+					</form>
+				</div>
+				<?php endif; ?>
 				<div class="au-toolbar">
 					<input type="search" class="au-search" data-au-filter="au-needs" placeholder="<?php esc_attr_e('Filter this page by name…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Filter this page by name', 'y4apk'); ?>">
 					<span class="au-toolbar-info">
@@ -2586,29 +2970,76 @@ class Y4APK_App_Updates {
 					r.addEventListener('change', function () { form.querySelector('.au-warn:not(.au-need)').hidden = true; });
 				});
 			});
-			// 2.50.3: the type — "v5.9.1.apk" becomes "v5.9.1.xapk" for XAPK; an .xapk, .apks or .obb file picks its type
+			// 2.50.3: the type — "v5.9.1.apk" becomes "v5.9.1.xapk" for XAPK; an .xapk, .apks, .obb or .zip file picks its type
 			var exts = { MOD: 'apk', APK: 'apk', XAPK: 'xapk', APKS: 'apks', OBB: 'zip' };
-			document.querySelectorAll('select.au-type').forEach(function (sel) {
-				sel.addEventListener('change', function () {
-					var v = sel.closest('.au-line').querySelector('input[name=version]');
-					if (v && exts[sel.value]) {
-						v.value = v.value.replace(/\.(apk|xapk|apks|apkm|zip|obb)$/i, '.' + exts[sel.value]);
-					}
-				});
-			});
+			function ending(sel) {
+				var v = sel.closest('.au-line').querySelector('input[name="version"], input[name$="[version]"]');
+				if (v && exts[sel.value]) {
+					v.value = v.value.replace(/\.(apk|xapk|apks|apkm|zip|obb)$/i, '.' + exts[sel.value]);
+				}
+			}
 			document.addEventListener('change', function (e) {
-				var f = e.target;
+				var f = e.target, line = f.closest && f.closest('.au-line');
+				if (!line) {
+					return;
+				}
+				// 2.50.4: the new file (or a download following it) was touched: Save updates it
+				var row = line.getAttribute('data-row') || '';
+				if (row === 'main' || /^\d+$/.test(row)) {
+					f.form.querySelector('input[name=main_dirty]').value = '1';
+				}
+				if (f.matches('select.au-type')) {
+					ending(f);
+					return;
+				}
 				if (f.type !== 'file' || !f.closest('.au-up') || !f.files.length) {
 					return;
 				}
-				var sel = f.closest('.au-line').querySelector('select.au-type');
+				var sel = line.querySelector('select.au-type');
 				var ext = (f.files[0].name.split('.').pop() || '').toLowerCase();
-				var to = { xapk: 'XAPK', apks: 'APKS', obb: 'OBB' }[ext];
+				var to = { xapk: 'XAPK', apks: 'APKS', obb: 'OBB', zip: 'OBB' }[ext];
 				if (sel && to && sel.value !== to && [].some.call(sel.options, function (o) { return o.value === to; })) {
 					sel.value = to;
-					sel.dispatchEvent(new Event('change'));
+					ending(sel);
 				}
 			}, true); // before the upload starts, so it is named with its type
+			document.addEventListener('input', function (e) {
+				var line = e.target.closest && e.target.closest('.au-line');
+				var row = line ? line.getAttribute('data-row') || '' : '';
+				if (row === 'main' || /^\d+$/.test(row)) {
+					e.target.form.querySelector('input[name=main_dirty]').value = '1';
+				}
+			});
+			// 2.50.4: the bin takes a download off (click again to keep it); a file added here just goes
+			document.addEventListener('click', function (e) {
+				var bin = e.target.closest && e.target.closest('.au-del');
+				if (bin) {
+					e.preventDefault();
+					var line = bin.closest('.au-line'), box = bin.querySelector('input[type=checkbox]');
+					if (!box) {
+						line.remove();
+						return;
+					}
+					box.checked = !box.checked;
+					line.classList.toggle('is-del', box.checked);
+					return;
+				}
+				var add = e.target.closest && e.target.closest('.au-add');
+				if (add) {
+					var form = add.closest('form'), tpl = form.querySelector('.au-extra-tpl');
+					var n = (form.au_n = (form.au_n || 0) + 1);
+					var wrap = document.createElement('div');
+					wrap.innerHTML = tpl.innerHTML.replace(/__N__/g, String(n));
+					var line = wrap.firstElementChild;
+					form.querySelector('.au-extras').appendChild(line);
+					// The new file's version to start with, ending as its type
+					var main = form.querySelector('.au-line[data-row=main] input[name=version]');
+					var v = line.querySelector('input[name$="[version]"]');
+					v.value = main ? main.value : '';
+					ending(line.querySelector('select.au-type'));
+					v.focus();
+				}
+			});
 			document.querySelectorAll('[data-au-filter]').forEach(function (input) {
 				var list = document.getElementById(input.getAttribute('data-au-filter'));
 				input.addEventListener('input', function () {

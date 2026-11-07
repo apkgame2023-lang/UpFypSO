@@ -693,6 +693,24 @@ download, and a new folder is named with it. The version's ending follows
 ("v7.4.1.apk" → "v7.4.1.xapk" for XAPK, ".zip" for OBB), and uploading an
 .xapk, .apks or .obb file picks its type by itself.
 
+2.50.4: the new-file form edits **every download** of the post:
+- **+ Add a file** adds rows (up to 10 a save), each with its type, version,
+  size and upload; each upload gets its own download folder, and the rows go
+  just under the new file (an APK with its OBB, an XAPK…).
+- **Other downloads on the post** (older versions, other files — "Left as they
+  are" before) are rows too: change them, upload a file again (it keeps its
+  folder), or take them off with the bin (click again to keep). Their files
+  stay on R2.
+- Changing only those leaves the new file, the version and the title alone;
+  the new file is saved when it was touched (or when nothing else was).
+- **Links to other sites** (anything but y4apk.com / y4apk.net and the
+  download and R2 addresses in Settings): shown in red, and Save takes them
+  off — an upload takes the new file's place with your own folder — and the
+  post waits for your file (in *Need a new file*, also when it is not on
+  Google Play). On *Need a new file*, a card counts the posts with such links
+  (by site) and takes them all off at once; what was taken off is kept and
+  **Put them back** returns it.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and
