@@ -107,7 +107,7 @@ get_header();
 			?>
 			<nav class="y4h-tabs" aria-label="<?php esc_attr_e('Policies', 'y4apk'); ?>">
 				<?php foreach (Y4APK_Help::legal() as $k) : ?>
-					<a href="<?php echo esc_url(Y4APK_Help::url($k)); ?>"<?php echo $k === $key ? ' aria-current="page" class="is-on"' : ''; ?>><?php echo $svg($pages[$k]['icon'], 16); ?><?php echo esc_html($pages[$k]['title']); ?></a>
+					<a href="<?php echo esc_url(Y4APK_Help::url($k)); ?>"<?php echo $k === $key ? ' aria-current="page" class="is-on"' : ''; ?>><span class="y4h-tab-ic"><?php echo $svg($pages[$k]['icon'], 16); ?></span><span class="y4h-tab-t"><?php echo esc_html($pages[$k]['title']); ?></span></a>
 				<?php endforeach; ?>
 			</nav>
 			<div class="y4h-legal">

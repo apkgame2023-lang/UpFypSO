@@ -763,6 +763,7 @@
 .shr-agree input { flex: none; width: 1.125rem; height: 1.125rem; margin: .125rem 0 0; accent-color: var(--acc-blue); }
 .shr-agree:has(input:checked) { background: rgba(41, 177, 216, .07); box-shadow: inset 0 0 0 2px var(--acc-blue); }
 .shr-row2 .acc-hint { margin: .375rem 0 0; }
+.acc-input + .acc-hint { margin: .5rem 0 0; } /* a hint just under its box (the post title, 2.52): never up over it */
 .shr-row2 .acc-hint:empty { display: none; }
 
 /* the executors a script works with (2.44) */

@@ -692,6 +692,19 @@ Fixed on the way: the share form's search found a game already on the site
 only when the post was in the top Games or Apps category, not in one under it
 (Action, Racing …), so members shared it again instead of adding a version.
 
+2.52.1, from the live site:
+- The tabs between Terms, Privacy and DMCA showed as empty pills there: they
+  are a segmented bar now (a white bar, the open one dark), each tab an icon
+  tile and its words, with sizes and colours set firmly so a cached page's
+  optimiser or another plugin's rules cannot empty them. On phones the three
+  sit side by side, the icon over the words.
+- The ticks of *The short version* were dark on green (a rule for the cards'
+  words reached them): white on a green gradient now.
+- The search box of the Language and Location lists: the icon and the words
+  in one row that cannot be squeezed (the list's column had made it short).
+- The share form's *Post title* hint went up over its box; a hint right under
+  its box never does now.
+
 ## Languages and location, the way YouTube and TikTok do it (2.51)
 
 **How the big platforms do it**, and what this theme does the same way:

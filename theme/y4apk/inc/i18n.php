@@ -1345,11 +1345,14 @@ class Y4APK_I18n {
 .y4l-item .y4l-tick{flex:none;width:1.25rem;height:1.25rem;color:#29b1d8}
 .y4l-item[aria-checked="true"]{background:#e9f6fb}
 .y4l-item[aria-checked="true"] .y4l-t b{color:#0f6f8c}
-.y4l-note{margin:.125rem .75rem .5rem;font-size:.8125rem;color:rgba(23,32,33,.6)}
-.y4l-find{position:relative;margin:0 .75rem .5rem}
-.y4l-find svg{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:rgba(23,32,33,.45);pointer-events:none}
-.y4l-find input{display:block;width:100%;height:2.5rem;margin:0;padding:0 .75rem 0 2.375rem;border:1px solid rgba(23,32,33,.14);border-radius:.75rem;font:inherit;font-size:1rem;color:#172021;background:#f7fafb;box-shadow:none;outline:0}
-.y4l-find input:focus{border-color:#29b1d8;background:#fff;box-shadow:0 0 0 3px rgba(41,177,216,.18)}
+.y4l-note{flex:none;margin:.125rem .75rem .5rem;font-size:.8125rem;color:rgba(23,32,33,.6)}
+.y4l-find{flex:none;display:flex!important;align-items:center;gap:.5rem;height:2.75rem;margin:0 .75rem .5rem;padding:0 .875rem;border-radius:.875rem;background:#f2f6f7;box-shadow:inset 0 0 0 1px rgba(23,32,33,.08);cursor:text;transition:background-color .15s ease,box-shadow .15s ease}
+.y4l-find:focus-within{background:#fff;box-shadow:inset 0 0 0 2px #29b1d8,0 0 0 4px rgba(41,177,216,.14)}
+.y4l-find svg{flex:none;display:block;width:1.125rem!important;height:1.125rem!important;color:rgba(23,32,33,.45);position:static!important;transform:none!important}
+.y4l-find:focus-within svg{color:#29b1d8}
+.y4l-find input{flex:1;min-width:0;width:auto!important;height:100%!important;margin:0!important;padding:0!important;border:0!important;border-radius:0;font:inherit;font-size:1rem!important;line-height:1.2;color:#172021;background:transparent!important;box-shadow:none!important;outline:0;-webkit-appearance:none;appearance:none}
+.y4l-find input::placeholder{color:rgba(23,32,33,.45)}
+.y4l-find input::-webkit-search-decoration,.y4l-find input::-webkit-search-cancel-button{-webkit-appearance:none}
 .y4l-empty{padding:1rem .75rem;color:rgba(23,32,33,.55);font-size:.875rem}
 .y4l-sep{height:1px;margin:.25rem .75rem;background:rgba(23,32,33,.08)}
 a.y4l-item{color:#172021!important;text-decoration:none}
@@ -1449,7 +1452,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 				+ (C.legal.length ? '<p class="y4l-legal">' + C.legal.map(function (l) { return '<a href="' + esc(l[0]) + '">' + esc(l[1]) + '</a>'; }).join('<span aria-hidden="true"> · </span>') + '</p>' : '') + '</div>';
 		} else if (v === 'lang') {
 			h = head(T.langTitle, true) + '<p class="y4l-note">' + esc(T.langNote) + '</p>'
-				+ (C.langs.length > 8 ? '<div class="y4l-find">' + svg('search', 18) + '<input type="search" data-find placeholder="' + esc(T.search) + '" aria-label="' + esc(T.search) + '" autocomplete="off"></div>' : '')
+				+ (C.langs.length > 8 ? '<label class="y4l-find">' + svg('search', 18) + '<input type="search" data-find placeholder="' + esc(T.search) + '" aria-label="' + esc(T.search) + '" autocomplete="off"></label>' : '')
 				+ '<div class="y4l-body" role="menu">' + C.langs.map(function (l) {
 					return item(' data-lang="' + esc(l[0]) + '" lang="' + esc(l[3]) + '" data-q="' + esc((l[1] + ' ' + l[2] + ' ' + l[0]).toLowerCase()) + '"', '', l[1], l[1] !== l[2] ? l[2] : '', l[0] === C.cur, false);
 				}).join('') + '<p class="y4l-empty" hidden>' + esc(T.none) + '</p></div>';
@@ -1458,7 +1461,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 			try { var col = new Intl.Collator(C.html); list.sort(function (a, b) { return col.compare(a[1], b[1]); }); } catch (e) { list.sort(function (a, b) { return a[1] < b[1] ? -1 : 1; }); }
 			if (gl) { list = list.filter(function (x) { return x[0] !== gl; }); list.unshift([gl, country(gl)]); }
 			h = head(T.locTitle, true) + '<p class="y4l-note">' + esc(T.locNote) + '</p>'
-				+ '<div class="y4l-find">' + svg('search', 18) + '<input type="search" data-find placeholder="' + esc(T.search) + '" aria-label="' + esc(T.search) + '" autocomplete="off"></div>'
+				+ '<label class="y4l-find">' + svg('search', 18) + '<input type="search" data-find placeholder="' + esc(T.search) + '" aria-label="' + esc(T.search) + '" autocomplete="off"></label>'
 				+ '<div class="y4l-body" role="menu">' + list.map(function (x) {
 					return item(' data-cc="' + x[0] + '" data-q="' + esc((x[1] + ' ' + x[0]).toLowerCase()) + '"', '', x[1], '', x[0] === gl, false);
 				}).join('') + '<p class="y4l-empty" hidden>' + esc(T.none) + '</p></div>';
