@@ -7,6 +7,9 @@
  */
 defined('ABSPATH') || exit;
 
+// Everything in a function of its own (2.52.2): WordPress includes a template in the global scope, and
+// a plugin's wp_head (Rank Math's setup_postdata) set the global $pages — the tabs came out empty.
+(function () {
 $key = Y4APK_Help::$page;
 $pages = Y4APK_Help::pages();
 $P = $pages[$key];
@@ -20,6 +23,11 @@ $links = [
 	'{contact}'   => Y4APK_Help::url('contact'),
 	'{feedback}'  => Y4APK_Help::url('feedback'),
 	'{settings}'  => $members ? Y4APK_Members::url('settings') : home_url('/'),
+	'{forgot}'    => $members ? Y4APK_Members::url('forgot') : wp_lostpassword_url(),
+	'{register}'  => $members ? Y4APK_Members::url('register') : wp_registration_url(),
+	'{share}'     => $members ? Y4APK_Members::url('submit') : home_url('/'),
+	'{executors}' => class_exists('Y4APK_Executors') ? (string) get_post_type_archive_link(Y4APK_Executors::CPT) : home_url('/'),
+	'{obb}'       => $key === 'faq' ? Y4APK_Help_Texts::guide() : '',
 ];
 $fill = function ($html) use ($links) {
 	return wp_kses(strtr((string) $html, array_map('esc_url', $links)), ['a' => ['href' => []], 'b' => []]);
@@ -42,6 +50,11 @@ $ic = [
 	'list'      => '<path d="M3 13h2v-2H3v2Zm0 4h2v-2H3v2Zm0-8h2V7H3v2Zm4 4h14v-2H7v2Zm0 4h14v-2H7v2ZM7 7v2h14V7H7Z"/>',
 	'arrow'     => '<path d="M12 4 10.6 5.4 16.2 11H4v2h12.2l-5.6 5.6L12 20l8-8-8-8Z"/>',
 	'alert'     => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z"/>',
+	'download'  => '<path d="M5 20h14v-2H5v2Zm14-9h-4V3H9v8H5l7 7 7-7Z"/>',
+	'code'      => '<path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4Z"/>',
+	'globe'     => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.9a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.4 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4H4.3Zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 0 1 5.1 16ZM8 8H5.1a8 8 0 0 1 4.3-3.6C8.8 5.5 8.4 6.7 8 8Zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.4-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 0 1-4.3 3.6Zm1.7-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/>',
+	'search'    => '<path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5Zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14Z"/>',
+	'chevron'   => '<path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z"/>',
 	'lock'      => '<path d="M18 8h-1V6A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2Zm-6 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm3.1-9H8.9V6a3.1 3.1 0 0 1 6.2 0v2Z"/>',
 ];
 $svg = function ($name, $size = 20) use ($ic) {
@@ -74,6 +87,17 @@ $send_button = function ($label) use ($svg) {
 $fine = function () use ($fill) {
 	echo '<p class="y4h-fine">' . $fill(__('We use what you send only to answer you, as our <a href="{privacy}">Privacy Policy</a> says.', 'y4apk')) . '</p>';
 };
+$faq = [];
+if ($key === 'faq') {
+	$faq = Y4APK_Help_Texts::faq();
+	$more = Y4APK_Help_Texts::own_faq();
+	if ($more) {
+		$faq[] = ['id' => 'more', 't' => __('More questions', 'y4apk'), 'icon' => 'help', 'own' => true, 'q' => array_map(function ($it, $i) {
+			return ['more-' . ($i + 1), class_exists('Y4APK_I18n') ? Y4APK_I18n::site_text($it[0]) : $it[0], $it[1]];
+		}, $more, array_keys($more))];
+	}
+}
+$asked = array_sum(array_map(function ($g) { return count($g['q']); }, $faq));
 $words = 0;
 if ($legal) {
 	foreach (Y4APK_Help_Texts::sections($key) as $s) {
@@ -96,6 +120,11 @@ get_header();
 					<div class="y4h-meta">
 						<span><?php echo $svg('calendar', 15); ?><?php echo esc_html(sprintf(__('Last updated %s', 'y4apk'), wp_date(get_option('date_format'), strtotime(Y4APK_Help::UPDATED . ' 12:00:00 UTC')))); ?></span>
 						<span><?php echo $svg('clock', 15); ?><?php echo esc_html(sprintf(__('%s min read', 'y4apk'), number_format_i18n(max(1, (int) round($words / 200))))); ?></span>
+					</div>
+				<?php elseif ($faq) : ?>
+					<div class="y4h-meta">
+						<span><?php echo $svg('list', 15); ?><?php echo esc_html(sprintf(_n('%s answer', '%s answers', $asked, 'y4apk'), number_format_i18n($asked))); ?></span>
+						<span><?php echo $svg('mail', 15); ?><?php echo esc_html__('A person answers the rest', 'y4apk'); ?></span>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -143,6 +172,39 @@ get_header();
 					<?php else : ?>
 						<a class="y4h-cta" href="<?php echo esc_url(Y4APK_Help::url('contact')); ?>"><span class="y4h-cta-ic"><?php echo $svg('mail', 22); ?></span><span><b><?php esc_html_e('Still have a question?', 'y4apk'); ?></b><small><?php esc_html_e('Send us a message: a person reads every one.', 'y4apk'); ?></small></span><?php echo $svg('arrow', 20); ?></a>
 					<?php endif; ?>
+				</article>
+			</div>
+
+		<?php elseif ($key === 'faq') : ?>
+			<div class="y4h-legal y4h-faq">
+				<aside class="y4h-toc">
+					<details class="y4h-toc-in" open>
+						<summary><?php echo $svg('list', 18); ?><b><?php esc_html_e('Topics', 'y4apk'); ?></b><span class="y4h-count"><?php echo esc_html(number_format_i18n(count($faq))); ?></span></summary>
+						<ol>
+							<?php foreach ($faq as $g) : ?>
+								<li><a href="#<?php echo esc_attr($g['id']); ?>"><span><?php echo $svg($g['icon'], 16); ?></span><?php echo esc_html($g['t']); ?></a></li>
+							<?php endforeach; ?>
+						</ol>
+					</details>
+					<a class="y4h-cta y4h-cta-side" href="<?php echo esc_url(Y4APK_Help::url('contact')); ?>"><span class="y4h-cta-ic"><?php echo $svg('mail', 20); ?></span><span><b><?php esc_html_e('Contact us', 'y4apk'); ?></b><small><?php esc_html_e('We read every message.', 'y4apk'); ?></small></span></a>
+				</aside>
+				<article class="y4h-doc">
+					<label class="y4h-fsearch"><?php echo $svg('search', 20); ?><input type="search" data-y4h-find placeholder="<?php esc_attr_e('Search the questions', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search the questions', 'y4apk'); ?>" autocomplete="off" enterkeyhint="search"></label>
+					<?php foreach ($faq as $g) : ?>
+						<section class="y4h-sec y4h-fgroup" id="<?php echo esc_attr($g['id']); ?>">
+							<h2><span class="y4h-n"><?php echo $svg($g['icon'], 18); ?></span><?php echo esc_html($g['t']); ?></h2>
+							<div class="y4h-qs">
+								<?php foreach ($g['q'] as $q) : ?>
+									<details class="y4h-q" id="q-<?php echo esc_attr($q[0]); ?>">
+										<summary><span><?php echo esc_html($q[1]); ?></span><?php echo $svg('chevron', 22); ?></summary>
+										<div class="y4h-a"><?php echo empty($g['own']) ? '<p>' . $fill($q[2]) . '</p>' : wpautop(wp_kses_post($q[2])); ?></div>
+									</details>
+								<?php endforeach; ?>
+							</div>
+						</section>
+					<?php endforeach; ?>
+					<p class="y4h-fnone" data-y4h-none hidden><?php echo $fill(__('No question matches. <a href="{contact}">Ask us</a> and a person will answer.', 'y4apk')); ?></p>
+					<a class="y4h-cta" href="<?php echo esc_url(Y4APK_Help::url('contact')); ?>"><span class="y4h-cta-ic"><?php echo $svg('mail', 22); ?></span><span><b><?php esc_html_e('Didn’t find your answer?', 'y4apk'); ?></b><small><?php esc_html_e('Send us a message: a person reads every one.', 'y4apk'); ?></small></span><?php echo $svg('arrow', 20); ?></a>
 				</article>
 			</div>
 
@@ -283,7 +345,7 @@ get_header();
 		<?php endif; ?>
 	</div>
 </main>
-<?php if ($legal) : ?>
+<?php if ($legal || $faq) : ?>
 <script id="y4apk-pwa-help-toc" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
 (function () {
 	var toc = document.querySelector('.y4h-toc-in'), links = toc ? [].slice.call(toc.querySelectorAll('a[href^="#"]')) : [];
@@ -299,7 +361,42 @@ get_header();
 	[].forEach.call(document.querySelectorAll('.y4h-sec[id]'), function (s) { io.observe(s); });
 })();
 </script>
-<?php else : ?>
+<?php endif; ?>
+<?php if ($faq) : ?>
+<script id="y4apk-pwa-help-faq" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
+(function () {
+	var d = document, qs = [].slice.call(d.querySelectorAll('.y4h-q')), find = d.querySelector('[data-y4h-find]'), none = d.querySelector('[data-y4h-none]');
+	// A link to one question (#q-obb) opens it
+	var go = function () {
+		var id = decodeURIComponent(location.hash.slice(1)), q = id ? d.getElementById(id) : null;
+		if (q && q.classList.contains('y4h-q')) { q.open = true; setTimeout(function () { q.scrollIntoView({block: 'start'}); }, 30); }
+	};
+	go(); window.addEventListener('hashchange', go);
+	// An opened question puts its own address in the bar, ready to share
+	qs.forEach(function (q) {
+		q.addEventListener('toggle', function () { if (q.open && history.replaceState) { history.replaceState(null, '', '#' + q.id); } });
+	});
+	if (!find) { return; }
+	var norm = function (s) { return String(s || '').toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); };
+	var text = qs.map(function (q) { return norm(q.textContent); });
+	var was = null;
+	var run = function () {
+		var words = norm(find.value).split(/\s+/).filter(Boolean), hits = 0;
+		if (words.length && was === null) { was = qs.map(function (q) { return q.open; }); }
+		qs.forEach(function (q, i) {
+			var ok = words.every(function (w) { return text[i].indexOf(w) !== -1; });
+			q.hidden = !ok; if (ok) { hits++; }
+		});
+		[].forEach.call(d.querySelectorAll('.y4h-fgroup'), function (g) { g.hidden = !g.querySelector('.y4h-q:not([hidden])'); });
+		if (words.length) { qs.forEach(function (q) { if (!q.hidden) { q.open = hits <= 3; } }); }
+		else if (was) { qs.forEach(function (q, i) { q.open = was[i]; }); was = null; }
+		none.hidden = hits > 0;
+	};
+	find.addEventListener('input', run);
+})();
+</script>
+<?php endif; ?>
+<?php if (!$legal && !$faq) : ?>
 <script id="y4apk-pwa-help" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>
 (function () {
 	var d = document, form = d.querySelector('[data-y4h-form]');
@@ -400,4 +497,5 @@ get_header();
 })();
 </script>
 <?php endif; ?>
-<?php get_template_part('template/footer'); get_footer(); ?>
+<?php get_template_part('template/footer'); get_footer();
+})();

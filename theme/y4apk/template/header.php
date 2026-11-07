@@ -275,7 +275,7 @@ if ($subcategories_2) {
                 'customize' => Y4APK_Members::url('customize'),
                 'settings'  => Y4APK_Members::url('settings'),
                 'logout'    => Y4APK_Members::url('logout'),
-                'help'      => class_exists('Y4APK_Help') ? Y4APK_Help::url('contact') : '',
+                'help'      => class_exists('Y4APK_Help') ? Y4APK_Help::url('faq') : '',
                 'feedback'  => class_exists('Y4APK_Help') ? Y4APK_Help::url('feedback') : '',
                 'profile'   => home_url('/@'),
                 'ajax'      => admin_url('admin-ajax.php'),

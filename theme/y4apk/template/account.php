@@ -73,13 +73,13 @@ $field = function ($label, $name, $type = 'text', $extra = []) use ($v) {
 $pitch = function ($title, $text) {
 	?>
 	<aside class="acc-pitch">
-		<span class="acc-pitch-tag"><?php esc_html_e('Games · Apps · Roblox scripts', 'y4apk'); ?></span>
+		<span class="acc-pitch-tag"><?php esc_html_e('Games · Apps · Scripts', 'y4apk'); ?></span>
 		<h2><?php echo esc_html($title); ?></h2>
 		<p><?php echo esc_html($text); ?></p>
 		<ul>
-			<li><?php esc_html_e('Share a game or app file (up to 10 GB), or a Roblox script in a minute.', 'y4apk'); ?></li>
-			<li><?php esc_html_e('Reach the people who look for them every day.', 'y4apk'); ?></li>
-			<li><?php esc_html_e('See how many people view and download what you share.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('Share files up to 10 GB, or a script.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('Reach people who look for them daily.', 'y4apk'); ?></li>
+			<li><?php esc_html_e('See your views and downloads.', 'y4apk'); ?></li>
 		</ul>
 	</aside>
 	<?php
@@ -250,7 +250,7 @@ get_header();
 
 /* ======================================================= sign in */
 if ($screen === 'login') {
-	$shell_open(__('Welcome back', 'y4apk'), __('Sign in to see how your uploads are doing and to share new ones.', 'y4apk'));
+	$shell_open(__('Welcome back', 'y4apk'), __('Sign in to share and track your uploads.', 'y4apk'));
 	?>
 	<h1><?php esc_html_e('Sign in', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
@@ -275,7 +275,7 @@ if ($screen === 'login') {
 
 /* ======================================================= register */
 } elseif ($screen === 'register') {
-	$shell_open(__('Join Y4APK', 'y4apk'), __('Make a free account to share games, apps and Roblox scripts, and follow the people who share them.', 'y4apk'));
+	$shell_open(__('Join Y4APK', 'y4apk'), __('Make a free account to start sharing.', 'y4apk'));
 	?>
 	<h1><?php esc_html_e('Create an account', 'y4apk'); ?></h1>
 	<?php if (!$M::open()) : ?>

@@ -23,7 +23,7 @@ require_once __DIR__ . '/help-texts.php';
 
 class Y4APK_Help {
 
-	const VERSION = '1';
+	const VERSION = '2'; // 2.53: the FAQ page
 	const CPT     = 'y4apk_ticket';
 	const MAP     = 'y4apk_help_pages';  // [key => page ID]
 	const OWN     = 'y4apk_help_own';    // [key => 1]: that page shows its own text
@@ -69,6 +69,8 @@ class Y4APK_Help {
 				'find' => ['contact', 'contact-us'], 'h1' => __('Contact us', 'y4apk'), 'lead' => __('Questions, problems, copyright notices or ideas for working together: send us a message and a person will read it.', 'y4apk')],
 			'feedback'  => ['slug' => 'feedback', 'title' => __('Feedback', 'y4apk'), 'tag' => __('Feedback', 'y4apk'), 'icon' => 'chat', 'tint' => 'teal',
 				'find' => ['feedback', 'send-feedback'], 'h1' => __('Send feedback', 'y4apk'), 'lead' => __('Tell us what you like and what we should do better. We read every message.', 'y4apk')],
+			'faq'       => ['slug' => 'faq', 'title' => __('FAQ', 'y4apk'), 'tag' => __('Help', 'y4apk'), 'icon' => 'help', 'tint' => 'sky',
+				'find' => ['faq', 'faqs', 'frequently-asked-questions'], 'h1' => __('Frequently asked questions', 'y4apk'), 'lead' => __('Answers about downloads, MODs, scripts and your account.', 'y4apk')],
 		];
 	}
 
@@ -177,7 +179,7 @@ class Y4APK_Help {
 		$map = get_option(self::MAP, []);
 		$ids = is_array($map) ? array_map('intval', $map) : [];
 		$out = [];
-		foreach (['terms', 'privacy', 'dmca', 'copyright', 'contact', 'feedback'] as $k) {
+		foreach (['terms', 'privacy', 'dmca', 'copyright', 'contact', 'feedback', 'faq'] as $k) {
 			$out[] = [self::url($k), self::pages()[$k]['title']];
 		}
 		$paths = [];
@@ -210,10 +212,10 @@ class Y4APK_Help {
 	public static function topics() {
 		return [
 			'general'  => [__('General question', 'y4apk'), 'help'],
-			'problem'  => [__('Report a problem or bug', 'y4apk'), 'bug'],
+			'problem'  => [__('Report content or a bug', 'y4apk'), 'bug'],
 			'copy'     => [__('Copyright notice', 'y4apk'), 'copyright'],
 			'privacy'  => [__('Privacy or data request', 'y4apk'), 'shield'],
-			'account'  => [__('Account help', 'y4apk'), 'user'],
+			'account'  => [__('Account help & appeals', 'y4apk'), 'user'],
 			'business' => [__('Advertising & partnerships', 'y4apk'), 'megaphone'],
 		];
 	}

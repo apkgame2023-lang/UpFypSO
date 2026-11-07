@@ -1226,7 +1226,7 @@ class Y4APK_I18n {
 			'back'  => '<path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2Z"/>',
 			'check' => '<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/>',
 			'close' => '<path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4Z"/>',
-			'search' => '<path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.8l5 5 1.5-1.5-5-5Zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/>',
+			'search' => '<path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5Zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14Z"/>',
 			'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
 			'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
 		];
@@ -1286,7 +1286,7 @@ class Y4APK_I18n {
 			'cc'    => 'AF AX AL DZ AS AD AO AI AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BR BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UY UZ VU VE VN VG VI WF EH YE ZM ZW',
 			'i'     => array_intersect_key(self::icons(), array_flip(['globe', 'pin', 'next', 'back', 'check', 'close', 'search', 'help', 'chat'])),
 			// Help and the policies, under Language and Location (as YouTube's and UpFypSO's menus have them, 2.52)
-			'help'  => class_exists('Y4APK_Help') ? [['help', Y4APK_Help::url('contact'), __('Help and contact', 'y4apk')], ['chat', Y4APK_Help::url('feedback'), __('Send feedback', 'y4apk')]] : [],
+			'help'  => class_exists('Y4APK_Help') ? [['help', Y4APK_Help::url('faq'), __('Help and contact', 'y4apk')], ['chat', Y4APK_Help::url('feedback'), __('Send feedback', 'y4apk')]] : [],
 			'legal' => class_exists('Y4APK_Help') ? [[Y4APK_Help::url('terms'), __('Terms of Service', 'y4apk')], [Y4APK_Help::url('privacy'), __('Privacy Policy', 'y4apk')], [Y4APK_Help::url('dmca'), __('DMCA Policy', 'y4apk')]] : [],
 			'T'     => [
 				'title'     => __('Language and location', 'y4apk'),

@@ -638,6 +638,46 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
+
+**FAQ** (/faq/): the page the site already had is now drawn like the other
+help pages (Y4APK ▸ Support ▸ Pages can switch it back). 24 answers in six
+groups (downloading and installing, MODs and safety, Roblox scripts and
+executors, your account and sharing, languages and the app, copyright and
+reports), a *Topics* list, a search box that filters the questions as you
+type, and a link for each question (/faq/#q-obb opens that one). The OBB
+answer links to the site's own *Install OBB* page when it has one. Questions
+added in Appearance ▸ Customize ▸ FAQ follow under *More questions* (the
+theme's old sample ones and the OBB one the FAQ already answers are left
+out). *Help and contact* in the header menus opens the FAQ; it has *Contact
+us* beside it and at the end. The footer lists FAQ after Feedback.
+
+**Legal pages**, what the laws outside the US ask for, kept short:
+- Terms: how to report content that is illegal where you live; when we
+  remove something we say which rule or law, and a decision can be appealed
+  within 6 months and a person reviews it (EU Digital Services Act); some
+  text and translations are written with AI help and may have mistakes.
+- Privacy: who is responsible for the data (the "controller"), consent
+  first for analytics and ad cookies where the law asks (EEA, UK,
+  Switzerland), what automatic checks of uploads do, personalised ads under
+  US state laws and how to turn them off, telling people and authorities
+  about a breach, answers within 30 days with no worse treatment, parents
+  can ask for a child's data to be deleted.
+- DMCA: a counter-notice gives an address and phone number too (17 U.S.C.
+  § 512(g)(3)); other illegal content goes through Contact.
+- Contact topics: *Report content or a bug*, *Account help & appeals*.
+- No country or owner's name anywhere, on purpose: governing law and a
+  registered DMCA agent would have to name them.
+
+**Sign-in and register panel**: the tag reads *Games · Apps · Scripts*, and
+the lead and the three ticks are each one line.
+
+**Fixes from 2.52.2** (in this release): the tabs between Terms, Privacy and
+DMCA came out empty on the live site, because WordPress includes a template
+in the global scope and a plugin's wp_head (Rank Math's setup_postdata) set
+the global `$pages`; the template runs in a function of its own now. The
+magnifier of the Language and Location search box is the standard one.
+
 ## Help and legal pages, Support, titles of one's own (2.52)
 
 **Pages** (inc/help.php, template/help.php, assets/css/help.css), laid out the
