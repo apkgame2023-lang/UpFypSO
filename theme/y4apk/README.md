@@ -640,6 +640,14 @@ small letters. The Edit profile page says so.
 
 ## Members' titles without "by …", a post's own cover (2.55)
 
+2.55.1: the share form could be scrolled sideways on a computer: core.css makes
+every file input 100% wide, and the cover's hidden one took that from where
+it stood. It is 1 px now, and on every screen the page is clipped to its
+width (overflow-x: clip, which keeps the sticky parts working). *Post title*
+counts its letters (0 / 100) and says why a title of your own helps: people
+find the post by it, here and on Google — the name first, then what makes the
+version different.
+
 **Titles**: a member's game, app or version is no longer called "… by Dez"
 (the card, the page and the search say who shared it). The titles that have it
 lose it once, the first time an admin opens wp-admin after the update (their

@@ -785,7 +785,7 @@
 @media (prefers-reduced-motion: reduce) { .acc-badge i::after, .acc-newer i::after, .acc-exec-dot::after { animation: none; opacity: 0; } }
 
 /* A post's own cover (2.55): a 16:9 box in the share and script forms */
-.y4c { margin-top: 1rem; }
+.y4c { position: relative; margin-top: 1rem; }
 .y4c-box { position: relative; display: block; width: 100%; max-width: 30rem; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 1rem; cursor: pointer; background: #f4f8f9; box-shadow: inset 0 0 0 2px rgba(41, 177, 216, .25); transition: box-shadow .15s ease, background-color .15s ease; }
 .y4c-box:hover { background: #eef8fc; box-shadow: inset 0 0 0 2px #29b1d8; }
 .y4c-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -793,10 +793,12 @@
 .y4c-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .375rem; padding: 1rem; text-align: center; color: #1a93b6; border: 2px dashed rgba(41, 177, 216, .45); border-radius: 1rem; }
 .y4c-empty b { font-size: .9375rem; color: #172021; }
 .y4c-empty small { max-width: 22rem; font-size: .75rem; line-height: 1.45; color: rgba(23, 32, 33, .55); }
-.y4c-in { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.y4c .y4c-in { position: absolute; left: 0; top: 0; width: 1px !important; height: 1px !important; padding: 0 !important; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; pointer-events: none; } /* core.css makes every file input 100% wide: that pushed the page sideways (2.55.1) */
 .y4c-acts { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; margin-top: .625rem; }
 .y4c-pick { cursor: pointer; }
 .y4c-rm { display: inline-flex; align-items: center; gap: .375rem; font-size: .875rem; font-weight: 600; color: #c0392b; cursor: pointer; }
 .y4c-rm[hidden] { display: none; }
 .y4c .acc-hint.is-bad { color: #e5484d; font-weight: 600; }
 .y4c-in:focus-visible + .y4c-acts .y4c-pick { outline: 2px solid #29b1d8; outline-offset: 2px; }
+.shr-title { position: relative; }
+.shr-title .acc-wiz-count { position: absolute; right: 0; top: .125rem; } /* 0 / 100 beside "Post title" (2.55.1) */

@@ -178,8 +178,9 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 				<p class="acc-wiz-lead"><?php esc_html_e('What people get when they download it.', 'y4apk'); ?></p>
 				<div class="acc-field shr-title">
 					<label for="f-title"><?php esc_html_e('Post title', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
-					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title></div>
-					<p class="acc-hint"><?php esc_html_e('Leave it empty and the post gets the title shown in grey, made like every page on the site (best for search). Your own must have the game’s or app’s name in it, or the name is added at the start. No links.', 'y4apk'); ?></p>
+					<span class="acc-wiz-count" data-count-for="f-title"></span>
+					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title data-counted></div>
+					<p class="acc-hint"><?php esc_html_e('A clear title of your own helps people find your post, here and on Google: the game’s or app’s name first, then what makes your version different, such as its MOD or the version. Up to 100 characters, no links. Left empty, the post gets the title shown in grey.', 'y4apk'); ?></p>
 				</div>
 				<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $sh['post']->ID : 0); } ?>
 				<div class="shr-row2">
