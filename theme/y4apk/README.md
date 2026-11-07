@@ -640,6 +640,14 @@ small letters. The Edit profile page says so.
 
 ## Search, the way a search engine answers (2.54)
 
+2.54.2: **members' posts as picture cards**, the cards of their profiles
+(the wide picture, views, age, Keyless, the title, the Roblox game or "A version
+of …", and the member): under *All* a *From members* shelf of up to eight after
+the first three results (*See all n →*), a *From members* tab, and the
+*Scripts*, *Members' versions* and *From members* tabs as card columns (four,
+three beside the side panel, two on phones). A member searched by name: their
+channel card, then *Posts by …* (their latest eight), not repeated in the shelf.
+
 2.54.1: the search also reads each post's **MOD features** (wp_mods, which a
 member fills with the MOD ticks and *Something else?*), its **developer**, and
 **what a member wrote** about their upload (*A few words*, kept apart once

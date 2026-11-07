@@ -25,7 +25,7 @@ class Y4APK_Search {
 
 	const PER   = 20;
 	const CACHE = 900;
-	const VER   = '2'; // 2.54.1: MOD features, developer, members' own words
+	const VER   = '3'; // 2.54.2: who posted each result
 	/** The answer for this page, once worked out. */
 	public static $r = null;
 
@@ -36,7 +36,8 @@ class Y4APK_Search {
 		add_filter('posts_pre_query', [__CLASS__, 'skip_main'], 10, 2);
 		add_action('wp_enqueue_scripts', function () {
 			if (is_search()) {
-				wp_enqueue_style('y4apk-search', get_template_directory_uri() . '/assets/css/search.css', ['core'], Y4APK_THEME_VERSION);
+				wp_enqueue_style('y4apk-roblox', get_template_directory_uri() . '/assets/css/roblox.css', ['core', 'styles'], Y4APK_THEME_VERSION); // the picture cards (2.54.2)
+				wp_enqueue_style('y4apk-search', get_template_directory_uri() . '/assets/css/search.css', ['core', 'y4apk-roblox'], Y4APK_THEME_VERSION);
 			}
 		}, 20);
 	}
@@ -374,7 +375,7 @@ class Y4APK_Search {
 			if ($kind === 'page') {
 				$best -= 40;
 			}
-			$out[] = [$id, round($best, 1), $kind, $kinds[$id][1] ?? ''];
+			$out[] = [$id, round($best, 1), $kind, $kinds[$id][1] ?? '', 0, (int) $r->post_author]; // [4]: the "more versions" mark, [5]: who posted it
 		}
 		usort($out, function ($a, $b) { return $b[1] <=> $a[1] ?: $b[0] <=> $a[0]; });
 		return ['items' => $out, 'games' => $games, 'fix' => ''];
@@ -433,7 +434,7 @@ class Y4APK_Search {
 	public static function labels($plural = false) {
 		return $plural
 			? ['game' => __('Games', 'y4apk'), 'app' => __('Apps', 'y4apk'), 'script' => __('Scripts', 'y4apk'), 'version' => __('Members’ versions', 'y4apk'), 'y4apk_executor' => __('Executors', 'y4apk'),
-				'articles' => __('Articles', 'y4apk'), 'news' => __('News', 'y4apk'), 'page' => __('Pages', 'y4apk'), 'member' => __('Members', 'y4apk'), 'post' => __('Other', 'y4apk')]
+				'articles' => __('Articles', 'y4apk'), 'news' => __('News', 'y4apk'), 'page' => __('Pages', 'y4apk'), 'member' => __('Members', 'y4apk'), 'from' => __('From members', 'y4apk'), 'post' => __('Other', 'y4apk')]
 			: ['game' => __('Game', 'y4apk'), 'app' => __('App', 'y4apk'), 'script' => __('Script', 'y4apk'), 'version' => __('Member version', 'y4apk'), 'y4apk_executor' => __('Executor', 'y4apk'),
 				'articles' => __('Article', 'y4apk'), 'news' => __('News', 'y4apk'), 'page' => __('Page', 'y4apk'), 'post' => ''];
 	}
@@ -459,10 +460,27 @@ class Y4APK_Search {
 		if ($people) {
 			$counts['member'] = count($people);
 		}
+		// Members' own posts (2.54.2): a tab of picture cards, and a shelf of them under "All"
+		$mine = function ($it) {
+			static $ok = [];
+			$a = (int) ($it[5] ?? 0);
+			if (!$a || !in_array($it[2], ['script', 'version', 'game', 'app'], true) || !class_exists('Y4APK_Members')) {
+				return false;
+			}
+			if (!isset($ok[$a])) {
+				$u = get_userdata($a);
+				$ok[$a] = $u && Y4APK_Members::is_public($u);
+			}
+			return $ok[$a];
+		};
+		$from = array_values(array_filter($res['items'], $mine));
+		if ($from) {
+			$counts['from'] = count($from);
+		}
 		if ($type !== '' && empty($counts[$type])) {
 			$type = '';
 		}
-		$list = $type === '' ? $res['items'] : ($type === 'member' ? [] : array_values(array_filter($res['items'], function ($it) use ($type) { return $it[2] === $type; })));
+		$list = $type === '' ? $res['items'] : ($type === 'member' ? [] : ($type === 'from' ? $from : array_values(array_filter($res['items'], function ($it) use ($type) { return $it[2] === $type; }))));
 		$more = [];
 		if ($type === '' && !empty($counts['version'])) { // "All": two members' versions of a game, and a link to the rest (as Google folds one site's pages)
 			$vids = array_map(function ($it) { return (int) $it[0]; }, array_filter($list, function ($it) { return $it[2] === 'version'; }));
@@ -485,6 +503,22 @@ class Y4APK_Search {
 			}
 			$list = $kept;
 		}
+		$shelf = [];
+		$shelf_total = 0;
+		if ($type === '' && $from) {
+			$rows = [];
+			foreach ($list as $it) {
+				if ($mine($it)) {
+					$shelf_total++;
+					if (count($shelf) < 8) {
+						$shelf[] = $it;
+					}
+				} else {
+					$rows[] = $it;
+				}
+			}
+			$list = $rows;
+		}
 		$paged = max(1, isset($_GET['pg']) ? (int) $_GET['pg'] : (int) get_query_var('paged')); // ?pg=2: /page/2/ would 404 (WordPress's own query is not run here)
 		$pages = (int) ceil(count($list) / self::PER);
 		$paged = min($paged, max(1, $pages));
@@ -503,13 +537,30 @@ class Y4APK_Search {
 			$items[] = $row;
 		}
 		$top = $paged === 1 && $type === '' && $items && $slice[0][1] >= 700 ? array_shift($items) : null;
+		$shelf_items = [];
+		if ($paged === 1) {
+			_prime_post_caches(array_map(function ($it) { return (int) $it[0]; }, $shelf), false, true);
+			foreach ($shelf as $it) {
+				$shelf_items[] = self::item($it, $words[1]);
+			}
+		}
+		$channel = $people && $people[0]['exact'] && $type === '' && $paged === 1 ? $people[0] : null;
+		$cposts = $channel ? self::channel_posts($channel['login']) : [];
+		if ($cposts) { // the member's posts are in the row under their card: not again in the shelf
+			$cids = array_map(function ($x) { return $x['id']; }, $cposts);
+			$shelf_items = array_values(array_filter($shelf_items, function ($x) use ($cids) { return !in_array($x['id'], $cids, true); }));
+		}
 		self::$r = [
 			'q'      => $q,
 			'fix'    => $res['fix'],
 			'type'   => $type,
 			'counts' => $counts,
 			'total'  => count($res['items']) + count($people),
-			'channel' => $people && $people[0]['exact'] && $type === '' && max(1, isset($_GET['pg']) ? (int) $_GET['pg'] : 1) === 1 ? $people[0] : null,
+			'channel' => $channel,
+			'cposts' => $cposts,
+			'shelf'  => $shelf_items,
+			'shelf_total' => max($shelf_total, $counts['from'] ?? 0),
+			'grid'   => in_array($type, ['script', 'version', 'from'], true),
 			'members' => $type === 'member' ? $people : [],
 			'shown'  => $type === 'member' ? count($people) : ($type === '' ? count($res['items']) + count($people) : count($list)),
 			'top'    => $top,
@@ -566,7 +617,30 @@ class Y4APK_Search {
 			'date'    => get_post_modified_time('U', true, $id),
 			'views'   => (int) get_post_meta($id, 'wpb_post_views_count', true),
 			'mods'    => in_array($kind, ['game', 'app', 'version'], true) && !in_array(strtolower($mods), ['', 'original', '-', '—'], true) ? html_entity_decode(wp_trim_words($mods, 14), ENT_QUOTES, 'UTF-8') : '',
+			'thumb'   => class_exists('Y4APK_Roblox') ? (string) Y4APK_Roblox::thumb($id) : '',
+			'keyless' => $kind === 'script' && class_exists('Y4APK_Roblox') && Y4APK_Roblox::keyless(get_the_title($id)),
+			'gicon'   => $kind === 'script' && class_exists('Y4APK_Roblox') && ($g = Y4APK_Roblox::game_of($id)) ? (string) Y4APK_Roblox::icon_url($g) : '',
 		];
+	}
+
+	/** A member's latest posts, for the row under their channel card. */
+	private static function channel_posts($login) {
+		$u = get_user_by('login', $login);
+		if (!$u) {
+			return [];
+		}
+		$ids = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'author' => $u->ID, 'posts_per_page' => 8, 'fields' => 'ids', 'no_found_rows' => true, 'y4_children' => 1]);
+		$rows = [];
+		foreach ($ids as $id) {
+			$r = (object) ['post_type' => 'post', 'parent' => get_post_meta($id, '_y4apk_parent', true)];
+			$rows[(int) $id] = $r;
+		}
+		$kinds = self::kinds($rows);
+		$out = [];
+		foreach ($ids as $id) {
+			$out[] = self::item([(int) $id, 0, $kinds[$id][0] ?? 'post', $kinds[$id][1] ?? '', 0, $u->ID], []);
+		}
+		return $out;
 	}
 
 	/** About 170 letters of the text around the first word searched. */

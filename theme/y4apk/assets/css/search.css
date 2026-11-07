@@ -137,3 +137,19 @@
 .y4q-pages a, .y4q-pages span { display: grid; place-items: center; min-width: 2.5rem; height: 2.5rem; padding: 0 .75rem; border-radius: 1.25rem; font-size: .9375rem; font-weight: 700; color: var(--s-ink); background: #fff; box-shadow: 0 0 0 1px var(--s-line); }
 .y4q-pages a:hover { box-shadow: 0 0 0 2px var(--s-blue); }
 .y4q-pages .is-on { color: #fff; background: var(--s-ink); box-shadow: none; }
+
+/* Members' posts as picture cards (2.54.2): the shelf under "All", the card tabs, a member's posts */
+.y4q-grid { margin: 0 0 .5rem; }
+.y4q-shelf { margin: .75rem 0 1rem; padding: 1rem 0 .5rem; border-top: 1px solid var(--s-line); border-bottom: 1px solid var(--s-line); }
+.y4q-shelf-channel { margin-top: 0; border-top: 0; padding-top: 0; }
+.y4q-shelf-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 .875rem; }
+.y4q-shelf-head h2 { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: 1.125rem; }
+.y4q-shelf-head h2 svg { color: #6a4fd8; }
+.y4q-shelf-head a { flex: none; font-size: .875rem; font-weight: 700; color: var(--s-blue-d); }
+.y4q-card .rbx-card-title mark { color: inherit; }
+.y4q-card .rbx-card-media { position: relative; }
+.y4q-card-kind { position: absolute; right: .5rem; bottom: .5rem; z-index: 1; box-shadow: 0 .25rem .75rem -.25rem rgba(0, 0, 0, .5); }
+.y4q-card-by { display: flex; align-items: center; gap: .375rem; margin-top: .375rem; font-size: .8125rem; font-weight: 600; color: var(--s-text); }
+.y4q-card-by .acc-av { width: 1.25rem !important; height: 1.25rem !important; font-size: .625rem !important; }
+.y4q-card-by span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 62rem) { .y4q-body.has-side .y4q-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

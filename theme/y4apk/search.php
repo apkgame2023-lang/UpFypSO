@@ -48,6 +48,45 @@ $meta = function ($it) use ($L) {
 	}
 	return implode('<i aria-hidden="true">·</i>', $m);
 };
+// A member's post as a picture card (2.54.2), as on their profile
+$card = function ($it) use ($R, $L) {
+	$rb = class_exists('Y4APK_Roblox');
+	?>
+	<article class="rbx-card y4q-card">
+		<a class="rbx-card-link" href="<?php echo esc_url($it['url']); ?>">
+			<span class="rbx-card-media">
+				<img src="<?php echo esc_url($it['thumb'] !== '' ? $it['thumb'] : $it['icon'], ['http', 'https', 'data']); ?>" alt="" loading="lazy" decoding="async" width="480" height="270">
+				<span class="rbx-chips">
+					<span class="rbx-chip"><?php echo $rb ? Y4APK_Roblox::icon('eye') : ''; ?><?php echo esc_html(Y4APK_Search::short($it['views'])); ?></span>
+					<?php if ($rb) : ?><span class="rbx-chip"><?php echo Y4APK_Roblox::icon('clock'); ?><?php echo esc_html(Y4APK_Roblox::ago($it['date'])); ?></span><?php endif; ?>
+				</span>
+				<?php if ($it['keyless']) : ?><span class="rbx-badge"><?php echo Y4APK_Roblox::icon('key'); ?><?php esc_html_e('Keyless', 'y4apk'); ?></span>
+				<?php elseif ($it['kind'] !== 'script' && !empty($L[$it['kind']])) : ?><span class="y4q-card-kind y4q-kind y4q-kind-<?php echo esc_attr($it['kind']); ?>"><?php echo esc_html($L[$it['kind']]); ?></span><?php endif; ?>
+			</span>
+			<span class="rbx-card-body">
+				<span class="rbx-card-title"><?php echo Y4APK_Search::mark($it['title'], $R['words']); ?></span>
+				<?php if ($it['cat'] !== '') : ?><span class="rbx-card-meta"><?php if ($it['gicon'] !== '') : ?><img class="rbx-card-game" src="<?php echo esc_url($it['gicon'], ['http', 'https', 'data']); ?>" alt="" width="20" height="20" loading="lazy"><?php endif; ?><span><?php echo esc_html($it['cat']); ?></span></span><?php endif; ?>
+				<?php if ($it['by']) : ?><span class="y4q-card-by"><?php echo $it['by']['avatar']; // escaped by Y4APK_Social::avatar ?><span><?php echo esc_html($it['by']['name']); ?></span></span><?php endif; ?>
+			</span>
+		</a>
+	</article>
+	<?php
+};
+$row = function ($it) use ($R, $q, $icon, $meta, $ic, $I) {
+	?>
+	<li class="y4q-item">
+		<a class="y4q-item-ic" href="<?php echo esc_url($it['url']); ?>" tabindex="-1" aria-hidden="true"><?php echo $icon($it, 64); ?></a>
+		<div class="y4q-item-t">
+			<h3><a href="<?php echo esc_url($it['url']); ?>"><?php echo Y4APK_Search::mark($it['title'], $R['words']); ?></a></h3>
+			<p class="y4q-meta"><?php echo $meta($it); ?><?php if ($it['views'] > 0) : ?><i aria-hidden="true">·</i><span class="y4q-views"><?php echo $ic($I['eye'], 13) . esc_html(Y4APK_Search::short($it['views'])); ?></span><?php endif; ?></p>
+			<?php if ($it['mods'] !== '') : ?><p class="y4q-mods"><b><?php esc_html_e('MOD', 'y4apk'); ?></b><span><?php echo Y4APK_Search::mark($it['mods'], $R['words']); ?></span></p><?php endif; ?>
+			<?php if ($it['snippet'] !== '') : ?><p class="y4q-snip"><?php echo Y4APK_Search::mark($it['snippet'], $R['words']); ?></p><?php endif; ?>
+		</div>
+	</li>
+	<?php if (!empty($it['more'])) : ?>
+		<li class="y4q-more"><a href="<?php echo esc_url(Y4APK_Search::url('version', $q)); ?>"><?php echo esc_html(sprintf(_n('%1$s more members’ version of %2$s', '%1$s more members’ versions of %2$s', $it['more']['n'], 'y4apk'), number_format_i18n($it['more']['n']), $it['more']['of'])); ?> →</a></li>
+	<?php endif;
+};
 $go_label = function ($kind) {
 	return in_array($kind, ['game', 'app', 'version'], true) ? __('Download', 'y4apk') : ($kind === 'script' ? __('Get the script', 'y4apk') : __('Open', 'y4apk'));
 };
@@ -95,6 +134,16 @@ get_header();
 					</article>
 				<?php endif; ?>
 
+				<?php if ($R['cposts']) : ?>
+					<section class="y4q-shelf y4q-shelf-channel">
+						<div class="y4q-shelf-head">
+							<h2><?php echo esc_html(sprintf(__('Posts by %s', 'y4apk'), $R['channel']['name'])); ?></h2>
+							<a href="<?php echo esc_url($R['channel']['url']); ?>"><?php esc_html_e('View profile', 'y4apk'); ?> →</a>
+						</div>
+						<div class="rbx-grid y4q-grid"><?php foreach ($R['cposts'] as $it) { $card($it); } ?></div>
+					</section>
+				<?php endif; ?>
+
 				<?php if ($R['members']) : ?>
 					<ul class="y4q-members">
 						<?php foreach ($R['members'] as $u) : ?>
@@ -121,24 +170,23 @@ get_header();
 					</article>
 				<?php endif; ?>
 
-				<?php if ($R['items']) : ?>
-					<ol class="y4q-list">
-						<?php foreach ($R['items'] as $it) : ?>
-							<li class="y4q-item">
-								<a class="y4q-item-ic" href="<?php echo esc_url($it['url']); ?>" tabindex="-1" aria-hidden="true"><?php echo $icon($it, 64); ?></a>
-								<div class="y4q-item-t">
-									<h3><a href="<?php echo esc_url($it['url']); ?>"><?php echo Y4APK_Search::mark($it['title'], $R['words']); ?></a></h3>
-									<p class="y4q-meta"><?php echo $meta($it); ?><?php if ($it['views'] > 0) : ?><i aria-hidden="true">·</i><span class="y4q-views"><?php echo $ic($I['eye'], 13) . esc_html(Y4APK_Search::short($it['views'])); ?></span><?php endif; ?></p>
-									<?php if ($it['mods'] !== '') : ?><p class="y4q-mods"><b><?php esc_html_e('MOD', 'y4apk'); ?></b><span><?php echo Y4APK_Search::mark($it['mods'], $R['words']); ?></span></p><?php endif; ?>
-									<?php if ($it['snippet'] !== '') : ?><p class="y4q-snip"><?php echo Y4APK_Search::mark($it['snippet'], $R['words']); ?></p><?php endif; ?>
-								</div>
-							</li>
-							<?php if (!empty($it['more'])) : ?>
-								<li class="y4q-more"><a href="<?php echo esc_url(Y4APK_Search::url('version', $q)); ?>"><?php echo esc_html(sprintf(_n('%1$s more members’ version of %2$s', '%1$s more members’ versions of %2$s', $it['more']['n'], 'y4apk'), number_format_i18n($it['more']['n']), $it['more']['of'])); ?> →</a></li>
-							<?php endif; ?>
-						<?php endforeach; ?>
-					</ol>
-				<?php endif; ?>
+				<?php if ($R['grid'] && $R['items']) : ?>
+					<div class="rbx-grid y4q-grid"><?php foreach ($R['items'] as $it) { $card($it); } ?></div>
+				<?php elseif ($R['items'] || $R['shelf']) :
+					$first = array_slice($R['items'], 0, 3);
+					$rest = array_slice($R['items'], 3);
+					if ($first) : ?><ol class="y4q-list"><?php foreach ($first as $it) { $row($it); } ?></ol><?php endif;
+					if ($R['shelf']) : ?>
+						<section class="y4q-shelf">
+							<div class="y4q-shelf-head">
+								<h2><?php echo $ic($I['user'], 18); ?><?php esc_html_e('From members', 'y4apk'); ?></h2>
+								<?php if ($R['shelf_total'] > count($R['shelf'])) : ?><a href="<?php echo esc_url(Y4APK_Search::url('from', $q)); ?>"><?php echo esc_html(sprintf(__('See all %s', 'y4apk'), number_format_i18n($R['shelf_total']))); ?> →</a><?php endif; ?>
+							</div>
+							<div class="rbx-grid y4q-grid"><?php foreach ($R['shelf'] as $it) { $card($it); } ?></div>
+						</section>
+					<?php endif;
+					if ($rest) : ?><ol class="y4q-list"><?php foreach ($rest as $it) { $row($it); } ?></ol><?php endif;
+				endif; ?>
 
 				<?php if (!$R['total']) : ?>
 					<div class="y4q-none">
