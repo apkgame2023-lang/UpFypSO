@@ -25,7 +25,7 @@ class Y4APK_Search {
 
 	const PER   = 20;
 	const CACHE = 900;
-	const VER   = '1';
+	const VER   = '2'; // 2.54.1: MOD features, developer, members' own words
 	/** The answer for this page, once worked out. */
 	public static $r = null;
 
@@ -165,13 +165,43 @@ class Y4APK_Search {
 		return $out;
 	}
 
-	private static function select() {
+	/** The columns every pass reads; $details adds the MOD features, the developer and a member's own words (2.54.1). */
+	private static function select($details = false) {
 		global $wpdb;
-		return "SELECT p.ID, p.post_title, p.post_type, p.post_date, p.post_author, gp.meta_value AS gname, CAST(v.meta_value AS UNSIGNED) AS views, par.meta_value AS parent
+		return "SELECT p.ID, p.post_title, p.post_type, p.post_date, p.post_author, gp.meta_value AS gname, CAST(v.meta_value AS UNSIGNED) AS views, par.meta_value AS parent"
+			. ($details ? ', md.meta_value AS mods, dv.meta_value AS dev, sh.meta_value AS share' : '') . "
 			FROM {$wpdb->posts} p
 			LEFT JOIN {$wpdb->postmeta} gp ON gp.post_id = p.ID AND gp.meta_key = 'wp_title_GP'
 			LEFT JOIN {$wpdb->postmeta} v ON v.post_id = p.ID AND v.meta_key = 'wpb_post_views_count'
-			LEFT JOIN {$wpdb->postmeta} par ON par.post_id = p.ID AND par.meta_key = '_y4apk_parent'";
+			LEFT JOIN {$wpdb->postmeta} par ON par.post_id = p.ID AND par.meta_key = '_y4apk_parent'"
+			. ($details ? "
+			LEFT JOIN {$wpdb->postmeta} md ON md.post_id = p.ID AND md.meta_key = 'wp_mods'
+			LEFT JOIN {$wpdb->postmeta} dv ON dv.post_id = p.ID AND dv.meta_key = 'wp_developers_GP'
+			LEFT JOIN {$wpdb->postmeta} sh ON sh.post_id = p.ID AND sh.meta_key = '_y4apk_share'" : '');
+	}
+
+	/** A member's own words about their upload (kept apart once Write with AI has written its article). */
+	private static function member_words($share) {
+		$d = is_string($share) && $share !== '' ? @unserialize($share, ['allowed_classes' => false]) : $share;
+		return is_array($d) ? trim((string) ($d['desc'] ?? '')) : '';
+	}
+
+	/** Does the text hold every word (all of them, or any one)? */
+	private static function holds($text, $keys, $all = true) {
+		$t = self::norm($text);
+		if ($t === '') {
+			return false;
+		}
+		foreach ($keys as $k) {
+			$in = strpos($t, $k) !== false;
+			if ($all && !$in) {
+				return false;
+			}
+			if (!$all && $in) {
+				return true;
+			}
+		}
+		return $all;
 	}
 
 	/** Every post that matches, ranked: ['items' => [[id, score, kind, cat], …], 'games' => [term ids], 'fix' => '', 'q' => '…']. */
@@ -245,21 +275,31 @@ class Y4APK_Search {
 			}
 		}
 
-		// 3. The words only in the text (a few hundred posts at most)
+		// 3. The words in the MOD features, the developer, a member's own words or the text (a few hundred posts at most)
 		if (self::len(implode('', $keys)) >= 3) {
 			$w = [];
 			$a = $types;
 			foreach ($keys as $k) {
-				$w[] = '(p.post_content LIKE %s OR p.post_excerpt LIKE %s)';
-				$a[] = $like($k);
-				$a[] = $like($k);
+				$w[] = '(p.post_content LIKE %s OR p.post_excerpt LIKE %s OR md.meta_value LIKE %s OR dv.meta_value LIKE %s OR sh.meta_value LIKE %s)';
+				array_push($a, $like($k), $like($k), $like($k), $like($k), $like($k));
 			}
 			$not = $rows ? ' AND p.ID NOT IN (' . implode(',', array_map('intval', array_keys($rows))) . ')' : '';
-			foreach ((array) $wpdb->get_results($wpdb->prepare(self::select() . " WHERE p.post_status = 'publish' AND p.post_type IN ($tin) AND " . implode(' AND ', $w) . $not . ' ORDER BY views DESC LIMIT 150', $a)) as $r) {
-				if (!isset($rows[(int) $r->ID])) {
-					$rows[(int) $r->ID] = $r;
-					$from[(int) $r->ID] = 'text';
+			foreach ((array) $wpdb->get_results($wpdb->prepare(self::select(true) . " WHERE p.post_status = 'publish' AND p.post_type IN ($tin) AND " . implode(' AND ', $w) . $not . ' ORDER BY views DESC LIMIT 200', $a)) as $r) {
+				$id = (int) $r->ID;
+				if (isset($rows[$id])) {
+					continue;
 				}
+				$details = trim($r->mods . ' ' . $r->dev);
+				if (self::holds($details, $keys)) {
+					$from[$id] = 'details';
+				} elseif (self::holds(self::member_words($r->share), $keys)) {
+					$from[$id] = 'words';
+				} elseif ($r->share && !self::holds(get_post_field('post_content', $id) . ' ' . get_post_field('post_excerpt', $id) . ' ' . $details . ' ' . self::member_words($r->share) . ' ' . $r->post_title, $keys)) {
+					continue; // the words were only in the names of the member's answers ("files", "package" …), not in anything written
+				} else {
+					$from[$id] = 'text';
+				}
+				$rows[$id] = $r;
 			}
 		}
 
@@ -315,6 +355,10 @@ class Y4APK_Search {
 				$best = $best ?: 200; // a word was in the name in another form
 			} elseif ($from[$id] === 'game') {
 				$best = 260;
+			} elseif ($from[$id] === 'details') {
+				$best = 150; // in its MOD features or its developer
+			} elseif ($from[$id] === 'words') {
+				$best = 110; // in what the member wrote about it
 			} else {
 				$best = 90;
 			}
@@ -503,6 +547,11 @@ class Y4APK_Search {
 				'avatar' => class_exists('Y4APK_Social') ? Y4APK_Social::avatar($u, 20) : ''];
 		}
 		$text = has_excerpt($id) ? $post->post_excerpt : $post->post_content;
+		$words = self::member_words(get_post_meta($id, '_y4apk_share', true));
+		if ($words !== '' && !self::holds(wp_strip_all_tags($text), $keys, false) && self::holds($words, $keys, false)) {
+			$text = $words; // the article has none of the words; what the member wrote has
+		}
+		$mods = trim(wp_strip_all_tags((string) get_post_meta($id, 'wp_mods', true)));
 		return [
 			'id'      => $id,
 			'kind'    => $kind,
@@ -516,6 +565,7 @@ class Y4APK_Search {
 			'snippet' => self::snippet($text, $keys),
 			'date'    => get_post_modified_time('U', true, $id),
 			'views'   => (int) get_post_meta($id, 'wpb_post_views_count', true),
+			'mods'    => in_array($kind, ['game', 'app', 'version'], true) && !in_array(strtolower($mods), ['', 'original', '-', '—'], true) ? html_entity_decode(wp_trim_words($mods, 14), ENT_QUOTES, 'UTF-8') : '',
 		];
 	}
 

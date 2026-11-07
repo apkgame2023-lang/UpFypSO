@@ -640,6 +640,14 @@ small letters. The Edit profile page says so.
 
 ## Search, the way a search engine answers (2.54)
 
+2.54.1: the search also reads each post's **MOD features** (wp_mods, which a
+member fills with the MOD ticks and *Something else?*), its **developer**, and
+**what a member wrote** about their upload (*A few words*, kept apart once
+Write with AI has written the article; a script's *About this script* is its
+text already). A match there ranks above one in the text; the results show a
+**MOD** line under the title, and the words around a match in what the
+member wrote when the article has none of them.
+
 **What it searches** (inc/search.php): everything on Y4APK — games and apps,
 members' own versions of them, Roblox scripts (a member's or the site's),
 executors, articles, news and the site's pages — and members.

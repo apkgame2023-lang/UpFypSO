@@ -86,6 +86,9 @@
 .y4q-by .acc-av { width: 1.25rem !important; height: 1.25rem !important; font-size: .625rem !important; }
 .y4q-views { display: inline-flex; align-items: center; gap: .1875rem; }
 .y4q-snip { margin: .375rem 0 0; font-size: .875rem; line-height: 1.6; color: var(--s-text); overflow-wrap: anywhere; }
+.y4q-mods { display: flex; align-items: baseline; gap: .375rem; margin: .375rem 0 0; font-size: .8125rem; line-height: 1.45; color: var(--s-text); }
+.y4q-mods b { flex: none; padding: .0625rem .375rem; border-radius: .3125rem; font-size: .625rem; letter-spacing: .06em; color: #fff; background: linear-gradient(135deg, #36c5ec, #1f6fd1); }
+.y4q-mods span { min-width: 0; overflow-wrap: anywhere; }
 .y4q mark { padding: 0; font-weight: 700; color: inherit; background: none; }
 .y4q-snip mark { color: var(--s-ink); }
 @media (max-width: 40rem) {

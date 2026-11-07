@@ -114,6 +114,7 @@ get_header();
 							<span class="y4q-eyebrow"><?php esc_html_e('Best match', 'y4apk'); ?></span>
 							<h2><a href="<?php echo esc_url($t['url']); ?>"><?php echo Y4APK_Search::mark($t['name'] !== '' && $t['kind'] !== 'version' ? $t['name'] : $t['title'], $R['words']); ?></a></h2>
 							<p class="y4q-meta"><?php echo $meta($t); ?></p>
+							<?php if ($t['mods'] !== '') : ?><p class="y4q-mods"><b><?php esc_html_e('MOD', 'y4apk'); ?></b><span><?php echo Y4APK_Search::mark($t['mods'], $R['words']); ?></span></p><?php endif; ?>
 							<?php if ($t['snippet'] !== '') : ?><p class="y4q-snip"><?php echo Y4APK_Search::mark($t['snippet'], $R['words']); ?></p><?php endif; ?>
 						</div>
 						<a class="y4q-top-go" href="<?php echo esc_url($t['url'] . (in_array($t['kind'], ['game', 'app', 'version', 'script'], true) ? '#download-now' : '')); ?>"><?php echo $ic(in_array($t['kind'], ['game', 'app', 'version'], true) ? $I['down'] : $I['arrow'], 18); ?><span><?php echo esc_html($go_label($t['kind'])); ?></span></a>
@@ -128,6 +129,7 @@ get_header();
 								<div class="y4q-item-t">
 									<h3><a href="<?php echo esc_url($it['url']); ?>"><?php echo Y4APK_Search::mark($it['title'], $R['words']); ?></a></h3>
 									<p class="y4q-meta"><?php echo $meta($it); ?><?php if ($it['views'] > 0) : ?><i aria-hidden="true">·</i><span class="y4q-views"><?php echo $ic($I['eye'], 13) . esc_html(Y4APK_Search::short($it['views'])); ?></span><?php endif; ?></p>
+									<?php if ($it['mods'] !== '') : ?><p class="y4q-mods"><b><?php esc_html_e('MOD', 'y4apk'); ?></b><span><?php echo Y4APK_Search::mark($it['mods'], $R['words']); ?></span></p><?php endif; ?>
 									<?php if ($it['snippet'] !== '') : ?><p class="y4q-snip"><?php echo Y4APK_Search::mark($it['snippet'], $R['words']); ?></p><?php endif; ?>
 								</div>
 							</li>
