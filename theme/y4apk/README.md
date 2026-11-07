@@ -744,6 +744,11 @@ download, and a new folder is named with it. The version's ending follows
   script's own (the editor's "Tested with executors" box) still comes first
   and says "tested with".
 
+2.50.7: scripts showing the site's executors (your older ones) got the
+block without its styles — the stylesheet came only with a script's own
+list. Both now go through one rule (Y4APK_Executors::shown_on), so the chips
+and the download window look the same on every script.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and

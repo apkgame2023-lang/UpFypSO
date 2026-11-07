@@ -183,13 +183,17 @@ class Y4APK_Executors {
 	 * Tapping one opens a panel on the page with its downloads (the file comes
 	 * straight down, the page stays) and how to install it.
 	 */
-	public static function tested_with($post_id) {
-		$ids = array_filter(array_map('intval', (array) get_post_meta($post_id, self::ON_SCRIPT, true)));
-		$site = false;
+	/** The executors a script's page shows: [IDs, from the site's list (not its own)]. */
+	public static function shown_on($post_id) {
+		$ids = array_values(array_filter(array_map('intval', (array) get_post_meta($post_id, self::ON_SCRIPT, true))));
 		if (!$ids && get_post_meta($post_id, '_y4apk_scripts', true)) {
-			$ids = self::defaults(); // 2.50.6: none of its own: the site's (Executors ▸ On every script…)
-			$site = true;
+			return [self::defaults(), true]; // 2.50.6: none of its own: the site's (Executors ▸ On every script…)
 		}
+		return [$ids, false];
+	}
+
+	public static function tested_with($post_id) {
+		list($ids, $site) = self::shown_on($post_id);
 		if (!$ids) {
 			return '';
 		}
@@ -642,7 +646,7 @@ class Y4APK_Executors {
 	}
 
 	public static function assets() {
-		if (self::is_page() || (is_singular('post') && get_post_meta(get_queried_object_id(), self::ON_SCRIPT, true))) {
+		if (self::is_page() || (is_singular('post') && self::shown_on(get_queried_object_id())[0])) { // 2.50.7: the site's list too, styled as a script's own
 			wp_enqueue_style('y4apk-executors', get_template_directory_uri() . '/assets/css/executors.css', [], defined('Y4APK_THEME_VERSION') ? Y4APK_THEME_VERSION : null);
 		}
 	}
