@@ -681,6 +681,12 @@ download row (with the MOD text from the post) are made by themselves. A
 pasted link works too. Nothing is made before there is a file, so visitors
 never get a download that leads nowhere.
 
+2.50.2: the same for a download row whose link is empty (or "#"): it shows "No
+file yet", and an upload is enough — the link box is never required once a
+file is uploaded (Replace keeps the post's folder; Add, or a row with no
+folder, gets a new one). Saving with neither a file nor a link says so on the
+page. Posts with such rows are listed in *Need a new file* once.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and

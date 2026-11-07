@@ -168,6 +168,17 @@ class Y4APK_App_Updates {
 			}
 			update_option('y4apk_vc_schema', 7, true);
 		}
+		// 2.50.2: a download row with an empty link is no file either
+		if ((int) get_option('y4apk_vc_schema', 1) < 8) {
+			global $wpdb;
+			$ids = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT d.post_id FROM {$wpdb->postmeta} d JOIN {$wpdb->posts} p ON p.ID = d.post_id
+				WHERE d.meta_key = 'repeatable_download_link' AND p.post_type = 'post' AND p.post_status = 'publish' AND (d.meta_value LIKE %s OR d.meta_value LIKE %s)",
+				'%' . $wpdb->esc_like('s:12:"download_url";s:0:"";') . '%', '%' . $wpdb->esc_like('s:12:"download_url";s:1:"#";') . '%'));
+			foreach (array_slice($ids, 0, 5000) as $id) {
+				self::refresh_flag((int) $id);
+			}
+			update_option('y4apk_vc_schema', 8, true);
+		}
 		$next = wp_next_scheduled(self::HOOK);
 		if (self::enabled() && !$next) {
 			wp_schedule_event(time() + MINUTE_IN_SECONDS, 'y4apk_15min', self::HOOK);
@@ -266,6 +277,11 @@ class Y4APK_App_Updates {
 		return $out;
 	}
 
+	/** A download row with no link to a file yet (empty, or "#"). */
+	public static function no_link($link) {
+		return !is_array($link) || in_array(trim(html_entity_decode((string) (isset($link['download_url']) ? $link['download_url'] : ''))), ['', '#'], true);
+	}
+
 	/** "v4.5.2.zip" with the new number "4.6.0" → "v4.6.0.zip". */
 	public static function with_number($version, $new) {
 		$n = self::number($version);
@@ -285,8 +301,8 @@ class Y4APK_App_Updates {
 
 	/** Is the stored latest version newer than the post's download — or is its download a folder still waiting for a file? */
 	public static function needs_update($post_id) {
-		list($first) = self::download($post_id);
-		if ($first === null) {
+		list($first, $first_link) = self::download($post_id);
+		if ($first === null || self::no_link($first_link)) {
 			// 2.50.1: a game or app on Google Play with no download at all: it needs its first file
 			return self::package_from(get_post_meta($post_id, 'wp_GP_ID', true)) !== '' && !wp_get_post_parent_id($post_id) && !self::is_script_post($post_id);
 		}
@@ -1725,8 +1741,9 @@ class Y4APK_App_Updates {
 				wp_safe_redirect(add_query_arg('y4apk_error', 'nofile', $back));
 				exit;
 			}
-		} elseif ($version === '' || $url === '') {
-			wp_safe_redirect(add_query_arg('y4apk_error', 'missing', $back));
+		} elseif ($version === '' || ($url === '' && empty($in['r2']))) {
+			// 2.50.2: an uploaded file is enough: its download link is the post's folder, or a new one
+			wp_safe_redirect(add_query_arg('y4apk_error', self::no_link($link) ? 'nofile' : 'missing', $back));
 			exit;
 		}
 		if (!isset($in['sig']) || $in['sig'] !== self::links_sig($post_id)) {
@@ -1753,7 +1770,7 @@ class Y4APK_App_Updates {
 				'download_size'    => sanitize_text_field(isset($r['size']) ? $r['size'] : ''),
 				'download_url'     => esc_url_raw(isset($r['url']) ? trim($r['url']) : ''),
 			];
-			if ($updates[$i]['download_version'] === '' || $updates[$i]['download_url'] === '') {
+			if ($updates[$i]['download_version'] === '' || ($updates[$i]['download_url'] === '' && empty($r['r2']))) {
 				wp_safe_redirect(add_query_arg('y4apk_error', 'missing', $back));
 				exit;
 			}
@@ -1890,6 +1907,7 @@ class Y4APK_App_Updates {
 		$back = isset($c['back']) ? (string) $c['back'] : '';
 		list(, $link) = self::download($id);
 		$none = $link === null; // 2.50.1: no download yet — saving makes it
+		$nolink = $none || self::no_link($link); // 2.50.2: or a row whose link is empty: the upload makes its folder
 			$others = self::other_downloads($id);
 			$current = self::current_version($id);
 			$latest = (string) get_post_meta($id, self::LATEST, true);
@@ -1920,7 +1938,7 @@ class Y4APK_App_Updates {
 				</div>
 				<div class="au-vers">
 					<span class="au-label"><?php esc_html_e('Your file', 'y4apk'); ?></span>
-					<?php if ($none || get_post_meta($id, self::NO_FILE, true) !== '') : ?>
+					<?php if ($nolink || get_post_meta($id, self::NO_FILE, true) !== '') : ?>
 						<span class="au-ver" title="<?php esc_attr_e('Write with AI made its download folder; upload the file here.', 'y4apk'); ?>"><?php esc_html_e('No file yet', 'y4apk'); ?></span>
 					<?php else : ?>
 						<span class="au-ver"><?php echo esc_html($current); ?></span>
@@ -1956,7 +1974,7 @@ class Y4APK_App_Updates {
 						<?php endif; ?>
 						<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
 						<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
-						<input type="url" name="url" <?php echo $none ? '' : 'required'; ?> value="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr($link && !empty($link['download_url']) ? $link['download_url'] : ''); ?>" placeholder="<?php echo esc_attr($none ? __('Made for you when you upload (or paste a link)', 'y4apk') : __('Link to the new file', 'y4apk')); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
+						<input type="url" name="url" value="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" placeholder="<?php echo esc_attr($nolink ? __('Made for you when you upload (or paste a link)', 'y4apk') : __('Link to the new file', 'y4apk')); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
 						<?php if ($uploads) { Y4APK_R2::upload_control('r2', 'main'); } ?>
 					</div>
 					<?php foreach ($others['same'] as $i => $o) :
@@ -1972,7 +1990,7 @@ class Y4APK_App_Updates {
 						</div>
 					<?php endforeach; ?>
 					<div class="au-foot">
-						<?php if ($none) : ?>
+						<?php if ($nolink) : ?>
 							<input type="hidden" name="mode" value="replace">
 							<span class="au-first"><?php esc_html_e('First file: upload it and Save — its download link (a new folder in files/up) and the download on the post are made for you.', 'y4apk'); ?></span>
 						<?php else : ?>
@@ -1982,6 +2000,7 @@ class Y4APK_App_Updates {
 						<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 					</div>
 					<p class="au-warn" hidden><?php esc_html_e('“Add as new” keeps the old download, so the new one needs another link: upload the new file or paste its link — or choose “Replace the old file” to keep this link.', 'y4apk'); ?></p>
+					<p class="au-warn au-need" hidden><?php esc_html_e('Upload the file first (or paste a link to it): its download link is made for you.', 'y4apk'); ?></p>
 					<?php if ($others['kept']) : ?>
 						<div class="au-kept"><?php esc_html_e('Left as they are:', 'y4apk'); ?>
 							<?php echo esc_html(implode(' · ', array_map(function ($o) {
@@ -2537,15 +2556,24 @@ class Y4APK_App_Updates {
 			document.querySelectorAll('.au-form').forEach(function (form) {
 				form.addEventListener('submit', function (e) {
 					var addR = form.querySelector('input[name=mode][value=add]'), add = !!(addR && addR.checked);
+					var key = form.querySelector('.au-line[data-row=main] .au-up-key'), link = form.querySelector('input[name=url]');
+					var need = form.querySelector('.au-need');
+					if (need) {
+						need.hidden = !!(link.value.trim() || (key && key.value));
+						if (!need.hidden) {
+							e.preventDefault();
+							return;
+						}
+					}
 					var url = form.querySelector('input[name=url]'), up = form.querySelector('.au-line[data-row=main] .au-up-key');
 					var same = add && url.value.trim() === url.getAttribute('data-orig') && !(up && up.value);
-					form.querySelector('.au-warn').hidden = !same;
+					form.querySelector('.au-warn:not(.au-need)').hidden = !same;
 					if (same) {
 						e.preventDefault();
 					}
 				});
 				form.querySelectorAll('input[type=radio][name=mode]').forEach(function (r) {
-					r.addEventListener('change', function () { form.querySelector('.au-warn').hidden = true; });
+					r.addEventListener('change', function () { form.querySelector('.au-warn:not(.au-need)').hidden = true; });
 				});
 			});
 			document.querySelectorAll('[data-au-filter]').forEach(function (input) {
