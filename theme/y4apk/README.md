@@ -640,6 +640,18 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.3:
+- **Y4APK ▸ Home page** (inc/home-admin.php): the home page's top (heading,
+  button, its link, picture) and its cards, edited without the Customizer.
+  *Best of the best* and *Recommend* each have a switch and four cards with a
+  live preview: a post search (a few words of the title, a post's link, or
+  its number), the card's own name and link, a picture from the Media
+  Library and a colour; a card without a post is left out. It writes the
+  Customizer's own settings (hero_title, featured_posts, recommend_posts …).
+- The categories row on /games/ and /apps/: one row on a computer, the ones
+  that don't fit behind *More (n)*, which opens them all (*Less* folds them
+  again); a category page whose own chip would be hidden starts open.
+
 2.53.2: the Customizer stayed on "Loading…": 2.53.1 fetched 1,000 whole posts
 (their text and other plugins' filters) only to list their titles in the card
 pickers. The list now comes from one light query for the ID and title alone,

@@ -452,10 +452,25 @@ function y4apk_category_chips() {
 			. ($icon !== '' ? '<img src="' . esc_url($icon) . '" alt="" width="24" height="24" loading="lazy" decoding="async">' : '')
 			. '<span>' . esc_html(html_entity_decode($c->name, ENT_QUOTES, 'UTF-8')) . '</span><small>' . esc_html(number_format_i18n($c->count)) . '</small></a>';
 	}
+	// Computers: one row, the rest behind "More" (2.53.3)
+	echo '<button type="button" class="y4-cats-more" hidden aria-expanded="false" data-more="' . esc_attr__('More', 'y4apk') . '" data-less="' . esc_attr__('Less', 'y4apk') . '">'
+		. '<span></span><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z"/></svg></button>';
 	echo '</nav>';
-	// Phones: the row scrolls sideways; the marked one comes into view
+	// One row on computers (the ones that don't fit wait behind "More"); on phones the row scrolls sideways to the marked one
 	echo '<script id="y4apk-pwa-cats" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>'
-		. '(function(){var n=document.querySelector(".y4-cats"),a=n&&n.querySelector("a.is-on");if(a&&n.scrollWidth>n.clientWidth){n.scrollLeft=Math.max(0,a.offsetLeft-16);}})();</script>';
+		. '(function(){var n=document.querySelector(".y4-cats");if(!n){return;}'
+		. 'var b=n.querySelector(".y4-cats-more"),t=b.querySelector("span"),cs=[].slice.call(n.querySelectorAll("a")),on=n.querySelector("a.is-on"),wide=window.matchMedia("(min-width: 48rem)"),open=false;'
+		. 'var fit=function(){cs.forEach(function(c){c.hidden=false;});b.hidden=true;n.classList.remove("is-open");'
+		. 'if(!wide.matches){if(on&&n.scrollWidth>n.clientWidth){n.scrollLeft=Math.max(0,on.offsetLeft-16);}return;}'
+		. 'var top=cs[0].offsetTop;if(cs[cs.length-1].offsetTop===top){return;}'
+		. 'b.hidden=false;b.setAttribute("aria-expanded",open?"true":"false");'
+		. 'if(open){n.classList.add("is-open");t.textContent=b.getAttribute("data-less");return;}'
+		. 'var hid=0;for(var i=cs.length-1;i>0&&b.offsetTop!==top;i--){cs[i].hidden=true;hid++;}'
+		. 'if(on&&on.hidden){open=true;return fit();}'
+		. 't.textContent=b.getAttribute("data-more")+" ("+hid+")";};'
+		. 'b.addEventListener("click",function(){open=!open;fit();});'
+		. 'fit();var w=0;window.addEventListener("resize",function(){clearTimeout(w);w=setTimeout(fit,120);});'
+		. 'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}})();</script>';
 }
 
 function y4apk_icon_url($post_id = null, $size = 'post-thumbnail') {

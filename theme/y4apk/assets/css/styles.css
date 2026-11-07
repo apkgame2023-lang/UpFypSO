@@ -18,6 +18,12 @@
 .y4-cats a.is-on img{background:#fff}
 .y4-cats small{font-size:.8125rem;font-weight:600;color:rgba(23,32,33,.45)}
 .y4-cats a.is-on small{color:rgba(255,255,255,.6)}
+.y4-cats a[hidden],.y4-cats-more[hidden]{display:none!important}
+.y4-cats-more{flex:none;display:inline-flex;align-items:center;gap:.25rem;height:2.75rem;margin:0;padding:0 .875rem 0 1rem;border:0;border-radius:2rem;font:inherit;font-size:.9375rem;font-weight:700;line-height:1;white-space:nowrap;cursor:pointer;color:#1a93b6;background:#eef8fc;box-shadow:inset 0 0 0 1px rgba(41,177,216,.35);transition:background-color .15s ease,box-shadow .15s ease}
+.y4-cats-more:hover{background:#e0f3fa;box-shadow:inset 0 0 0 1px #29b1d8}
+.y4-cats-more:focus-visible{outline:2px solid #29b1d8;outline-offset:2px}
+.y4-cats-more svg{transition:transform .2s ease}
+.y4-cats.is-open .y4-cats-more svg{transform:rotate(180deg)}
 @media(max-width:47.9375rem){.y4-cats{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:.25rem .125rem .75rem;margin-bottom:.75rem}.y4-cats::-webkit-scrollbar{display:none}.y4-cats a{height:2.5rem;font-size:.875rem}}
 @media(min-width:62rem){.h-menu-roblox{display:block!important}.h-menu-roblox .h-menu-subitem{width:16.666666%}}
 @media(max-width:61.9375rem){
