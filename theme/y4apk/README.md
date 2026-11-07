@@ -640,6 +640,15 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.5: the **download section** is a card per file, the way app stores show
+them: the game's icon and "Download <name>" with *Free download · No account
+needed*, then each file with a coloured type tile (MOD blue, APK green,
+XAPK/APKS violet, OBB orange, IPA dark), its name and version, its size and
+a Download button (on phones a round arrow). A game whose data (OBB) comes
+apart shows two steps: 1 install the game, 2 add its data (unzip it into
+Android/obb). The links are the same /download/N/ addresses, so Direct Link
+and the download counts work as before.
+
 2.53.4, phones:
 - The menu's Apps tab is three to a row like Games (12 = four rows), and a
   long name (Communication, Video Players & Editors, Role Playing) shows
