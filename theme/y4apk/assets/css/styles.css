@@ -8,6 +8,15 @@
 .h-menu-more{clear:both;display:flex;flex-wrap:wrap;column-gap:1.25rem}
 @media(min-width:62rem){.h-menu-apps .h-menu-subitem{width:16.666666%}.h-menu-apps .h-menu-subitem-text{font-size:inherit}}
 @media(max-width:61.9375rem){.h-menu-more{display:none!important}}
+/* Phones (2.53.4): Apps three to a row like Games (12 = four rows) */
+@media(max-width:29.9375rem){.h-menu-apps .h-menu-subitem{width:33.333333%}
+.h-menu-games .h-menu-subitem,.h-menu-apps .h-menu-subitem{padding:.25rem}.h-menu-games .h-menu-subitem a,.h-menu-apps .h-menu-subitem a{padding-left:.25rem;padding-right:.25rem}
+.h-menu-games .h-menu-subitem-text,.h-menu-apps .h-menu-subitem-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;min-height:2.5em;line-height:1.25;white-space:normal;text-overflow:clip;font-size:.75rem;letter-spacing:-.01em;word-break:normal;overflow-wrap:break-word}}
+/* Download buttons: a long name wraps inside the button instead of running past the screen (which zoomed the page out) */
+.f-app-download .btn.attachment-link{max-width:100%;height:auto;min-height:2.5rem;white-space:normal;overflow-wrap:anywhere;line-height:1.35;padding-top:.5625rem;padding-bottom:.5625rem}
+@media(max-width:35.9375rem){.f-app-download .block{padding:1.5rem 1rem}.f-app-download .btn-block{display:block;width:100%}.f-app-download .btn-block+.btn-block{margin-top:.625rem}}
+/* Nothing wider than a phone's screen can drag the page sideways or zoom it out */
+@media(max-width:61.9375rem){html{overflow-x:hidden}body{overflow-x:clip}}
 /* Every category at the top of /games/ and /apps/ (2.53.2): chips, a row that scrolls sideways on phones */
 .y4-cats{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1.5rem}
 .y4-cats a{flex:none;display:inline-flex;align-items:center;gap:.5rem;height:2.75rem;padding:0 1rem;border-radius:2rem;font-size:.9375rem;font-weight:700;line-height:1;white-space:nowrap;color:#172021;background:#fff;box-shadow:0 0 0 1px rgba(23,32,33,.08),0 .5rem 1rem -.75rem rgba(10,30,40,.25);transition:box-shadow .15s ease,color .15s ease,background-color .15s ease}

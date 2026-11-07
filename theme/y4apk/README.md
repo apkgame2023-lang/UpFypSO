@@ -640,6 +640,14 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.4, phones:
+- The menu's Apps tab is three to a row like Games (12 = four rows), and a
+  long name (Communication, Video Players & Editors, Role Playing) shows
+  whole on up to two lines instead of being cut with "…".
+- A long download button (MOD V4.6.0 APK ESP SKIN 64-BIT (121.40 MB)) wraps
+  inside the button instead of running past the screen, which zoomed the
+  whole page out; and on phones nothing can widen the page any more.
+
 2.53.3:
 - **Y4APK ▸ Home page** (inc/home-admin.php): the home page's top (heading,
   button, its link, picture) and its cards, edited without the Customizer.
