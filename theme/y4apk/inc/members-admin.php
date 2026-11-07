@@ -155,7 +155,9 @@ class Y4APK_Members_Admin {
 		if (!get_post_thumbnail_id($id) && ($att = (int) get_term_meta($term, Y4APK_Roblox::M_ICON, true))) {
 			set_post_thumbnail($id, $att);
 		}
-		update_post_meta($id, 'wp_title_GP', wp_slash(Y4APK_Roblox::clean_name(get_term($term, Y4APK_Roblox::TAX)->name, false) . ' Script - [' . (Y4APK_Roblox::hub_name($id) ?: __('Script', 'y4apk')) . ']'));
+		update_post_meta($id, 'wp_title_GP', wp_slash(Y4APK_Roblox::clean_name(get_term($term, Y4APK_Roblox::TAX)->name, false) . ' Script - [' . (Y4APK_Roblox::hub_name($id) ?: Y4APK_I18n::untranslated(function () {
+			return __('Script', 'y4apk');
+		})) . ']'));
 		delete_post_meta($id, Y4APK_Members::REJECT);
 		delete_post_meta($id, Y4APK_Members::WANTED);
 		if (get_post_meta($id, self::HOLD, true)) {

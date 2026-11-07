@@ -134,12 +134,17 @@ class Y4APK_PWA {
 
 	/** Path the app lives under — "/" unless WordPress sits in a subdirectory. */
 	public static function scope() {
-		$path = wp_parse_url(home_url('/'), PHP_URL_PATH);
+		$path = wp_parse_url(self::home(), PHP_URL_PATH);
 		return $path ? trailingslashit($path) : '/';
 	}
 
 	public static function endpoint($what) {
-		return add_query_arg(self::QUERY, $what, home_url('/'));
+		return add_query_arg(self::QUERY, $what, self::home());
+	}
+
+	/** The site's address — the same on /th/ pages (2.51): one app, one service worker, whatever the language. */
+	private static function home() {
+		return class_exists('Y4APK_I18n') ? Y4APK_I18n::original_url(home_url('/')) : home_url('/');
 	}
 
 	/** Changes whenever the theme or the app settings change, so caches roll over. */

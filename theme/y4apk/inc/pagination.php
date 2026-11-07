@@ -5,16 +5,18 @@ function y4apk_pagination($current_page, $total_pages) {
     }
 	echo '<div class="navigation"><div class="navigation-in">';
 	
+	$prev = esc_attr__('Previous Page', 'y4apk');
+	$next = esc_attr__('Next Page', 'y4apk');
 	echo '<div class="nav-prev-next">';
     if ($current_page > 1) {
-        echo '<span class="page_prev" title="Previous Page"><a href="'.get_pagenum_link($current_page - 1).'"><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg><span class="sr-only">Previous Page</span></a></span>';
+        echo '<span class="page_prev" title="'.$prev.'"><a href="'.get_pagenum_link($current_page - 1).'"><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg><span class="sr-only">'.$prev.'</span></a></span>';
     } else {
-        echo '<span class="page_prev" title="Previous Page"><span><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg><span class="sr-only">Previous Page</span></span></span>';
+        echo '<span class="page_prev" title="'.$prev.'"><span><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg><span class="sr-only">'.$prev.'</span></span></span>';
     }
     if ($current_page < $total_pages) {
-        echo '<span class="page_next" title="Next Page"><a href="'.get_pagenum_link($current_page + 1).'"><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg><span class="sr-only">Next Page</span></a></span>';
+        echo '<span class="page_next" title="'.$next.'"><a href="'.get_pagenum_link($current_page + 1).'"><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg><span class="sr-only">'.$next.'</span></a></span>';
     } else {
-        echo '<span class="page_next" title="Next Page"><span><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg><span class="sr-only">Next Page</span></span></span>';
+        echo '<span class="page_next" title="'.$next.'"><span><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg><span class="sr-only">'.$next.'</span></span></span>';
     }
 	echo '</div>';
 	

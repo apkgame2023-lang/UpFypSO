@@ -50,6 +50,7 @@ global $wpdb;
 $wpdb->suppress_errors(true);
 $y4cfg = json_decode((string) $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'y4apk_versions_cfg')), true);
 $y4cfg = is_array($y4cfg) ? $y4cfg : ['home' => '', 'pretty' => false, 'short' => false, 'r2' => '', 't' => []];
+$y4cfg = y4apk_vd_lang($y4cfg, isset($_GET['l']) ? (string) $_GET['l'] : ''); // the page's language (2.51)
 // Only a published main post's versions
 $y4ok = (int) $wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE ID = %d AND post_type = 'post' AND post_status = 'publish'", $y4p));
 $y4data = $y4ok ? y4apk_vd_page($y4p, $y4page, $y4sort, $y4x, $y4cfg) : ['items' => [], 'total' => 0, 'page' => 1, 'pages' => 1];

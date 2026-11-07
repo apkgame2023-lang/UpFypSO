@@ -6,7 +6,7 @@
                 <div class="heading-bg">
                     <div class="speedbar-over">
                         <div class="speedbar">
-                            <a href="<?php echo get_site_url(); ?>"><?php esc_html_e('Home', 'y4apk'); ?></a> → <?php esc_html_e('404 Found', 'y4apk'); ?>
+                            <a href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', 'y4apk'); ?></a> → <?php esc_html_e('404 Found', 'y4apk'); ?>
                         </div>
                     </div>
                     <h1 class="heading"></h1>

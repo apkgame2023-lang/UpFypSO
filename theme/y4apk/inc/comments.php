@@ -13,7 +13,7 @@ function y4apk_comments($comment, $args, $depth) {
 		<div class="comment-meta">
 			<img src="<?php echo $author_logo_url; ?>" alt="user-logo" width="50" height="50" style="border-radius: 50%;">
 			<div class="fw-b"><?php echo $author; ?></div>
-            <p><?php printf(_x('%s ago', '%s = human-readable time difference', 'mw'), human_time_diff(get_comment_time('U'), current_time('timestamp'))); ?></p>
+            <p><?php printf(_x('%s ago', '%s = human-readable time difference', 'y4apk'), human_time_diff(get_comment_time('U'), current_time('timestamp'))); ?></p>
         </div>
         <div class="comment-text">
             <?php if ($comment->comment_approved == '0') : ?>

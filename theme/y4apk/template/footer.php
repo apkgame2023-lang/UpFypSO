@@ -1,5 +1,5 @@
 <?php
-$footer_copyright = '<span class="fw-b">© ' . date('Y') . ' Y4APK.COM</span><span class="copyright-addon">Best Games and Apps MOD APK Premium Programs</span>';
+$footer_copyright = '<span class="fw-b">© ' . date('Y') . ' Y4APK.COM</span><span class="copyright-addon">' . esc_html__('Best Games and Apps MOD APK Premium Programs', 'y4apk') . '</span>';
 
 $facebook_url = get_theme_mod('facebook_url');
 $twitter_url = get_theme_mod('twitter_url');

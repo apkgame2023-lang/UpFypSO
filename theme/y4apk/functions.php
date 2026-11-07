@@ -11,6 +11,7 @@ define('Y4APK_THEME_VERSION', $theme_version);
 define('Y4APK_TRANSLATE', $text_domain);
 define('Y4APK_MENU', 'y4apk-dashboard'); // the Y4APK admin menu (its first page: Dashboard)
 
+require $theme_dir . '/inc/i18n.php'; // first: a /th/ address is read before anything else asks for links (2.51)
 require $theme_dir . '/inc/breadcrumbs.php';
 require $theme_dir . '/inc/core.php';
 require $theme_dir . '/inc/inits.php';

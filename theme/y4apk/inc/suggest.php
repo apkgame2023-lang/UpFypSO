@@ -65,6 +65,15 @@ class Y4APK_Suggest {
 	}
 
 	public static function refresh($why = '') {
+		if (class_exists('Y4APK_I18n')) { // written for every language: in the site's own words and addresses (2.51)
+			return Y4APK_I18n::untranslated(function () use ($why) {
+				return self::write($why);
+			});
+		}
+		return self::write($why);
+	}
+
+	private static function write($why = '') {
 		$roots = class_exists('Y4APK_Share') ? Y4APK_Share::roots() : ['game' => [get_category_by_slug('games'), []], 'app' => [get_category_by_slug('apps'), []]];
 		$names = [];
 		foreach (get_categories(['hide_empty' => false]) as $t) {
@@ -134,6 +143,8 @@ class Y4APK_Suggest {
 		$cfg = [
 			'url' => get_template_directory_uri() . '/suggest.php',
 			'search' => home_url('/'),
+			// The list is made in the background, without a language: on a /th/ page its links get /th/ here (2.51)
+			'base' => class_exists('Y4APK_I18n') ? Y4APK_I18n::original_url(home_url('/')) : home_url('/'),
 			'T' => [
 				'recent'  => __('Recent searches', 'y4apk'),
 				'clear'   => __('Clear', 'y4apk'),
@@ -157,6 +168,7 @@ class Y4APK_Suggest {
 	var remember = function (q) { q = String(q || '').trim().slice(0, 60); if (q.length < 2) { return; } try { var r = recent().filter(function (x) { return x.toLowerCase() !== q.toLowerCase(); }); r.unshift(q); localStorage.setItem(LS, JSON.stringify(r.slice(0, 8))); } catch (e) {} };
 	var forget = function (q) { try { localStorage.setItem(LS, JSON.stringify(q === null ? [] : recent().filter(function (x) { return x !== q; }))); } catch (e) {} };
 	var cache = {}, home = null;
+	var here = function (u) { u = String(u || ''); return C.base === C.search || u.indexOf(C.search) === 0 || u.indexOf(C.base) !== 0 ? u : C.search + u.slice(C.base.length); };
 	var get = function (q, signal) {
 		if (cache[q]) { return Promise.resolve(cache[q]); }
 		return fetch(C.url + '?q=' + encodeURIComponent(q), { signal: signal, credentials: 'omit' }).then(function (r) { return r.json(); }).then(function (d) { cache[q] = d; return d; });
@@ -177,7 +189,7 @@ class Y4APK_Suggest {
 		if (x.c) { meta.push(esc(x.c)); }
 		if (x.v) { meta.push('v' + esc(x.v)); }
 		if (x.k === 'rbx' && x.n) { meta.push(esc(T.scripts.replace('%d', x.n))); }
-		return '<a class="y4sg-item" href="' + esc(x.u) + '" role="option" data-y4sg-i>' + (n ? '<b class="y4sg-rank">' + n + '</b>' : '') + '<span class="y4sg-ico">' + icon(x) + '</span>' +
+		return '<a class="y4sg-item" href="' + esc(here(x.u)) + '" role="option" data-y4sg-i>' + (n ? '<b class="y4sg-rank">' + n + '</b>' : '') + '<span class="y4sg-ico">' + icon(x) + '</span>' +
 			'<span class="y4sg-text"><b>' + (q ? mark(x.t, q) : esc(x.t)) + '</b><small>' + meta.join('<i>·</i>') + '</small></span>' +
 			'<svg class="y4sg-go" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M13.2 5.3 19.9 12l-6.7 6.7-1.4-1.4 4.3-4.3H4v-2h12.1l-4.3-4.3 1.4-1.4Z"/></svg></a>';
 	};

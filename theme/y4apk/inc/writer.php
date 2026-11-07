@@ -690,6 +690,17 @@ class Y4APK_Writer {
 		return new WP_Error('busy', implode(' · ', array_unique($why)), ['wait' => max(20, $soonest - time())]);
 	}
 
+	/**
+	 * One question for another part of the theme (Languages, 2.51), asked the
+	 * way the queue asks: the chosen AI, then the others that have a key.
+	 * [answer, provider, model] or a WP_Error ('busy' with ['wait' => seconds]).
+	 */
+	public static function ask_text($system, $user, $max = 4000) {
+		return self::ask(function () use ($system, $user) {
+			return [$system, $user];
+		}, $max);
+	}
+
 	public static function waiting() {
 		$w = get_transient(self::WAIT);
 		return is_array($w) && $w['until'] > time() ? $w : null;

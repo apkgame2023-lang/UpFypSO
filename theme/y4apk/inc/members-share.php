@@ -179,6 +179,13 @@ class Y4APK_Share {
 		return in_array($ext, self::TYPES, true) ? strtoupper($ext) : 'APK';
 	}
 
+	/** "by name" in a saved title: in the site's language, whatever the page's (2.51). */
+	private static function by($user) {
+		return Y4APK_I18n::untranslated(function () use ($user) {
+			return sprintf(__('by %s', 'y4apk'), Y4APK_Social::name($user));
+		});
+	}
+
 	/** "Name MOD APK v1.2.3 (Unlimited Money)", as the site's titles go. */
 	public static function title($name, $version, $mods, $label = 'APK') {
 		$v = Y4APK_App_Updates::number($version);
@@ -495,7 +502,7 @@ class Y4APK_Share {
 			return 0;
 		}
 		$main = $d['files'] ? $d['files'][0] : ['label' => 'APK'];
-		$title = self::title($d['name'], $d['version'], $d['mods'], $main['label']) . ($user ? ' ' . sprintf(__('by %s', 'y4apk'), Y4APK_Social::name($user)) : '');
+		$title = self::title($d['name'], $d['version'], $d['mods'], $main['label']) . ($user ? ' ' . self::by($user) : '');
 		wp_update_post(wp_slash(['ID' => $id, 'post_title' => $title, 'post_category' => wp_get_post_categories($parent), 'post_date' => $post->post_date, 'edit_date' => true, 'post_parent' => $parent])); // still "sent 2 days ago"
 		update_post_meta($id, self::PARENT, $parent);
 		delete_post_meta($id, 'wp_GP_ID'); // Google Play stays with the main post (App updates, Write with AI)
@@ -659,7 +666,7 @@ class Y4APK_Share {
 		$parent = (int) $old['update_of'];
 		$title = self::title($old['name'], $old['version'], $old['mods'], $main['label']);
 		if ($parent) {
-			$title .= ' ' . sprintf(__('by %s', 'y4apk'), Y4APK_Social::name($user)); // the member's own post, under the main one
+			$title .= ' ' . self::by($user); // the member's own post, under the main one
 		}
 		$content = '';
 		foreach (preg_split('/\n{2,}/', $old['desc'] !== '' ? $old['desc'] : sprintf(__('%1$s %2$s, shared by @%3$s.', 'y4apk'), $old['name'], $old['version'], $user->user_login)) as $para) {

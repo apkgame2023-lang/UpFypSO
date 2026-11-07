@@ -4,7 +4,7 @@ $app_name = $app_name ?: get_the_title();
 $app_required = get_post_meta(get_the_ID(), 'wp_requires_GP', true);
 $app_age = get_post_meta(get_the_ID(), 'wp_contentrated_GP', true);
 if (empty($app_os)) {
-	$app_os = 'Andrid';
+	$app_os = 'Android';
 } else {
 	$app_os = ucfirst(strtolower($app_os));
 }

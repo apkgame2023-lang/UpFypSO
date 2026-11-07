@@ -28,19 +28,19 @@ $rating_data = get_star_rating(get_the_ID());
                                 <ul class="unit-rating">
                                     <li class="current-rating" style="width:<?php echo $rating_data->rating_width; ?>;"><?php echo $rating_data->rating_width; ?></li>
                                     <li>
-                                        <a href="#" title="Useless" class="r1-unit" onclick="doRate('1', '<?php the_ID(); ?>'); return false;">1</a>
+                                        <a href="#" title="<?php esc_attr_e('Useless', 'y4apk'); ?>" class="r1-unit" onclick="doRate('1', '<?php the_ID(); ?>'); return false;">1</a>
                                     </li>
                                     <li>
-                                        <a href="#" title="Poor" class="r2-unit" onclick="doRate('2', '<?php the_ID(); ?>'); return false;">2</a>
+                                        <a href="#" title="<?php esc_attr_e('Poor', 'y4apk'); ?>" class="r2-unit" onclick="doRate('2', '<?php the_ID(); ?>'); return false;">2</a>
                                     </li>
                                     <li>
-                                        <a href="#" title="Fair" class="r3-unit" onclick="doRate('3', '<?php the_ID(); ?>'); return false;">3</a>
+                                        <a href="#" title="<?php esc_attr_e('Fair', 'y4apk'); ?>" class="r3-unit" onclick="doRate('3', '<?php the_ID(); ?>'); return false;">3</a>
                                     </li>
                                     <li>
-                                        <a href="#" title="Good" class="r4-unit" onclick="doRate('4', '<?php the_ID(); ?>'); return false;">4</a>
+                                        <a href="#" title="<?php esc_attr_e('Good', 'y4apk'); ?>" class="r4-unit" onclick="doRate('4', '<?php the_ID(); ?>'); return false;">4</a>
                                     </li>
                                     <li>
-                                        <a href="#" title="Excellent" class="r5-unit" onclick="doRate('5', '<?php the_ID(); ?>'); return false;">5</a>
+                                        <a href="#" title="<?php esc_attr_e('Excellent', 'y4apk'); ?>" class="r5-unit" onclick="doRate('5', '<?php the_ID(); ?>'); return false;">5</a>
                                     </li>
                                 </ul>
                             </div>

@@ -1425,7 +1425,9 @@ class Y4APK_Members {
 		}
 		$gname = $d['game'] ? $d['game']->name : $d['game_label'];
 		$title = trim($gname . ' Script ' . $d['hub'] . ($d['keyless'] ? ' (No Key)' : ''));
-		$text = $d['desc'] !== '' ? $d['desc'] : sprintf(__('Free %1$s script by %2$s for Roblox. Copy the loadstring and run it in your executor.', 'y4apk'), $gname, $d['hub']);
+		$text = $d['desc'] !== '' ? $d['desc'] : Y4APK_I18n::untranslated(function () use ($gname, $d) { // saved in the post: in the site's language, whatever the page's (2.51)
+			return sprintf(__('Free %1$s script by %2$s for Roblox. Copy the loadstring and run it in your executor.', 'y4apk'), $gname, $d['hub']);
+		});
 		$content = '';
 		foreach (preg_split('/\n{2,}/', $text) as $para) {
 			$content .= "<!-- wp:paragraph -->\n<p>" . nl2br(esc_html($para)) . "</p>\n<!-- /wp:paragraph -->\n\n";

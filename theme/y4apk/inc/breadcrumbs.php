@@ -18,7 +18,7 @@ function breadcrumbsX() {
 		"@type" => "ListItem",
         "position" => 1,
         "name" => __('Home', 'y4apk'),
-        "item" => get_site_url()
+        "item" => home_url("/")
     );
 	
 	if(is_singular('post')) {

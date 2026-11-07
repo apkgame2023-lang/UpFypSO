@@ -115,6 +115,17 @@ function y4apk_vd_person($u, $cfg) {
 	return ['name' => $name !== '' ? $name : $login, 'login' => $login, 'pic' => $pic, 'letter' => $letter !== '' ? $letter : '?', 'hue' => abs(crc32($login)) % 360];
 }
 
+/** The words and addresses of a page in another language (2.51): ?l=th to versions.php, or the post's page at /th/. */
+function y4apk_vd_lang($cfg, $code) {
+	$code = (string) $code;
+	if ($code === '' || $code === 'en' || !preg_match('/^[a-z]{2,3}(-[a-z]{2})?$/', $code) || empty($cfg['langs'][$code]) || !is_array($cfg['langs'][$code])) {
+		return $cfg;
+	}
+	$cfg['t'] = $cfg['langs'][$code] + (isset($cfg['t']) && is_array($cfg['t']) ? $cfg['t'] : []);
+	$cfg['home'] = (string) $cfg['home'] . '/' . $code;
+	return $cfg;
+}
+
 function y4apk_vd_e($s) {
 	return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 }

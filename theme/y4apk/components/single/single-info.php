@@ -4,10 +4,12 @@ $app_name = $app_name ?: get_the_title();
 $is_security_check = get_theme_mod('security_check_swt', true);
 $modified_date = get_the_modified_date('d-m-Y, H:i', get_the_ID());
 if (date('Ymd') === get_the_modified_date('Ymd', get_the_ID())) {
-    $modified_date = 'Today, ' . get_the_modified_date('H:i', get_the_ID());
+    $modified_date = __('Today', 'y4apk') . ', ' . get_the_modified_date('H:i', get_the_ID());
 } elseif (date('Ymd', strtotime('-1 day')) === get_the_modified_date('Ymd', get_the_ID())) {
-    $modified_date = 'Yesterday, ' . get_the_modified_date('H:i', get_the_ID());
+    $modified_date = __('Yesterday', 'y4apk') . ', ' . get_the_modified_date('H:i', get_the_ID());
 }
+// Written again in the visitor's language, place and time zone by the page (2.51): a cached "Today" would go stale.
+$modified_date = '<time datetime="' . esc_attr(get_the_modified_date('c', get_the_ID())) . '" data-y4t>' . esc_html($modified_date) . '</time>';
 
 $user_info = get_userdata(1); 
 
@@ -58,9 +60,9 @@ if ($pages_query->have_posts()) :
 <div class="app-next-prev" style="display:none;">
 	<div class="wrp">
 		<?php if ($next_post) : ?>
-		<a class="app-next" href="<?php echo get_permalink($next_post->ID); ?>"><i class="btn blue-style btn-circle"><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg></i><span class="fw-b" title="Next Page"><?php echo get_post_meta( $next_post->ID, 'wp_title_GP', true ); ?></span></a>
+		<a class="app-next" href="<?php echo get_permalink($next_post->ID); ?>"><i class="btn blue-style btn-circle"><svg width="24" height="24"><use xlink:href="#i__arrow-right"></use></svg></i><span class="fw-b" title="<?php esc_attr_e('Next Page', 'y4apk'); ?>"><?php echo get_post_meta( $next_post->ID, 'wp_title_GP', true ); ?></span></a>
 		<?php endif; if ($prev_post) : ?>
-		<a class="app-prev" href="<?php echo get_permalink($prev_post->ID); ?>"><i class="btn red-style btn-circle"><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg></i><span class="fw-b" title="Previous Page"><?php echo get_post_meta( $prev_post->ID, 'wp_title_GP', true ); ?></span></a>
+		<a class="app-prev" href="<?php echo get_permalink($prev_post->ID); ?>"><i class="btn red-style btn-circle"><svg width="24" height="24"><use xlink:href="#i__arrow-left"></use></svg></i><span class="fw-b" title="<?php esc_attr_e('Previous Page', 'y4apk'); ?>"><?php echo get_post_meta( $prev_post->ID, 'wp_title_GP', true ); ?></span></a>
 		<?php endif; ?>
 	</div>
 </div>

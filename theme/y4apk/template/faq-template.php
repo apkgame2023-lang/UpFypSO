@@ -30,7 +30,7 @@ $faqs = get_theme_mod('faqs', [
                 </nav>
             </aside>
             <div class="str-main">
-                <a href="<?php echo get_site_url(); ?>" class="static-back" style="display:none;">
+                <a href="<?php echo esc_url(home_url('/')); ?>" class="static-back" style="display:none;">
                     <svg width="48" height="20">
                         <use xlink:href="#i__back"></use>
                     </svg>

@@ -207,6 +207,7 @@ if ($subcategories_2) {
 				</div>
 				<?php endif; ?>
             </div>
+            <?php if (class_exists('Y4APK_I18n')) { Y4APK_I18n::menu_row(); } // phones: the same menu as the globe (2.51) ?>
         </div>
         <div class="search-drop dropdown">
             <a class="h-search" href="javascript:void(0);" data-toggle="dropdown" role="button">
@@ -219,11 +220,11 @@ if ($subcategories_2) {
                 <span class="sr-only"><?php esc_html_e('Search', 'y4apk'); ?></span>
             </a>
             <div class="search-dropbox" style="display:none;">
-                <form class="search-dropbox-body" role="search" method="get" action="<?php echo get_site_url(); ?>">
+                <form class="search-dropbox-body" role="search" method="get" action="<?php echo esc_url(home_url('/')); ?>">
                     <div class="q_search">
                         <label for="search_text" class="sr-only"><?php esc_html_e('Search games and apps...', 'y4apk'); ?></label>
                         <input type="search" name="s" minlength="3" maxlength="156" required="" placeholder="<?php esc_html_e('Search games and apps...', 'y4apk'); ?>" autocomplete="off" id="search_text">
-                        <button type="submit" title="Find">
+                        <button type="submit" title="<?php esc_attr_e('Search', 'y4apk'); ?>">
                             <svg width="24" height="24">
                                 <use xlink:href="#i__search"></use>
                             </svg>
@@ -234,6 +235,7 @@ if ($subcategories_2) {
             </div>
         </div>
         <div class="search-drop-overlay" style="display:none;"></div>
+        <?php if (class_exists('Y4APK_I18n')) { Y4APK_I18n::button(); } // the globe: language and location (2.51) ?>
         <?php if (class_exists('Y4APK_Members')) :
             // The same for every visitor, so a cached page is right for all: a member's picture
             // and menu are put in by the script below, from the y4apk_me cookie (2.41).
@@ -248,6 +250,7 @@ if ($subcategories_2) {
                 'out'    => '<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.6 4.4-1.4 1.4 2.2 2.2H9v2h8.4l-2.2 2.2 1.4 1.4L21.2 12l-4.6-4.6Z"/>',
                 'down'   => '<path d="m7 10 5 5 5-5H7Z"/>',
                 'next'   => '<path d="m9.4 6-1.4 1.4 4.6 4.6-4.6 4.6L9.4 18l6-6-6-6Z"/>',
+                'globe'  => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.9a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4H4.3Zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 0 1 5.1 16ZM8 8H5.1a8 8 0 0 1 4.3-3.6C8.8 5.5 8.3 6.7 8 8Zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 0 1-4.3 3.6Zm1.7-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/>',
             );
         ?>
         <div class="h-acct" data-acct>
@@ -282,6 +285,8 @@ if ($subcategories_2) {
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
                 'out'       => __('Sign out', 'y4apk'),
+                // The language menu from here too, as YouTube has it in its account menu (2.51)
+                'lang'      => class_exists('Y4APK_I18n') && count(Y4APK_I18n::ready()) > 1 ? sprintf(__('Language: %s', 'y4apk'), Y4APK_I18n::languages()[Y4APK_I18n::current()][0]) : '',
             )); ?>;
             var svg = function (k, s) { return '<svg viewBox="0 0 24 24" width="' + (s || 18) + '" height="' + (s || 18) + '" fill="currentColor" aria-hidden="true">' + I[k] + '</svg>'; };
             var av = function (size) {
@@ -316,8 +321,10 @@ if ($subcategories_2) {
             [['home', 'home'], ['submit', 'upload'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
                 if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
             });
-            list += '</nav><a class="h-acct-out" href="' + U.logout + '" data-out>' + svg('out') + '<span>' + T.out + '</span></a>';
+            list += '</nav>' + (T.lang ? '<button type="button" class="h-acct-lang" data-y4l-open>' + svg('globe') + '<span></span>' + svg('next', 16) + '</button>' : '')
+                + '<a class="h-acct-out" href="' + U.logout + '" data-out>' + svg('out') + '<span>' + T.out + '</span></a>';
             menu.insertAdjacentHTML('beforeend', list);
+            if (T.lang) { menu.querySelector('.h-acct-lang span').textContent = T.lang; }
             box.innerHTML = ''; box.appendChild(btn); box.appendChild(menu); box.classList.add('is-in');
             var open = function (on) { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); box.classList.toggle('open', on); };
             btn.addEventListener('click', function (e) { e.stopPropagation(); open(menu.hidden); });
@@ -335,7 +342,7 @@ if ($subcategories_2) {
         })();
         </script>
         <?php endif; ?>
-        <a class="logotype" href="<?php echo get_site_url('/'); ?>" title="<?php echo strtoupper($_SERVER['SERVER_NAME']); ?>" style="background-image: url(<?php echo $logo; ?>)">
+        <a class="logotype" href="<?php echo esc_url(home_url('/')); ?>" title="<?php echo strtoupper($_SERVER['SERVER_NAME']); ?>" style="background-image: url(<?php echo $logo; ?>)">
         <span class="sr-only"><?php echo strtoupper($_SERVER['SERVER_NAME']); ?></span>
         </a>
     </header>

@@ -286,6 +286,13 @@ class Y4APK_Versions {
 
 	public static function cfg() {
 		$pretty = (bool) get_option('permalink_structure');
+		// The words in each language visitors can pick (2.51); versions.php takes ?l=
+		$langs = [];
+		if (class_exists('Y4APK_I18n')) {
+			foreach (array_diff(Y4APK_I18n::ready(), ['en']) as $code) {
+				$langs[$code] = Y4APK_I18n::in($code, [__CLASS__, 'words']);
+			}
+		}
 		return [
 			'home'   => untrailingslashit(home_url()),
 			'pretty' => $pretty,
@@ -295,20 +302,25 @@ class Y4APK_Versions {
 			'offset' => (float) get_option('gmt_offset'),
 			'role'   => Y4APK_Members::ROLE,
 			'site'   => Y4APK_Members::settings()['from_name'],
-			't'      => [
-				'MOD'                     => __('MOD', 'y4apk'),
-				'Original'                => __('Original', 'y4apk'),
-				'As released, not modded' => __('As released, not modded', 'y4apk'),
-				'views'                   => [__('%s view', 'y4apk'), __('%s views', 'y4apk')],
-				'Previous page'           => __('Previous page', 'y4apk'),
-				'Next page'               => __('Next page', 'y4apk'),
-				'%1$s–%2$s of %3$s'       => __('%1$s–%2$s of %3$s', 'y4apk'),
-			],
+			't'      => self::words(),
+			'langs'  => $langs,
+		];
+	}
+
+	public static function words() {
+		return [
+			'MOD'                     => __('MOD', 'y4apk'),
+			'Original'                => __('Original', 'y4apk'),
+			'As released, not modded' => __('As released, not modded', 'y4apk'),
+			'views'                   => [__('%s view', 'y4apk'), __('%s views', 'y4apk')],
+			'Previous page'           => __('Previous page', 'y4apk'),
+			'Next page'               => __('Next page', 'y4apk'),
+			'%1$s–%2$s of %3$s'       => __('%1$s–%2$s of %3$s', 'y4apk'),
 		];
 	}
 
 	public static function keep_cfg() {
-		$c = wp_json_encode(self::cfg(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$c = wp_json_encode(class_exists('Y4APK_I18n') ? Y4APK_I18n::untranslated([__CLASS__, 'cfg']) : self::cfg(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 		if (get_option(self::CFG) !== $c) {
 			update_option(self::CFG, $c, false);
 		}
@@ -318,9 +330,9 @@ class Y4APK_Versions {
 		$c = json_decode((string) get_option(self::CFG, ''), true);
 		if (!is_array($c)) {
 			self::keep_cfg();
-			$c = self::cfg();
+			$c = json_decode((string) get_option(self::CFG, ''), true);
 		}
-		return $c;
+		return class_exists('Y4APK_I18n') ? y4apk_vd_lang((array) $c, Y4APK_I18n::current()) : (array) $c; // this page's language
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -356,7 +368,7 @@ class Y4APK_Versions {
 		$name = self::app_name($main);
 		$add = $can_add ? Y4APK_Members::url('share/' . self::kind_of($main), ['newer' => $main]) : '';
 		$state = ['p' => $main, 'x' => $parent ? $post_id : 0, 'sort' => $sort, 'page' => $data['page'], 'total' => $data['total'],
-			'first' => $data['items'] ? $data['items'][0]['id'] : 0, 'api' => get_template_directory_uri() . '/versions.php'];
+			'first' => $data['items'] ? $data['items'][0]['id'] : 0, 'api' => get_template_directory_uri() . '/versions.php', 'l' => class_exists('Y4APK_I18n') && Y4APK_I18n::current() !== 'en' ? Y4APK_I18n::current() : ''];
 		$tab = function ($key, $label) use ($sort) {
 			echo '<a class="y4v-tab' . ($sort === $key ? ' is-on' : '') . '" href="' . esc_attr($key === 'views' ? '?vs=views#versions' : '?vp=1#versions') . '" data-vs="' . esc_attr($key) . '" role="tab" aria-selected="' . ($sort === $key ? 'true' : 'false') . '">' . esc_html($label) . '</a>';
 		};
@@ -433,7 +445,7 @@ class Y4APK_Versions {
 		if (busy) { return; }
 		busy = true;
 		if (!quiet) { box.classList.add('is-loading'); }
-		fetch(c.api + '?p=' + c.p + '&page=' + page + '&sort=' + sort + (c.x ? '&x=' + c.x : ''), { credentials: 'omit' })
+		fetch(c.api + '?p=' + c.p + '&page=' + page + '&sort=' + sort + (c.x ? '&x=' + c.x : '') + (c.l ? '&l=' + encodeURIComponent(c.l) : ''), { credentials: 'omit' })
 			.then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
 			.then(function (d) {
 				if (quiet && d.total === c.total && d.first === c.first) { return; }

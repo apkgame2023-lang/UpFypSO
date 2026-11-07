@@ -638,6 +638,82 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Languages and location, the way YouTube and TikTok do it (2.51)
+
+**How the big platforms do it**, and what this theme does the same way:
+- They translate the **interface**, not what people post: YouTube's menus are
+  in Thai while a video keeps its own title. Here the theme's words are
+  translated (menus, buttons, messages, the account and upload pages, emails
+  sent from a page in that language, categories, menu items, the home page's
+  heading); games, apps, scripts and articles stay as they were written.
+- **One catalog of texts, a dictionary per language.** Every text in the code
+  is a gettext key (`__('Sign in', 'y4apk')`). Facebook and X have people
+  translate their catalog; here *Write with AI* does it in the background, and
+  you can change any line.
+- **A language has its own address**: `/th/`, `/id/`, `/vi/` … like Google's
+  and Apple's pages. A page cache (10Web, Cloudflare) keeps a copy per address,
+  so every visitor gets their language straight from the cache. The `/th/` is
+  stripped before WordPress reads the request (`/th/some-game/` is the same
+  post as `/some-game/`) and put back afterwards, so caches keep each language
+  apart; every link on a `/th/` page leads to `/th/`.
+- **The choice is remembered** (cookie `y4_lang`, like YouTube's PREF): a page
+  opened without `/th/` (from Google, an old link) takes such a visitor to it
+  before it shows. Someone new whose phone is set to a language the site has
+  is asked once, in that language ("ดูเว็บไซต์นี้เป็นภาษาไทยไหม?").
+- **Language and location are two settings**, as on YouTube (`hl` and `gl`).
+  The location (cookie `y4_gl`) starts as the country Cloudflare sees (or the
+  one the browser's language names) and can be changed; dates ("Updated: …")
+  are written the way they are there, in the visitor's time zone.
+- **Search engines keep one address per page**: a `/th/` page says
+  `noindex, follow` and points (canonical, also Rank Math's) to the original,
+  because its posts are the same. Sitemaps are unchanged.
+
+**On the site**: a globe button beside the account button on computers, and a
+*Language / Location* row in the phone menu and in the account menu. Both open
+the same menu: *Language: ไทย ›*, *Location: Thailand ›*, each a list with a
+search box and a tick on the current one (a sheet from the bottom on phones).
+Countries are named by the browser in the page's language (Intl.DisplayNames).
+The globe appears once a language other than English is ready.
+
+**Y4APK ▸ Languages** (inc/i18n.php):
+- 41 languages to pick from; 15 are on at first (Thai, Indonesian, Vietnamese,
+  Portuguese (Brazil), Spanish (Latin America), Russian, Hindi, Turkish,
+  Filipino, Malay, Japanese, Korean, Chinese, French, German). Right-to-left
+  ones (Arabic, Urdu, Persian, Hebrew) can be turned on; the layout stays left
+  to right.
+- The texts are found by reading the theme's files (about 1,100 texts, 7,000
+  words, the dashboard's own left out), plus anything a `/xx/` page shows that
+  the scan missed, plus WordPress's month names and "3 days".
+- *Write with AI* (its key and its turn of AIs) translates 50 texts a
+  question, the texts every page shows first, one language after another:
+  placeholders (`%s`, `%1$s`), HTML tags and `{words}` must come back as they
+  were, or the line is asked again (twice, then it waits for you). In the
+  background: every 5 minutes, at most 100 questions a day, so a free Gemini
+  key keeps most of its day for articles. *Translate now* goes on while the
+  page is open (about 25 questions per language).
+- A language is shown to visitors once 90% is done, and stays down to 75% (new
+  texts after a theme update do not take it away; they are translated next).
+- *Edit texts*: every line, with a search and filters (not translated yet, by
+  you, wrong). A line you write is never replaced by the AI; empty one to have
+  it translated again.
+
+Under the hood:
+- Translations are options (`y4apk_i18n_dict_th` …, not autoloaded); a page
+  in a language reads its own once. `y4apk_i18n_live` (autoloaded, tiny) says
+  which languages are ready.
+- AJAX from a `/th/` page answers in Thai (the page that asked, by its
+  Referer on this site). Search suggestions, the versions list (`versions.php
+  ?l=th`) and the PWA keep working: the app has one scope and one service
+  worker whatever the language.
+- What is saved stays in English: a member's post title ("… by name"), a
+  script's default description, the guid; `Y4APK_I18n::untranslated()`.
+- Fixed on the way: hard-coded English (rating stars, page arrows, the home
+  page's SEO text, the footer line, "Today", "Yesterday") is translatable; the
+  download page said "Andrid".
+
+After installing: **Y4APK ▸ Languages ▸ Translate now** (or wait for the
+background), then clear the page cache. Check a language at `/th/`.
+
 ## App updates follow Google Play; members' safe uploads go live at once (2.50)
 
 **App updates** (Y4APK ▸ App updates):

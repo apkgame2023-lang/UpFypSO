@@ -33,7 +33,7 @@ $total_pages = $wp_query->max_num_pages;
             </div>
             <?php endif; ?>
             <div class="list-app list-search">
-                <form role="search" name="fullsearch" id="fullsearch" action="<?php echo get_site_url(); ?>" method="get">
+                <form role="search" name="fullsearch" id="fullsearch" action="<?php echo esc_url(home_url('/')); ?>" method="get">
                     <div class="block search-box">
                         <div class="search-box-field">
                             <label for="searchinput" class="sr-only"><?php esc_html_e('Search games and apps...', 'y4apk'); ?></label>
