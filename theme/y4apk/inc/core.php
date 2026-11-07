@@ -489,6 +489,12 @@ function y4apk_icon_url($post_id = null, $size = 'post-thumbnail') {
 }
 
 /** " (31.37MB)" after a download's name, or nothing when its size is not known ("" or "—"). */
+/** A download button's size, as a chip of its own (2.53.6). */
+function y4apk_dl_size($size) {
+	$size = trim((string) $size);
+	return $size === '' || $size === '—' || $size === '-' ? '' : '<span class="dl-size" itemprop="fileSize">' . esc_html($size) . '</span>';
+}
+
 function y4apk_size_label($size) {
 	$size = trim((string) $size);
 	return $size === '' || $size === '—' || $size === '-' ? '' : ' (<span itemprop="fileSize">' . esc_html($size) . '</span>)';

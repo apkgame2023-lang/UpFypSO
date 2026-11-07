@@ -450,37 +450,26 @@
 @media (max-width: 29.99rem) { .y4v-add { width: 100%; } .y4v-bar { flex-direction: column; align-items: stretch; } .y4v-tabs { display: flex; } .y4v-tab { flex: 1; text-align: center; } .y4v-range { text-align: center; } .y4v-mp-go { display: none; } }
 @media (max-width: 21.24rem) { .y4v-grid { grid-template-columns: minmax(0, 1fr); } }
 
-/* ---------------------------------------------------------------- Download files (2.53.5): a card per file */
-.y4dl { text-align: left; margin: 0 auto; padding: 1.25rem; border-radius: 1.5rem; background: #fff; box-shadow: 0 1.25rem 2.5rem -1.5rem rgba(15, 40, 60, .25), 0 0 0 1px rgba(23, 32, 33, .05); }
-@media (min-width: 48rem) { .y4dl { padding: 1.75rem 2rem 2rem; } }
-.y4dl-head { display: flex; align-items: center; gap: .875rem; margin-bottom: 1.25rem; }
-.y4dl-icon { flex: none; width: 3.5rem; height: 3.5rem; border-radius: 1rem; object-fit: cover; box-shadow: 0 .5rem 1rem -.5rem rgba(0, 0, 0, .3); }
-.y4dl-head-t { min-width: 0; }
-.y4dl-eyebrow { display: block; font-size: .75rem; font-weight: 700; letter-spacing: .02em; color: #1fa463; }
-.y4dl-head h2 { margin: .125rem 0 0; font-size: 1.25rem; line-height: 1.25; color: #172021; overflow-wrap: anywhere; }
-@media (min-width: 48rem) { .y4dl-head h2 { font-size: 1.5rem; } }
-.y4dl-group + .y4dl-group { margin-top: 1.25rem; }
-.y4dl-step { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .625rem; margin: 0 0 .625rem; font-size: .9375rem; font-weight: 700; color: #172021; }
-.y4dl-step b { display: grid; place-items: center; width: 1.625rem; height: 1.625rem; border-radius: 50%; font-size: .8125rem; color: #fff; background: #172021; }
-.y4dl-step small { font-size: .8125rem; font-weight: 500; color: rgba(23, 32, 33, .55); }
-.y4dl-file { position: relative; display: flex; align-items: center; gap: .875rem; padding: .875rem; border-radius: 1.125rem; color: #172021 !important; text-decoration: none !important; background: linear-gradient(180deg, #fff, #f6f9fa); box-shadow: inset 0 0 0 1px rgba(23, 32, 33, .08); transition: box-shadow .2s ease, transform .2s ease, background-color .2s ease; }
-.y4dl-file + .y4dl-file { margin-top: .625rem; }
-.y4dl-file:hover { box-shadow: inset 0 0 0 2px #29b1d8, 0 .75rem 1.5rem -1rem rgba(41, 177, 216, .6); transform: translateY(-1px); }
-.y4dl-file:focus-visible { outline: 3px solid rgba(41, 177, 216, .5); outline-offset: 2px; }
-.y4dl-type { flex: none; display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: .875rem; font-size: .75rem; font-weight: 800; letter-spacing: .02em; color: #fff; background: linear-gradient(135deg, #3ddc84, #1fa463); box-shadow: 0 .5rem 1rem -.5rem rgba(31, 164, 99, .7); }
-.y4dl-t-mod { background: linear-gradient(135deg, #36c5ec, #1f6fd1); box-shadow: 0 .5rem 1rem -.5rem rgba(31, 111, 209, .7); }
-.y4dl-t-xapk, .y4dl-t-apks, .y4dl-t-apkm { background: linear-gradient(135deg, #8b7bf6, #5a3fd6); box-shadow: 0 .5rem 1rem -.5rem rgba(90, 63, 214, .7); }
-.y4dl-t-obb, .y4dl-t-zip { background: linear-gradient(135deg, #ffc04d, #f07a1a); box-shadow: 0 .5rem 1rem -.5rem rgba(240, 122, 26, .7); }
-.y4dl-t-ipa, .y4dl-t-ios { background: linear-gradient(135deg, #4a4f55, #16181b); box-shadow: 0 .5rem 1rem -.5rem rgba(0, 0, 0, .6); }
-.y4dl-info { flex: 1; min-width: 0; }
-.y4dl-info b { display: block; font-size: .9375rem; line-height: 1.35; overflow-wrap: anywhere; }
-.y4dl-info small { display: inline-flex; align-items: center; gap: .3125rem; margin-top: .25rem; font-size: .8125rem; font-weight: 600; color: rgba(23, 32, 33, .55); }
-.y4dl-go { flex: none; display: inline-flex; align-items: center; gap: .375rem; height: 2.75rem; padding: 0 1.125rem; border-radius: 2rem; font-size: .875rem; font-weight: 800; color: #fff; background: linear-gradient(135deg, #36c5ec, #1a93b6); box-shadow: 0 .625rem 1.25rem -.625rem rgba(26, 147, 182, .9); transition: filter .2s ease; }
-.y4dl-file:hover .y4dl-go { filter: brightness(1.08); }
-.y4dl-g-obb .y4dl-go { background: linear-gradient(135deg, #ffc04d, #f07a1a); box-shadow: 0 .625rem 1.25rem -.625rem rgba(240, 122, 26, .9); }
+/* ---------------------------------------------------------------- Download boxes (2.53.6): the same two boxes, finer */
+.f-app-download .block.f-app-dw::after, .f-app-download .block.f-app-obb::after { box-shadow: inset 0 0 0 1px rgba(41, 177, 216, .14); }
+.f-app-download .block.f-app-dw::after { background-image: radial-gradient(circle at 12% 0%, rgba(54, 197, 236, .24), transparent 55%), radial-gradient(circle at 100% 100%, rgba(120, 110, 245, .14), transparent 50%), linear-gradient(135deg, #eaf8fd 0%, #eef0fd 100%); }
+.f-app-download .block.f-app-obb::after { background-image: radial-gradient(circle at 12% 0%, rgba(77, 208, 102, .24), transparent 55%), radial-gradient(circle at 100% 100%, rgba(41, 177, 216, .12), transparent 50%), linear-gradient(135deg, #ecfaef 0%, #eef5fd 100%); box-shadow: inset 0 0 0 1px rgba(77, 208, 102, .16); }
+.f-app-download .dl-badge { display: grid; place-items: center; width: 3rem; height: 3rem; margin: 0 auto .625rem; border-radius: 50%; color: #1a93b6; background: #fff; box-shadow: 0 .625rem 1.25rem -.5rem rgba(26, 147, 182, .45), inset 0 0 0 1px rgba(41, 177, 216, .15); }
+.f-app-download .f-app-obb .dl-badge { color: #2fb257; box-shadow: 0 .625rem 1.25rem -.5rem rgba(47, 178, 87, .45), inset 0 0 0 1px rgba(77, 208, 102, .2); }
+.f-app-download .dl-badge svg { display: block; }
+.f-app-download .block .attachment-name { margin: 0 0 1.125rem; font-size: 1rem; letter-spacing: .08em; color: #172021; }
+.f-app-download .btn.attachment-link { display: flex; align-items: center; justify-content: center; gap: .5rem; width: fit-content; max-width: 100%; min-height: 3rem; height: auto; margin: 0 auto; padding: .5rem .5rem .5rem 1.125rem; border-radius: 2rem; font-size: .875rem; line-height: 1.3; letter-spacing: .01em; text-align: left; white-space: normal; overflow-wrap: anywhere; color: #fff !important; background: linear-gradient(135deg, #36c5ec 0%, #1a93b6 100%); box-shadow: 0 .875rem 1.75rem -.875rem rgba(26, 147, 182, .85), inset 0 1px 0 rgba(255, 255, 255, .25); transition: transform .2s ease, box-shadow .2s ease, filter .2s ease; }
+.f-app-download .btn.attachment-link + .btn.attachment-link { margin-top: .75rem; }
+.f-app-download .f-app-obb .btn.attachment-link { background: linear-gradient(135deg, #5bd975 0%, #2fb257 100%); box-shadow: 0 .875rem 1.75rem -.875rem rgba(47, 178, 87, .85), inset 0 1px 0 rgba(255, 255, 255, .25); }
+.f-app-download .btn.attachment-link:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 1.125rem 2rem -.875rem rgba(26, 147, 182, .95), inset 0 1px 0 rgba(255, 255, 255, .25); }
+.f-app-download .f-app-obb .btn.attachment-link:hover { box-shadow: 0 1.125rem 2rem -.875rem rgba(47, 178, 87, .95), inset 0 1px 0 rgba(255, 255, 255, .25); }
+.f-app-download .btn.attachment-link:focus-visible { outline: 3px solid rgba(41, 177, 216, .5); outline-offset: 3px; }
+.f-app-download .dl-arrow { flex: none; transition: transform .2s ease; }
+.f-app-download .btn.attachment-link:hover .dl-arrow { transform: translateY(2px); }
+.f-app-download .dl-name { min-width: 0; }
+.f-app-download .dl-size { flex: none; padding: .3125rem .625rem; border-radius: 1rem; font-size: .75rem; line-height: 1; white-space: nowrap; background: rgba(255, 255, 255, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.f-app-download .btn.attachment-link:not(:has(.dl-size)) { padding-right: 1.25rem; }
 @media (max-width: 35.9375rem) {
-	.y4dl-file { gap: .75rem; padding: .75rem; }
-	.y4dl-type { width: 2.75rem; height: 2.75rem; font-size: .6875rem; }
-	.y4dl-go { width: 2.75rem; padding: 0; justify-content: center; }
-	.y4dl-go > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+	.f-app-download .btn.attachment-link { width: 100%; }
+	.f-app-download .block .attachment-name { font-size: .9375rem; }
 }

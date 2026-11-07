@@ -640,6 +640,13 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.6: the download section is back to its two boxes (*Download MOD*,
+*Download OBB*, side by side), made finer: a round badge with an arrow over
+each heading, softer tinted panels, and buttons with a download arrow, the
+name and the size in a chip of its own, a deeper gradient (blue, green for
+OBB) that lifts on hover; a long name wraps inside the button. (2.53.5's
+card per file is gone.)
+
 2.53.5: the **download section** is a card per file, the way app stores show
 them: the game's icon and "Download <name>" with *Free download · No account
 needed*, then each file with a coloured type tile (MOD blue, APK green,
