@@ -14,6 +14,22 @@ $app_price = get_post_meta($post_id, 'price', true);
 $app_requires = get_post_meta($post_id, 'wp_requires_GP', true);
 $app_os = get_post_meta($post_id, 'platform', true);
 $post_categories = get_the_category($post_id);
+// The name's label: the menu's own word for what it is — "Games" on a game, "Apps" on an app (a category name, so the same in every language)
+$name_label = __('Name', 'y4apk');
+if (class_exists('Y4APK_Share')) {
+	foreach (Y4APK_Share::roots() as $root) {
+		$root = $root[0];
+		if (!$root || is_wp_error($root)) {
+			continue;
+		}
+		foreach ($post_categories as $cat) {
+			if ((int) $cat->term_id === (int) $root->term_id || cat_is_ancestor_of((int) $root->term_id, (int) $cat->term_id)) {
+				$name_label = html_entity_decode($root->name, ENT_QUOTES, 'UTF-8');
+				break 2;
+			}
+		}
+	}
+}
 
 if (empty($app_os)) {
 	$app_os = 'Android';
@@ -41,7 +57,7 @@ if(strtolower($app_os) == 'android') {
                         <use xlink:href="#i__apps"></use>
                     </svg>
                 </i>
-                <span class="fw-b c-blue"><?php esc_html_e('Name', 'y4apk'); ?></span>
+                <span class="fw-b c-blue"><?php echo esc_html($name_label); ?></span>
                 <span class="f-app-meta-data"><?php echo $app_name; ?></span>
             </div>
         </div>

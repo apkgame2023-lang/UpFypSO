@@ -745,6 +745,11 @@ translated. Kept texts are not sent to the AI and do not count in the %.
 The menu's two *All …* buttons are the same text now (one was not
 translatable).
 
+2.51.3: the first box on a game or app page is labelled with what it is,
+in the menu's words: **Games** on a game, **Apps** on an app (the top category
+the post is in, so the same in every language), instead of *Name*. A post in
+neither keeps *Name*; Roblox scripts have their own boxes.
+
 ## App updates follow Google Play; members' safe uploads go live at once (2.50)
 
 **App updates** (Y4APK ▸ App updates):
