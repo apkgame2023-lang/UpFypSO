@@ -31,7 +31,7 @@ if (!function_exists('y4apk_post_choices')) {
 		$posts = get_posts([
 			'post_type'              => 'post',
 			'post_status'            => 'publish',
-			'posts_per_page'         => (int) apply_filters('y4apk_choices_post_limit', 200),
+			'posts_per_page'         => (int) apply_filters('y4apk_choices_post_limit', 1000), // 2.53.1: 200 left older games out
 			'orderby'                => 'date',
 			'order'                  => 'DESC',
 			'suppress_filters'       => false,
@@ -43,6 +43,15 @@ if (!function_exists('y4apk_post_choices')) {
 		$choices = [];
 		foreach ($posts as $post) {
 			$choices[$post->ID] = $post->post_title;
+		}
+		// The posts already on a card stay in the list, however old (2.53): the list holds only the newest ones
+		foreach (['featured_posts', 'recommend_posts'] as $mod) {
+			foreach ((array) get_theme_mod($mod, []) as $row) {
+				$id = is_array($row) ? absint($row['post_id'] ?? 0) : 0;
+				if ($id && !isset($choices[$id]) && get_post_status($id) === 'publish') {
+					$choices[$id] = get_the_title($id);
+				}
+			}
 		}
 
 		return $choices;
@@ -252,6 +261,16 @@ new \Kirki\Field\Repeater(
 				'placeholder' => __('Choose a post', 'y4apk'),
 				'choices' => y4apk_post_choices()
 			],
+			'title' => [
+				'type' => 'text',
+				'label' => __('Card name', 'y4apk'),
+				'description' => __('Optional. Empty: the game or app name of the post.', 'y4apk'),
+			],
+			'link' => [
+				'type' => 'text',
+				'label' => __('Link', 'y4apk'),
+				'description' => __('Optional. Empty: the post’s page. Or any address, such as /roblox/ or https://…', 'y4apk'),
+			],
 			'bg_image' => [
 				'type' => 'image',
 				'label' => __('Background Image', 'y4apk'),
@@ -408,6 +427,16 @@ new \Kirki\Field\Repeater(
 				'description' => __('Select post which you want to display in featured posts section.', 'y4apk'),
 				'placeholder' => __('Choose a post', 'y4apk'),
 				'choices' => y4apk_post_choices()
+			],
+			'title' => [
+				'type' => 'text',
+				'label' => __('Card name', 'y4apk'),
+				'description' => __('Optional. Empty: the game or app name of the post.', 'y4apk'),
+			],
+			'link' => [
+				'type' => 'text',
+				'label' => __('Link', 'y4apk'),
+				'description' => __('Optional. Empty: the post’s page. Or any address, such as /roblox/ or https://…', 'y4apk'),
 			],
 			'bg_image' => [
 				'type' => 'image',

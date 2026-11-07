@@ -4,6 +4,10 @@
 .h-menu-roblox .h-menu-subitem-icon img{display:block;width:2rem;height:2rem;margin:0 auto;border-radius:.5rem;object-fit:cover}
 .h-menu-roblox-all{display:inline-block;margin-top:1rem;font-weight:700;color:#29b1d8}
 .h-menu-roblox-all:hover{color:#1aa1c7}
+/* Games and Apps menus (2.53): 12 categories, six to a row like Roblox, then their links */
+.h-menu-more{clear:both;display:flex;flex-wrap:wrap;column-gap:1.25rem}
+@media(min-width:62rem){.h-menu-apps .h-menu-subitem{width:16.666666%}.h-menu-apps .h-menu-subitem-text{font-size:inherit}}
+@media(max-width:61.9375rem){.h-menu-more{display:none!important}}
 @media(min-width:62rem){.h-menu-roblox{display:block!important}.h-menu-roblox .h-menu-subitem{width:16.666666%}}
 @media(max-width:61.9375rem){
 .h-menu-roblox,.h-menu-roblox-all{display:none!important}

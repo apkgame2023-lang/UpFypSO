@@ -51,6 +51,61 @@ if ($subcategories_2) {
 		}
 	}
 }
+
+/**
+ * The Games and the Apps menu (2.53): like the Roblox one, 12 categories (the ones with the most posts),
+ * then "All Games →" and "Share a game +".
+ */
+$cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) {
+	$subs = is_array($subs) ? $subs : [];
+	if ($icons) { // with icons: only the categories that have one, as before
+		$subs = array_filter($subs, function ($c) { return (bool) get_term_meta($c->term_id, 'category_icon', true); });
+	}
+	usort($subs, function ($a, $b) { return ($b->count <=> $a->count) ?: strcasecmp($a->name, $b->name); });
+	$subs = array_slice(array_values($subs), 0, 12);
+	$all = sprintf(__('All %s', 'y4apk'), html_entity_decode($name, ENT_QUOTES, 'UTF-8'));
+	?>
+                <div class="h-menu-item h-menu-<?php echo esc_attr($kind); ?>"<?php echo $kind === 'apps' ? ' style="display:none;"' : ''; ?>>
+                    <a class="h-link" href="<?php echo esc_url($link); ?>">
+                        <?php echo $name; ?> 
+                        <svg width="16" height="16" class="carrot">
+                            <use xlink:href="#i__carrot"></use>
+                        </svg>
+                    </a>
+                    <div class="h-menu-drop" style="display:none;">
+                        <div class="wrp">
+                            <a class="h-menu-drop-all btn btn-border" href="<?php echo esc_url($link); ?>" style="display:none;"><?php echo esc_html($all); ?></a>
+                            <?php if ($subs && $icons) : ?>
+                            <ul class="h-menu-subitems">
+                                <?php foreach ($subs as $c) : ?>
+                                <li class="h-menu-subitem">
+                                    <a href="<?php echo esc_url(get_category_link($c->term_id)); ?>">
+                                        <i class="h-menu-subitem-icon">
+                                            <svg width="24" height="24">
+                                                <image xlink:href="<?php echo esc_url(get_term_meta($c->term_id, 'category_icon', true)); ?>" width="100%" height="100%" />
+                                            </svg>
+                                        </i>
+                                        <span class="h-menu-subitem-text"><?php echo $c->name; ?></span> <span class="muted"><?php echo esc_html(number_format_i18n($c->count)); ?></span>
+                                    </a>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php elseif ($subs) : ?>
+                            <div class="h-menu-other">
+                                <?php foreach ($subs as $c) : ?>
+                                <a href="<?php echo esc_url(get_category_link($c->term_id)); ?>"><?php echo $c->name; ?> <span>(<?php echo esc_html(number_format_i18n($c->count)); ?>)</span></a>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+                            <div class="h-menu-more">
+                                <a class="h-menu-roblox-all" href="<?php echo esc_url($link); ?>"><?php echo esc_html($all); ?> →</a>
+                                <?php if (class_exists('Y4APK_Share') && Y4APK_Share::open() && class_exists('Y4APK_Members')) : ?><a class="h-menu-roblox-all" href="<?php echo esc_url(Y4APK_Members::url('share/' . $share)); ?>"><?php echo esc_html($share_label); ?> +</a><?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+	<?php
+};
 ?>
 <div class="header-panel">
     <header class="header wrp">
@@ -114,90 +169,8 @@ if ($subcategories_2) {
                 <i class="select-m-menu-marker"></i>
                 </label>
                 <?php endif; ?>
-                <div class="h-menu-item h-menu-games">
-                    <a class="h-link" href="<?php echo $menu_link_1; ?>">
-                        <?php echo $menu_name_1; ?> 
-                        <svg width="16" height="16" class="carrot">
-                            <use xlink:href="#i__carrot"></use>
-                        </svg>
-                    </a>
-                    <div class="h-menu-drop" style="display:none;">
-                        <div class="wrp">
-                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_1; ?>" style="display:none;"><?php echo esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($menu_name_1, ENT_QUOTES, 'UTF-8'))); ?></a>
-                            <?php if(!empty($subcategories_1) && $hasMenu1CategoryIcon) { ?>
-                            <ul class="h-menu-subitems">
-                                <?php foreach($subcategories_1 as $subcategory) { 
-                                    $category_icon = get_term_meta($subcategory->term_id, 'category_icon', true);
-                                    if($category_icon) {
-                                    ?>
-                                <li class="h-menu-subitem">
-                                    <a href="<?php echo get_category_link($subcategory->term_id); ?>">
-                                        <i class="h-menu-subitem-icon">
-                                            <svg width="24" height="24">
-                                                <image xlink:href="<?php echo $category_icon; ?>" width="100%" height="100%" />
-                                            </svg>
-                                        </i>
-                                        <span class="h-menu-subitem-text"><?php echo $subcategory->name; ?></span> <span class="muted"><?php echo $subcategory->count; ?></span>
-                                    </a>
-                                </li>
-                                <?php } } ?>
-                            </ul>
-                            <?php } ?>
-                            <?php if($subcategories_1 && !$hasMenu1CategoryIcon) { ?>
-                            <div class="h-menu-other">
-                                <?php foreach($subcategories_1 as $subcategory) { 
-                                    $category_icon = get_term_meta($subcategory->term_id, 'category_icon', true);
-                                    if(!$category_icon) {
-                                    ?>
-                                <a href="<?php echo get_category_link($subcategory->term_id); ?>"><?php echo $subcategory->name; ?> <span>(<?php echo $subcategory->count?>)</span></a>
-                                <?php } } ?>
-                            </div>
-                            <?php } ?>
-                        </div>
-                    </div>
-                </div>
-                <div class="h-menu-item h-menu-apps" style="display:none;">
-                    <a class="h-link" href="<?php echo $menu_link_2; ?>">
-                        <?php echo $menu_name_2; ?> 
-                        <svg width="16" height="16" class="carrot">
-                            <use xlink:href="#i__carrot"></use>
-                        </svg>
-                    </a>
-                    <div class="h-menu-drop" style="display:none;">
-                        <div class="wrp">
-                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_2; ?>" style="display:none;"><?php echo esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($menu_name_2, ENT_QUOTES, 'UTF-8'))); ?></a>
-                            <?php if(!empty($subcategories_2) && $hasMenu2CategoryIcon) { ?>
-                            <ul class="h-menu-subitems">
-                                <?php foreach($subcategories_2 as $subcategory) { 
-                                    $category_icon = get_term_meta($subcategory->term_id, 'category_icon', true);
-                                    if($category_icon) {
-                                    ?>
-                                <li class="h-menu-subitem">
-                                    <a href="<?php echo get_category_link($subcategory->term_id); ?>">
-                                        <i class="h-menu-subitem-icon">
-                                            <svg width="24" height="24">
-                                                <image xlink:href="<?php echo $category_icon; ?>" width="100%" height="100%" />
-                                            </svg>
-                                        </i>
-                                        <span class="h-menu-subitem-text"><?php echo $subcategory->name; ?></span> <span class="muted"><?php echo $subcategory->count; ?></span>
-                                    </a>
-                                </li>
-                                <?php } } ?>
-                            </ul>
-                            <?php } ?>
-                            <?php if($subcategories_2 && !$hasMenu2CategoryIcon) { ?>
-                            <div class="h-menu-other">
-                                <?php foreach($subcategories_2 as $subcategory) { 
-                                    $category_icon = get_term_meta($subcategory->term_id, 'category_icon', true);
-                                    if(!$category_icon) {
-                                    ?>
-                                <a href="<?php echo get_category_link($subcategory->term_id); ?>"><?php echo $subcategory->name; ?> <span>(<?php echo $subcategory->count?>)</span></a>
-                                <?php } } ?>
-                            </div>
-                            <?php } ?>
-                        </div>
-                    </div>
-                </div>
+                <?php $cat_menu('games', $menu_name_1, $menu_link_1, $subcategories_1, $hasMenu1CategoryIcon, 'game', __('Share a game', 'y4apk')); ?>
+                <?php $cat_menu('apps', $menu_name_2, $menu_link_2, $subcategories_2, $hasMenu2CategoryIcon, 'app', __('Share an app', 'y4apk')); ?>
 				<?php if ($roblox_menu) Y4APK_Roblox::menu(); ?>
 				<?php if($header) : ?>
 				<div class="h-menu-item h-menu-links" style="display: none">

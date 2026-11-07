@@ -640,6 +640,18 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.1:
+- **Games and Apps menus** like the Roblox one: 12 categories, those with the
+  most posts first, six to a row, then *All Games →* / *All Apps →* and
+  *Share a game +* / *Share an app +* (when sharing files is on; a guest
+  signs in first and lands in the wizard). Phones: the same 12, with the
+  *All …* button.
+- **Home page cards** (Customize ▸ Y4APK Panel ▸ Home Featured and Home
+  Recommend): each card has *Card name* and *Link*, both optional. Empty,
+  they are the post's game or app name and its page, as before; a link may
+  be any address, such as /roblox/. The post list holds the newest 1,000
+  posts (was 200), and a post already on a card always stays in it.
+
 **FAQ** (/faq/): the page the site already had is now drawn like the other
 help pages (Y4APK ▸ Support ▸ Pages can switch it back). 24 answers in six
 groups (downloading and installing, MODs and safety, Roblox scripts and

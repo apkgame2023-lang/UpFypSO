@@ -398,6 +398,25 @@ add_action('wp_footer', 'footer_code');
  * (a post with no image — an app gone from Google Play — showed a broken
  * image on every card).
  */
+/**
+ * A home page card (Home Featured, Home Recommend): its name and its link (2.53). Each may be set on the
+ * card in Customize; otherwise the post's game or app name and its page.
+ */
+function y4apk_card($row) {
+	$id = absint($row['post_id'] ?? 0);
+	$name = trim((string) ($row['title'] ?? ''));
+	if ($name === '' && $id) {
+		$name = (string) get_post_meta($id, 'wp_title_GP', true);
+		$name = $name !== '' ? $name : get_the_title($id);
+	}
+	$link = trim((string) ($row['link'] ?? ''));
+	if ($link !== '' && $link[0] === '/' && substr($link, 0, 2) !== '//') {
+		$link = home_url($link); // /roblox/ → this site's address (and the visitor's language)
+	}
+	$link = $link !== '' ? esc_url_raw($link) : '';
+	return [$name, $link !== '' ? $link : ($id ? get_permalink($id) : home_url('/'))];
+}
+
 function y4apk_icon_url($post_id = null, $size = 'post-thumbnail') {
 	$post_id = $post_id ? $post_id : get_the_ID();
 	$url = get_the_post_thumbnail_url($post_id, $size);

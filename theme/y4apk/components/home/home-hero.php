@@ -137,25 +137,24 @@ $featured_posts = get_theme_mod('featured_posts', [
             <div class="best-app-list">
                 <?php 
                     foreach($featured_posts as $post) : 
-                    $post_name = get_post_meta($post['post_id'], "wp_title_GP", true);
-                    $post_name = $post_name ?: get_the_title($post['post_id']);
-                    $bg_image_url = $post['bg_image'];
-                    $bg_color = $post['bg_color'];
+                    list($post_name, $post_link) = y4apk_card($post); // the name and link set on the card, or the post's
+                    $bg_image_url = $post['bg_image'] ?? '';
+                    $bg_color = sanitize_hex_color($post['bg_color'] ?? '') ?: '#29b1d8';
                     ?>
                 <div class="best-app-item">
-                    <a href="<?php echo get_permalink($post['post_id']); ?>">
+                    <a href="<?php echo esc_url($post_link); ?>">
                         <div class="best-app-img">
                             <figure>
-                                <img src="<?php echo esc_url(y4apk_icon_url($post['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo $post_name; ?>" loading="lazy">
+                                <img src="<?php echo esc_url(y4apk_icon_url($post['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($post_name); ?>" loading="lazy">
                             </figure>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 76" width="90" height="76">
                                 <path fill="currentColor" d="M64,0H0V76A16,16,0,0,1,16,60.26H40a24,24,0,0,0,24-24V19.74A16,16,0,0,1,80,4H90V0Z"></path>
                             </svg>
                         </div>
-                        <span class="best-app-title"><?php echo $post_name; ?></span>
+                        <span class="best-app-title"><?php echo esc_html($post_name); ?></span>
                         <span class="best-app-download"><?php esc_html_e('Download', 'y4apk'); ?></span>
                         <div class="best-app-bg" style="background-color: <?php echo $bg_color; ?>;">
-                            <img src="<?php echo $bg_image_url; ?>" width="190" height="144" alt="<?php echo $post_name; ?> Background" decoding="async" loading="lazy">
+                            <img src="<?php echo esc_url($bg_image_url); ?>" width="190" height="144" alt="<?php echo esc_attr($post_name); ?> Background" decoding="async" loading="lazy">
                         </div>
                         <div class="best-app-shadow" style="box-shadow: 0 0 2rem 0 <?php echo $bg_color; ?>;"></div>
                     </a>
