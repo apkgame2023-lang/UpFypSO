@@ -345,6 +345,9 @@ class Y4APK_Social {
 	 */
 	public static function image_rules($kind) {
 		$types = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF];
+		if ($kind === 'cover') { // a post's own cover (2.55): 16:9, as the cards show it
+			return ['meta' => '', 'max' => self::upload_max(), 'types' => $types, 'min' => [480, 270], 'out' => [1280, 720], 'anim' => [640, 360], 'gif' => [1280, 720], 'keep' => 8 * MB_IN_BYTES, 'label' => __('cover', 'y4apk')];
+		}
 		return $kind === 'banner'
 			? ['meta' => self::BANNER, 'max' => self::upload_max(), 'types' => $types, 'min' => [600, 200], 'out' => [1800, 600], 'anim' => [1200, 400], 'gif' => [2000, 1000], 'keep' => 20 * MB_IN_BYTES, 'label' => __('banner', 'y4apk')]
 			: ['meta' => self::PIC, 'max' => self::upload_max(), 'types' => $types, 'min' => [96, 96], 'out' => [400, 400], 'anim' => [320, 320], 'gif' => [1000, 1000], 'keep' => 10 * MB_IN_BYTES, 'label' => __('profile picture', 'y4apk')];
@@ -361,6 +364,15 @@ class Y4APK_Social {
 
 	/** An uploaded file ($_FILES entry) → cropped, re-encoded, on R2, in the member's profile. True or a WP_Error. */
 	public static function store_image($user, $file, $kind, $fetched = false) {
+		$img = self::shape_image($user, $file, $kind, $fetched);
+		return is_wp_error($img) ? $img : self::keep_image($user, $kind, $img['bytes'], $img['ext'], $img['type']);
+	}
+
+	/**
+	 * A picture checked and made the size and shape it is shown at (2.55: apart from storing it, so a
+	 * post's cover goes the same way): ['bytes', 'ext', 'type'], or a WP_Error to show the member.
+	 */
+	public static function shape_image($user, $file, $kind, $fetched = false) {
 		$rules = self::image_rules($kind);
 		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
 			return new WP_Error('y4', __('Picture uploads are not set up on this site yet.', 'y4apk'));
@@ -404,7 +416,7 @@ class Y4APK_Social {
 				return new WP_Error('y4', sprintf(__('That moving %1$s is still %2$s once made smaller; it can be up to %3$s, as everyone who opens a page loads it. Use a shorter GIF.', 'y4apk'), $rules['label'], size_format(strlen($gif[0]), 1), size_format($rules['keep'])));
 			}
 			// Kept moving and cut to shape on the page too (object-fit / background-size: cover).
-			return self::keep_image($user, $kind, $gif[0], 'gif', 'image/gif');
+			return ['bytes' => $gif[0], 'ext' => 'gif', 'type' => 'image/gif'];
 		}
 		wp_raise_memory_limit('image'); // a big photo, opened whole
 		$open = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp', IMAGETYPE_GIF => 'imagecreatefromgif'];
@@ -442,7 +454,7 @@ class Y4APK_Social {
 		if ($bytes === '') {
 			return new WP_Error('y4', sprintf(__('The %s could not be saved.', 'y4apk'), $rules['label']));
 		}
-		return self::keep_image($user, $kind, $bytes, $webp ? 'webp' : 'png', $webp ? 'image/webp' : 'image/png');
+		return ['bytes' => $bytes, 'ext' => $webp ? 'webp' : 'png', 'type' => $webp ? 'image/webp' : 'image/png'];
 	}
 
 	/** On R2 at members/<id>/<kind>-<random>.<ext>, in place of the one before. */

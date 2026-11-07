@@ -57,6 +57,36 @@ class Y4APK_Share {
 		add_action(self::HOOK, [__CLASS__, 'clean']);
 		add_action('trashed_post', [__CLASS__, 'trashed']);
 		add_action('before_delete_post', [__CLASS__, 'trashed']);
+		add_action('admin_init', [__CLASS__, 'drop_by']);
+	}
+
+	/** 2.55: titles of members' uploads lose the "by …" they were given (once). */
+	public static function drop_by() {
+		if (get_option('y4apk_share_titles') === '1' || !current_user_can('manage_options')) {
+			return;
+		}
+		update_option('y4apk_share_titles', '1', false);
+		global $wpdb;
+		$rows = $wpdb->get_results($wpdb->prepare("SELECT p.ID, p.post_title, p.post_author FROM {$wpdb->posts} p
+			WHERE p.post_type = 'post' AND p.post_title LIKE %s AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} m WHERE m.post_id = p.ID AND m.meta_key IN (%s, %s, %s))",
+			'% by %', self::META, self::PARENT, Y4APK_Members::MEMBER_POST)); // a member's upload, a version under a main post, or any member's post
+		foreach ((array) $rows as $r) {
+			$u = get_userdata((int) $r->post_author);
+			if (!$u) {
+				continue;
+			}
+			foreach (array_unique([' ' . self::by($u), ' by ' . Y4APK_Social::name($u), ' by ' . $u->user_login, ' by @' . $u->user_login]) as $sfx) {
+				$n = strlen($sfx);
+				if (strlen($r->post_title) > $n + 3 && strcasecmp(substr($r->post_title, -$n), $sfx) === 0) {
+					$wpdb->update($wpdb->posts, ['post_title' => rtrim(substr($r->post_title, 0, -$n))], ['ID' => (int) $r->ID]);
+					clean_post_cache((int) $r->ID);
+					break;
+				}
+			}
+		}
+		if (class_exists('Y4APK_Suggest')) {
+			Y4APK_Suggest::later();
+		}
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -519,7 +549,7 @@ class Y4APK_Share {
 			return 0;
 		}
 		$main = $d['files'] ? $d['files'][0] : ['label' => 'APK'];
-		$title = (!empty($d['own_title']) ? self::own_title($d['own_title'], $d['name']) : self::title($d['name'], $d['version'], $d['mods'], $main['label'])) . ($user ? ' ' . self::by($user) : '');
+		$title = !empty($d['own_title']) ? self::own_title($d['own_title'], $d['name']) : self::title($d['name'], $d['version'], $d['mods'], $main['label']); // 2.55: no "by …" (the card and the page say who shared it)
 		wp_update_post(wp_slash(['ID' => $id, 'post_title' => $title, 'post_category' => wp_get_post_categories($parent), 'post_date' => $post->post_date, 'edit_date' => true, 'post_parent' => $parent])); // still "sent 2 days ago"
 		update_post_meta($id, self::PARENT, $parent);
 		delete_post_meta($id, 'wp_GP_ID'); // Google Play stays with the main post (App updates, Write with AI)
@@ -685,12 +715,14 @@ class Y4APK_Share {
 			$ctx['errors'] = $err;
 			return;
 		}
+		$cover = class_exists('Y4APK_Cover') ? Y4APK_Cover::take($user) : null; // 2.55: checked before anything is saved
+		if (is_wp_error($cover)) {
+			$ctx['errors'] = [$cover->get_error_message()];
+			return;
+		}
 		$main = $old['files'][0];
 		$parent = (int) $old['update_of'];
 		$title = $old['own_title'] !== '' ? self::own_title($old['own_title'], $old['name']) : self::title($old['name'], $old['version'], $old['mods'], $main['label']);
-		if ($parent) {
-			$title .= ' ' . self::by($user); // the member's own post, under the main one
-		}
 		$content = '';
 		foreach (preg_split('/\n{2,}/', $old['desc'] !== '' ? $old['desc'] : sprintf(__('%1$s %2$s, shared by @%3$s.', 'y4apk'), $old['name'], $old['version'], $user->user_login)) as $para) {
 			$content .= "<!-- wp:paragraph -->\n<p>" . nl2br(esc_html($para)) . "</p>\n<!-- /wp:paragraph -->\n\n";
@@ -751,6 +783,9 @@ class Y4APK_Share {
 		}
 		update_post_meta($id, Y4APK_Members::MEMBER_POST, 1);
 		delete_post_meta($id, Y4APK_Members::REJECT);
+		if (class_exists('Y4APK_Cover')) {
+			Y4APK_Cover::save($id, $user, $cover, !empty($_POST['cover_remove']));
+		}
 		$meta = ['wp_title_GP' => $old['name'], 'wp_version_GP' => Y4APK_App_Updates::number($old['version']), 'wp_sizes_GP' => Y4APK_R2::size_text($main['size']), 'wp_mods' => $old['mods'] === 'Original' ? '' : $old['mods'],
 			'wp_requires_GP' => $old['requires'] !== '' ? $old['requires'] : ($parent ? (string) get_post_meta($parent, 'wp_requires_GP', true) : ''),
 			'wp_developers_GP' => $parent ? (string) get_post_meta($parent, 'wp_developers_GP', true) : ($old['play']['developer'] ?? ''), 'platform' => 'ANDROID', 'price' => '0'];

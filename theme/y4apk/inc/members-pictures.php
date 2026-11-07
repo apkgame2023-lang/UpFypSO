@@ -37,7 +37,13 @@ class Y4APK_Pictures {
 
 	public static function count_new() {
 		global $wpdb;
-		return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", self::NEW_PIC, self::NEW_BAN));
+		return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", self::NEW_PIC, self::NEW_BAN)) + self::count_covers(true);
+	}
+
+	/** Posts' own covers (2.55): new ones (to look at) or all. */
+	public static function count_covers($new) {
+		global $wpdb;
+		return class_exists('Y4APK_Cover') ? (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", $new ? Y4APK_Cover::NEW : Y4APK_Cover::META)) : 0;
 	}
 
 	public static function menu() {
@@ -67,13 +73,22 @@ class Y4APK_Pictures {
 		check_admin_referer('y4apk_pictures');
 		$do = isset($_POST['do']) ? sanitize_key(wp_unslash($_POST['do'])) : '';
 		$items = isset($_POST['pics']) ? array_map('sanitize_text_field', (array) wp_unslash($_POST['pics'])) : [];
-		if (isset($_POST['one']) && preg_match('/^(ok|down)\|(\d+:(?:pic|banner))$/', (string) wp_unslash($_POST['one']), $m)) {
+		if (isset($_POST['one']) && preg_match('/^(ok|down)\|(\d+:(?:pic|banner|cover))$/', (string) wp_unslash($_POST['one']), $m)) {
 			$do = $m[1];
 			$items = [$m[2]];
 		}
 		$done = 0;
 		foreach (array_slice($items, 0, 500) as $it) {
-			if (!preg_match('/^(\d+):(pic|banner)$/', $it, $m)) {
+			if (!preg_match('/^(\d+):(pic|banner|cover)$/', $it, $m)) {
+				continue;
+			}
+			if ($m[2] === 'cover') { // a post's cover (2.55): its post ID
+				if ($do === 'down' && class_exists('Y4APK_Cover')) {
+					Y4APK_Cover::drop((int) $m[1]);
+				} elseif (class_exists('Y4APK_Cover')) {
+					delete_post_meta((int) $m[1], Y4APK_Cover::NEW);
+				}
+				$done++;
 				continue;
 			}
 			if ($do === 'down') {
@@ -88,19 +103,85 @@ class Y4APK_Pictures {
 		exit;
 	}
 
+	/** Posts' covers (2.55), in the same grid: tick, Fine, Take down (deleted from R2), open full size, the post and its member. */
+	private static function cover_grid($rows, $tab, $here) {
+		if (!$rows) {
+			echo '<div class="y4p-empty">' . ($tab === 'new' ? '<b>' . esc_html__('All caught up', 'y4apk') . '</b>' . esc_html__('No new post covers to look at.', 'y4apk') : esc_html__('No covers match.', 'y4apk')) . '</div>';
+			return;
+		}
+		$ids = array_map('intval', wp_list_pluck($rows, 'post_id'));
+		_prime_post_caches($ids, false, true);
+		?>
+		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-y4p>
+			<input type="hidden" name="action" value="y4apk_pictures"><input type="hidden" name="back" value="<?php echo esc_attr($here); ?>"><?php wp_nonce_field('y4apk_pictures'); ?>
+			<div class="y4p-bar">
+				<label><input type="checkbox" data-all> <?php esc_html_e('Select all on this page', 'y4apk'); ?></label>
+				<span class="y4p-picked" data-picked></span>
+				<span class="y4p-gap"></span>
+				<button class="button" name="do" value="ok" data-needs><?php esc_html_e('Looks fine', 'y4apk'); ?></button>
+				<button class="button y4p-down" name="do" value="down" data-needs data-ask="<?php esc_attr_e('Take the ticked covers down? They are deleted from R2.', 'y4apk'); ?>"><?php esc_html_e('Take down', 'y4apk'); ?></button>
+				<?php if ($tab === 'new') : ?><button class="button button-primary" name="do" value="ok" data-page><?php echo esc_html(sprintf(__('All %s on this page look fine', 'y4apk'), number_format_i18n(count($ids)))); ?></button><?php endif; ?>
+			</div>
+			<div class="y4p-grid">
+				<?php foreach ($ids as $pid) :
+					$url = Y4APK_Cover::url($pid);
+					$post = get_post($pid);
+					if ($url === '' || !$post) {
+						delete_post_meta($pid, Y4APK_Cover::NEW);
+						continue;
+					}
+					$u = get_userdata((int) $post->post_author);
+					$c = get_post_meta($pid, Y4APK_Cover::META, true);
+					$is_new = (bool) get_post_meta($pid, Y4APK_Cover::NEW, true);
+					$id = $pid . ':cover';
+					?>
+				<div class="y4p-card is-cover">
+					<label class="y4p-img" title="<?php esc_attr_e('Tick', 'y4apk'); ?>">
+						<input type="checkbox" name="pics[]" value="<?php echo esc_attr($id); ?>">
+						<img src="<?php echo esc_url($url); ?>" alt="" loading="lazy" decoding="async">
+						<?php if (substr($url, -4) === '.gif') : ?><em><?php esc_html_e('moving', 'y4apk'); ?></em><?php endif; ?>
+						<?php if ($tab === 'all' && $is_new) : ?><em class="y4p-new"><?php esc_html_e('new', 'y4apk'); ?></em><?php endif; ?>
+					</label>
+					<span class="y4p-meta">
+						<a href="<?php echo esc_url(get_permalink($pid)); ?>" target="_blank" rel="noopener"><?php echo esc_html(wp_strip_all_tags(get_the_title($pid))); ?></a>
+						<small><?php echo esc_html(($u ? '@' . $u->user_login : '') . (is_array($c) && !empty($c['at']) ? ' · ' . Y4APK_Roblox::ago((int) $c['at']) : '') . ($post->post_status !== 'publish' ? ' · ' . $post->post_status : '')); ?></small>
+					</span>
+					<span class="y4p-acts">
+						<?php if ($is_new) : ?><button class="button button-small" name="one" value="<?php echo esc_attr('ok|' . $id); ?>"><?php esc_html_e('Fine', 'y4apk'); ?></button><?php endif; ?>
+						<button class="button button-small y4p-down" name="one" value="<?php echo esc_attr('down|' . $id); ?>" data-ask="<?php esc_attr_e('Take this cover down? It is deleted from R2, and the post shows a screenshot instead.', 'y4apk'); ?>"><?php esc_html_e('Take down', 'y4apk'); ?></button>
+						<a class="y4p-open" href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" title="<?php esc_attr_e('Open full size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Open full size', 'y4apk'); ?>"><span class="dashicons dashicons-external"></span></a>
+					</span>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</form>
+		<?php
+	}
+
 	public static function render() {
 		if (!current_user_can('manage_options')) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'), 403);
 		}
 		global $wpdb;
 		$tab = isset($_GET['tab']) && $_GET['tab'] === 'all' ? 'all' : 'new';
-		$kind = isset($_GET['kind']) && in_array($_GET['kind'], ['pic', 'banner', 'moving'], true) ? $_GET['kind'] : '';
+		$kind = isset($_GET['kind']) && in_array($_GET['kind'], ['pic', 'banner', 'moving', 'cover'], true) ? $_GET['kind'] : '';
 		$q = isset($_GET['q']) ? strtolower(preg_replace('/[^a-z0-9_]/i', '', wp_unslash($_GET['q']))) : '';
 		$paged = max(1, isset($_GET['paged']) ? (int) $_GET['paged'] : 1);
 		$base = admin_url('admin.php?page=' . self::SLUG);
 		$new_n = self::count_new();
-		$all_n = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", Y4APK_Social::PIC, Y4APK_Social::BANNER));
+		$all_n = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", Y4APK_Social::PIC, Y4APK_Social::BANNER)) + self::count_covers(false);
+		$covers_new = self::count_covers(true);
 
+		if ($kind === 'cover' && class_exists('Y4APK_Cover')) { // posts' covers: by post meta, newest first
+			$cjoin = '';
+			$cwhere = $wpdb->prepare('m.meta_key = %s', $tab === 'new' ? Y4APK_Cover::NEW : Y4APK_Cover::META);
+			if ($q !== '') {
+				$cjoin = "JOIN {$wpdb->posts} p ON p.ID = m.post_id JOIN {$wpdb->users} u ON u.ID = p.post_author";
+				$cwhere .= $wpdb->prepare(' AND u.user_login LIKE %s', $wpdb->esc_like($q) . '%');
+			}
+			$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta} m $cjoin WHERE $cwhere");
+			$rows = $wpdb->get_results($wpdb->prepare("SELECT m.post_id FROM {$wpdb->postmeta} m $cjoin WHERE $cwhere ORDER BY m.meta_id DESC LIMIT %d OFFSET %d", self::PER_PAGE, ($paged - 1) * self::PER_PAGE));
+		} else {
 		// What to show: by meta_key, newest first; a name narrows it through the users table
 		$keys = $tab === 'new' ? [self::NEW_PIC, self::NEW_BAN] : [Y4APK_Social::PIC, Y4APK_Social::BANNER];
 		if ($kind === 'pic') {
@@ -120,6 +201,7 @@ class Y4APK_Pictures {
 		}
 		$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->usermeta} m $join WHERE $where");
 		$rows = $wpdb->get_results($wpdb->prepare("SELECT m.user_id, m.meta_key FROM {$wpdb->usermeta} m $join WHERE $where ORDER BY m.umeta_id DESC LIMIT %d OFFSET %d", self::PER_PAGE, ($paged - 1) * self::PER_PAGE));
+		}
 		$pages = max(1, (int) ceil($total / self::PER_PAGE));
 		$here = add_query_arg(array_filter(['tab' => $tab === 'all' ? 'all' : '', 'kind' => $kind, 'q' => $q, 'paged' => $paged > 1 ? $paged : '']), $base);
 		?>
@@ -140,13 +222,18 @@ class Y4APK_Pictures {
 					<option value="pic" <?php selected($kind, 'pic'); ?>><?php esc_html_e('Profile pictures', 'y4apk'); ?></option>
 					<option value="banner" <?php selected($kind, 'banner'); ?>><?php esc_html_e('Banners', 'y4apk'); ?></option>
 					<option value="moving" <?php selected($kind, 'moving'); ?>><?php esc_html_e('Moving (GIF)', 'y4apk'); ?></option>
+					<option value="cover" <?php selected($kind, 'cover'); ?>><?php echo esc_html(sprintf(__('Post covers (%s new)', 'y4apk'), number_format_i18n($covers_new))); ?></option>
 				</select>
 				<input type="search" name="q" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('@name begins with…', 'y4apk'); ?>">
 				<button class="button"><?php esc_html_e('Show', 'y4apk'); ?></button>
 				<span class="y4p-total"><?php echo esc_html(sprintf(_n('%s picture', '%s pictures', $total, 'y4apk'), number_format_i18n($total))); ?></span>
 			</form>
 
-			<?php if (!$rows) : ?>
+			<?php if ($kind !== 'cover' && $tab === 'new' && $covers_new) : ?><div class="notice notice-info inline"><p><?php echo esc_html(sprintf(_n('%s new post cover to look at.', '%s new post covers to look at.', $covers_new, 'y4apk'), number_format_i18n($covers_new))); ?> <a href="<?php echo esc_url(add_query_arg('kind', 'cover', $base)); ?>"><?php esc_html_e('Look at them', 'y4apk'); ?> →</a></p></div><?php endif; ?>
+			<?php if ($kind === 'cover') : self::cover_grid($rows, $tab, $here); if ($pages > 1) : ?>
+			<div class="tablenav"><div class="tablenav-pages"><?php echo paginate_links(['base' => add_query_arg('paged', '%#%', remove_query_arg('paged', $here)), 'format' => '', 'current' => $paged, 'total' => $pages]); ?></div></div>
+			<?php endif; ?>
+			<?php elseif (!$rows) : ?>
 				<div class="y4p-empty"><?php if ($tab === 'new' && $q === '' && $kind === '') : ?><b><?php esc_html_e('All caught up', 'y4apk'); ?></b><?php esc_html_e('No new pictures to look at. New ones show up here (and on the Dashboard) as members upload them.', 'y4apk'); ?><?php else : esc_html_e('No pictures match.', 'y4apk'); endif; ?></div>
 			<?php else : ?>
 			<?php
@@ -220,7 +307,7 @@ class Y4APK_Pictures {
 		.y4p-bar label{font-weight:600}.y4p-picked{color:#646970}.y4p-gap{flex:1}.y4p .y4p-down{color:#b32d2e;border-color:#e8a6a6}.y4p .y4p-down:hover{color:#8a2424;border-color:#b32d2e}
 		.y4p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
 		.y4p-card{display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid #dcdcde;border-radius:12px;overflow:hidden;transition:box-shadow .12s,border-color .12s}
-		.y4p-card.is-banner{grid-column:span 2}.y4p-card:has(input:checked){border-color:#2271b1;box-shadow:0 0 0 2px #2271b1}
+		.y4p-card.is-banner,.y4p-card.is-cover{grid-column:span 2}.y4p-card.is-cover .y4p-img{aspect-ratio:16/9}.y4p-card:has(input:checked){border-color:#2271b1;box-shadow:0 0 0 2px #2271b1}
 		.y4p-img{position:relative;display:block;aspect-ratio:1;background:#f0f0f1 repeating-conic-gradient(#e6e6e8 0 25%,#f6f6f7 0 50%) 0 0/16px 16px;cursor:pointer}
 		.y4p-card.is-banner .y4p-img{aspect-ratio:auto;height:0;padding-top:calc(50% - 6px)}
 		.y4p-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

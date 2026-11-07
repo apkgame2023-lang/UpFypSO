@@ -741,7 +741,7 @@ if ($screen === 'login') {
 				<?php if ($editing && (string) get_post_meta($c['post']->ID, Y4APK_Members::REJECT, true) !== '') : ?><div class="acc-note acc-note-err"><b><?php esc_html_e('What to change:', 'y4apk'); ?></b> <?php echo esc_html(get_post_meta($c['post']->ID, Y4APK_Members::REJECT, true)); ?></div><?php endif; ?>
 				<?php $messages(); ?>
 				<div class="acc-note acc-note-err" data-wiz-err role="alert" hidden></div>
-				<?php $form_open($editing ? 'edit' : 'submit', ' novalidate'); ?>
+				<?php $form_open($editing ? 'edit' : 'submit', ' novalidate enctype="multipart/form-data"'); // 2.55: with its cover ?>
 
 				<section class="acc-wiz-step" data-step="1">
 					<h2 class="acc-wiz-title"><?php esc_html_e('Where does your script work?', 'y4apk'); ?></h2>
@@ -809,6 +809,9 @@ if ($screen === 'login') {
 						<label for="f-desc"><?php esc_html_e('About this script', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
 						<div class="acc-input"><textarea id="f-desc" name="desc" rows="4" maxlength="600" placeholder="<?php esc_attr_e('What it does and how to use it: auto farm, teleport, fruit sniper…', 'y4apk'); ?>" data-counted><?php echo esc_textarea($v('desc')); ?></textarea></div>
 						<span class="acc-wiz-count" data-count-for="f-desc"></span>
+					</div>
+					<div class="acc-field-wrap-cover">
+						<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $c['post']->ID : 0); } ?>
 					</div>
 					<div class="acc-title-preview" data-title-preview hidden><span><?php esc_html_e('Your post will be called', 'y4apk'); ?></span><b data-title-text></b></div>
 					<div class="acc-wiz-nav"><button type="button" class="acc-btn acc-btn-ghost" data-back><?php echo $icon('back'); ?> <?php esc_html_e('Back', 'y4apk'); ?></button><button type="button" class="acc-btn acc-btn-primary" data-next><?php esc_html_e('Next: add your code', 'y4apk'); ?> <?php echo $icon('arrow'); ?></button></div>

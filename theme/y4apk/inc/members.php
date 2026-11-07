@@ -1509,10 +1509,18 @@ class Y4APK_Members {
 			$ctx['errors'] = $err;
 			return;
 		}
+		$cover = class_exists('Y4APK_Cover') ? Y4APK_Cover::take($user) : null; // 2.55: checked before anything is saved
+		if (is_wp_error($cover)) {
+			$ctx['errors'][] = $cover->get_error_message();
+			return;
+		}
 		$id = self::save_script($user, $d);
 		if (!$id) {
 			$ctx['errors'][] = __('Could not save the script. Try again.', 'y4apk');
 			return;
+		}
+		if (class_exists('Y4APK_Cover')) {
+			Y4APK_Cover::save($id, $user, $cover);
 		}
 		if (self::script_ok($id, $user, $d)) {
 			Y4APK_Members_Admin::publish_script($id, (int) Y4APK_Roblox::game_of($id)->term_id, true); // 2.50: its checks pass
@@ -1547,9 +1555,17 @@ class Y4APK_Members {
 			$ctx['errors'][] = __('You are editing too fast. Try again later.', 'y4apk');
 			return;
 		}
+		$cover = class_exists('Y4APK_Cover') ? Y4APK_Cover::take($user) : null;
+		if (is_wp_error($cover)) {
+			$ctx['errors'][] = $cover->get_error_message();
+			return;
+		}
 		if (!self::save_script($user, $d, $post)) {
 			$ctx['errors'][] = __('Could not save the script. Try again.', 'y4apk');
 			return;
+		}
+		if (class_exists('Y4APK_Cover')) {
+			Y4APK_Cover::save($post->ID, $user, $cover, !empty($_POST['cover_remove']));
 		}
 		if (self::script_ok($post->ID, $user, $d)) {
 			Y4APK_Members_Admin::publish_script($post->ID, (int) Y4APK_Roblox::game_of($post->ID)->term_id, true);

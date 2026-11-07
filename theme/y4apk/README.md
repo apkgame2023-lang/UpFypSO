@@ -638,6 +638,25 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Members' titles without "by …", a post's own cover (2.55)
+
+**Titles**: a member's game, app or version is no longer called "… by Dez"
+(the card, the page and the search say who shared it). The titles that have it
+lose it once, the first time an admin opens wp-admin after the update (their
+uploads and versions only; revisions are left alone).
+
+**Cover** (inc/members-cover.php): the script form and the game/app share
+form have *Cover (optional)*, a 16:9 box: choose a picture (PNG, JPG, WebP or
+GIF, at least 480 × 270), see it at once, change it or *Remove the cover*
+when editing. It is checked and made 1280 × 720 the way members' pictures
+are (an animated GIF stays animated; too small or the wrong kind says so and
+nothing is saved), kept on R2 at members/<id>/cover-…, and taken off R2 when
+it is replaced, removed or its post is deleted. Every card shows it (search,
+profiles, Roblox pages, My uploads); without one, a screenshot of the game or
+its icon, as before. New covers wait on **Y4APK ▸ Pictures** (*Post covers*,
+and a note on *To look at*): *Fine*, or *Take down* (deleted from R2; the
+post shows a screenshot again).
+
 ## Search, the way a search engine answers (2.54)
 
 2.54.2: **members' posts as picture cards**, the cards of their profiles

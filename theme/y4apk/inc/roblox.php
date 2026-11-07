@@ -543,6 +543,9 @@ class Y4APK_Roblox {
 	/** A script card: wide picture with views and age, the title, the game or the script hub. */
 	/** A script's wide picture: its first screenshot, else one of its game's (not the same on every card of a game). */
 	public static function thumb($post_id) {
+		if (class_exists('Y4APK_Cover') && ($cover = Y4APK_Cover::url($post_id)) !== '') {
+			return $cover; // the member's own cover (2.55)
+		}
 		$shots = get_post_meta($post_id, 'ss_images', true);
 		if (!is_array($shots) || empty($shots[0]['ss_url'])) {
 			$shots = self::game_shots($post_id);

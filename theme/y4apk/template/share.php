@@ -181,6 +181,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title></div>
 					<p class="acc-hint"><?php esc_html_e('Leave it empty and the post gets the title shown in grey, made like every page on the site (best for search). Your own must have the game’s or app’s name in it, or the name is added at the start. No links.', 'y4apk'); ?></p>
 				</div>
+				<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $sh['post']->ID : 0); } ?>
 				<div class="shr-row2">
 					<div class="acc-field">
 						<label for="f-version"><?php esc_html_e('Version', 'y4apk'); ?></label>
