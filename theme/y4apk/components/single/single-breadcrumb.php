@@ -21,36 +21,20 @@ $child_cats = get_categories(array('parent' => $parent_cat_ID, 'hide_empty' => f
         </svg>
     </a>
     <?php break; endif; endforeach; endif; ?>
-    <div class="share-drop dropdown">
-        <button class="share-drop-btn" data-toggle="dropdown">
+    <?php // 2.50.6: the share window, as the profile page's
+    $y4sd_id = get_the_ID();
+    $y4sd_name = trim(html_entity_decode(wp_strip_all_tags((string) get_post_meta($y4sd_id, 'wp_title_GP', true)), ENT_QUOTES, 'UTF-8'));
+    $y4sd_title = html_entity_decode(wp_strip_all_tags(get_the_title($y4sd_id)), ENT_QUOTES, 'UTF-8'); ?>
+    <div class="share-drop">
+        <button type="button" class="share-drop-btn" data-y4sd-open="y4sd-post" aria-label="<?php esc_attr_e('Share', 'y4apk'); ?>">
             <svg width="24" height="24">
                 <use xlink:href="#i__share"></use>
             </svg>
         </button>
-        <div class="dropdown-menu share-drop-box" style="display:none;">
-            <div class="share-list">
-                <a class="share-btn share-fb" href="https://www.facebook.com/sharer.php?src=sp&amp;u=<?php the_permalink(); ?>&amp;title=<?php the_title(); ?>" target="_blank" rel="noopener nofollow" title="Share on Facebook" aria-label="Share on Facebook" onclick="minWin(this.href); return false;">
-                    <svg width="40" height="40">
-                        <use xlink:href="#i__facebook"></use>
-                    </svg>
-                </a>
-                <a class="share-btn share-tw" href="https://twitter.com/intent/tweet?text=<?php the_title(); ?>&amp;url=<?php the_permalink(); ?>" target="_blank" rel="noopener nofollow" title="Share on Twitter" aria-label="Share on Twitter" onclick="minWin(this.href); return false;">
-                    <svg width="40" height="40">
-                        <use xlink:href="#i__twitter"></use>
-                    </svg>
-                </a>
-                <a class="share-btn share-wa" href="https://api.whatsapp.com/send?text=<?php the_title(); ?>&nbsp;<?php the_permalink(); ?>" target="_blank" rel="noopener nofollow" title="Share on WhatsApp" aria-label="Share on WhatsApp" onclick="minWin(this.href); return false;">
-                    <svg width="40" height="40">
-                        <use xlink:href="#i__whatsapp"></use>
-                    </svg>
-                </a>
-                <a class="share-btn share-tg" href="https://t.me/share/url?url=<?php the_permalink(); ?>&amp;text=<?php the_title(); ?>" target="_blank" rel="noopener nofollow" title="Share on Telegram" aria-label="Share on Telegram" onclick="minWin(this.href); return false;">
-                    <svg width="40" height="40">
-                        <use xlink:href="#i__telegram"></use>
-                    </svg>
-                </a>
-            </div>
-        </div>
     </div>
+    <?php if (class_exists('Y4APK_Share_Dialog')) {
+        Y4APK_Share_Dialog::render(['id' => 'y4sd-post', 'heading' => __('Share', 'y4apk'), 'name' => $y4sd_name !== '' ? $y4sd_name : $y4sd_title,
+            'image' => (string) get_the_post_thumbnail_url($y4sd_id, 'thumbnail'), 'url' => (string) get_permalink($y4sd_id), 'text' => $y4sd_title]);
+    } ?>
     <?php if(function_exists('breadcrumbsX')) breadcrumbsX(); ?>
 </div>

@@ -47,7 +47,7 @@ get_header();
 				</div>
 				<div class="rbx-hero-actions">
 					<?php if ($play) : ?><a class="rbx-btn rbx-btn-play" href="<?php echo esc_url($play); ?>" target="_blank" rel="nofollow noopener"><?php echo Y4APK_Roblox::icon('play'); ?><?php esc_html_e('Play on Roblox', 'y4apk'); ?></a><?php endif; ?>
-					<button type="button" class="rbx-btn rbx-btn-ghost" data-rbx-share data-done="<?php esc_attr_e('Link copied', 'y4apk'); ?>"><?php echo Y4APK_Roblox::icon('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
+					<button type="button" class="rbx-btn rbx-btn-ghost" data-y4sd-open="y4sd-game"><?php echo Y4APK_Roblox::icon('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 				</div>
 			</div>
 		</section>
@@ -123,19 +123,13 @@ get_header();
 		<?php endif; ?>
 	</div>
 </div>
-<script>
-document.addEventListener('click', function (e) {
-	var b = e.target.closest ? e.target.closest('[data-rbx-share]') : null;
-	if (!b) { return; }
-	var data = { title: document.title, url: location.href.split('#')[0] };
-	if (navigator.share) { navigator.share(data).catch(function () {}); return; }
-	if (navigator.clipboard) {
-		navigator.clipboard.writeText(data.url).then(function () {
-			var s = b.querySelector('span'), t = s.textContent;
-			s.textContent = b.getAttribute('data-done');
-			setTimeout(function () { s.textContent = t; }, 2000);
-		});
-	}
-});
-</script>
+<?php
+// 2.50.6: the share window, as the profile page's (not the device's share sheet straight away)
+if (class_exists('Y4APK_Share_Dialog')) {
+	$gname = Y4APK_Roblox::clean_name($term->name, false);
+	Y4APK_Share_Dialog::render(['id' => 'y4sd-game', 'heading' => __('Share game', 'y4apk'), 'name' => sprintf(__('%s Scripts', 'y4apk'), $gname),
+		'image' => (string) $icon, 'bg' => (string) $banner, 'url' => is_wp_error($base) ? home_url('/') : (string) $base,
+		'text' => sprintf(__('Free %s scripts for Roblox on Y4APK', 'y4apk'), $gname)]);
+}
+?>
 <?php get_template_part('template/footer'); get_footer(); ?>

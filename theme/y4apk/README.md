@@ -731,6 +731,19 @@ download, and a new folder is named with it. The version's ending follows
 - Requests to R2 can sign their x-amz-* headers (the copy source); checked
   against botocore's signer.
 
+2.50.6:
+- **Share window** (inc/share-dialog.php), as the profile page has it: a card
+  with the page's picture and name (a Roblox game's banner behind it), its
+  link to copy, and Facebook, X, WhatsApp, Telegram, LINE, Email, plus the
+  device's own share sheet ("More") where there is one. On the Roblox game
+  pages (before: the device's sheet straight away) and on game, app and
+  script posts (before: a small menu whose links did not encode the title).
+- **Executors on every script**: Y4APK ▸ Executors has, above the list, the
+  executors every script with none of its own shows ("Get Executors — Run it
+  with one of these"), so older scripts need no editing one by one. A
+  script's own (the editor's "Tested with executors" box) still comes first
+  and says "tested with".
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and

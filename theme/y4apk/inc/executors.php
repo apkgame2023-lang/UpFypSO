@@ -28,6 +28,8 @@ class Y4APK_Executors {
 		add_action('add_meta_boxes', [__CLASS__, 'boxes']);
 		add_action('save_post_' . self::CPT, [__CLASS__, 'save'], 10, 2);
 		add_action('save_post_post', [__CLASS__, 'save_script'], 10, 2);
+		add_action('admin_notices', [__CLASS__, 'default_box']);
+		add_action('admin_post_y4apk_exec_default', [__CLASS__, 'save_default']);
 		add_action('admin_enqueue_scripts', [__CLASS__, 'admin_assets']);
 		add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
 		add_filter('template_include', [__CLASS__, 'template'], 30);
@@ -183,6 +185,11 @@ class Y4APK_Executors {
 	 */
 	public static function tested_with($post_id) {
 		$ids = array_filter(array_map('intval', (array) get_post_meta($post_id, self::ON_SCRIPT, true)));
+		$site = false;
+		if (!$ids && get_post_meta($post_id, '_y4apk_scripts', true)) {
+			$ids = self::defaults(); // 2.50.6: none of its own: the site's (Executors ▸ On every script…)
+			$site = true;
+		}
 		if (!$ids) {
 			return '';
 		}
@@ -249,7 +256,7 @@ class Y4APK_Executors {
 				. 'document.addEventListener("close", function (e) { if (e.target.classList && e.target.classList.contains("y4x-sheet")) { document.documentElement.classList.remove("y4x-lock"); } }, true);'
 				. '})();</script>';
 		}
-		return '<div class="y4x-tested"><div class="y4x-tested-head"><span><b>' . esc_html__('Get Executors', 'y4apk') . '</b><small>' . esc_html__('This script was tested with these. Tap one to download it.', 'y4apk') . '</small></span><a href="' . esc_url(get_post_type_archive_link(self::CPT)) . '">' . esc_html__('All executors', 'y4apk') . ' →</a></div>'
+		return '<div class="y4x-tested"><div class="y4x-tested-head"><span><b>' . esc_html__('Get Executors', 'y4apk') . '</b><small>' . esc_html($site ? __('Run it with one of these. Tap one to download it.', 'y4apk') : __('This script was tested with these. Tap one to download it.', 'y4apk')) . '</small></span><a href="' . esc_url(get_post_type_archive_link(self::CPT)) . '">' . esc_html__('All executors', 'y4apk') . ' →</a></div>'
 			. '<div class="y4x-chips">' . $chips . '</div>' . $sheets . '</div>' . $script;
 	}
 
@@ -411,6 +418,67 @@ class Y4APK_Executors {
 		update_post_meta($post_id, self::META, $d);
 		update_post_meta($post_id, 'wp_title_GP', $post->post_title); // the name download folders are named after
 		delete_transient('y4apk_exec_dl');
+	}
+
+	/**
+	 * 2.50.6: executors for every script that has none of its own — the
+	 * site's older scripts, posted before executors were — so they need no
+	 * editing one by one. A script's own (its editor box) still comes first.
+	 */
+	const DEFAULT = 'y4apk_exec_default';
+
+	public static function defaults() {
+		$ids = get_option(self::DEFAULT, []);
+		return is_array($ids) ? array_values(array_filter(array_map('intval', $ids))) : [];
+	}
+
+	/** Above the Executors list: which ones every script without its own shows. */
+	public static function default_box() {
+		$s = function_exists('get_current_screen') ? get_current_screen() : null;
+		if (!$s || $s->id !== 'edit-' . self::CPT || !current_user_can('edit_others_posts')) {
+			return;
+		}
+		$all = get_posts(['post_type' => self::CPT, 'post_status' => 'publish', 'numberposts' => 100, 'orderby' => 'title', 'order' => 'ASC']);
+		if (!$all) {
+			return;
+		}
+		$on = self::defaults();
+		global $wpdb;
+		$own = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = %s", self::BY_ONE));
+		$scripts = (int) $wpdb->get_var("SELECT COUNT(DISTINCT m.post_id) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id WHERE m.meta_key = '_y4apk_scripts' AND p.post_status = 'publish'");
+		?>
+		<div class="notice notice-info" style="padding:12px 14px">
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+				<input type="hidden" name="action" value="y4apk_exec_default"><?php wp_nonce_field('y4apk_exec_default'); ?>
+				<p style="margin:0 0 8px"><strong><?php esc_html_e('On every script with no executors of its own', 'y4apk'); ?></strong> —
+					<?php echo esc_html(sprintf(__('your older scripts too, without editing them: %1$s of %2$s live scripts have their own (set in the post editor’s “Tested with executors” box), the rest show these as “Get Executors”.', 'y4apk'),
+						number_format_i18n($own), number_format_i18n($scripts))); ?></p>
+				<p style="margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px 18px">
+					<?php foreach ($all as $x) : ?>
+						<label><input type="checkbox" name="y4x_default[]" value="<?php echo esc_attr($x->ID); ?>" <?php checked(in_array($x->ID, $on, true)); ?>> <?php echo esc_html($x->post_title); ?></label>
+					<?php endforeach; ?>
+				</p>
+				<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
+				<?php if (!empty($_GET['y4x_default'])) : ?><span style="margin-left:8px;color:#008a20">✓ <?php esc_html_e('Saved. Clear the 10Web cache so the script pages show it.', 'y4apk'); ?></span><?php endif; ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public static function save_default() {
+		if (!current_user_can('edit_others_posts')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'), 403);
+		}
+		check_admin_referer('y4apk_exec_default');
+		$ok = [];
+		foreach (array_slice(array_map('absint', isset($_POST['y4x_default']) ? (array) wp_unslash($_POST['y4x_default']) : []), 0, 20) as $id) {
+			if ($id && get_post_type($id) === self::CPT && get_post_status($id) === 'publish') {
+				$ok[] = $id;
+			}
+		}
+		update_option(self::DEFAULT, array_values(array_unique($ok)), false);
+		wp_safe_redirect(add_query_arg(['post_type' => self::CPT, 'y4x_default' => 1], admin_url('edit.php')));
+		exit;
 	}
 
 	/** Posts: the executors a script was tested with. */
