@@ -714,6 +714,27 @@ Under the hood:
 After installing: **Y4APK ▸ Languages ▸ Translate now** (or wait for the
 background), then clear the page cache. Check a language at `/th/`.
 
+2.51.1, from the first days on the live site:
+- Rank Math said "Seems like your site URL has changed since you connected to
+  Rank Math": it compares the site's address with the one it was connected
+  with on every page, and on a `/th/` page it saw `…/th`. Its check is now
+  skipped on language pages (filter `rank_math/registration/do_url_check`);
+  the warning it wrote is removed once (it comes back by itself only if the
+  address really changed). Nothing had to be reconnected.
+- *Translate now* no longer stops at the AI's limit for the minute: it says
+  so and goes on by itself when the AI lets it (the background did already).
+  *Visitors see it* says why a language waits (the AI's own words) and when it
+  goes on; other languages read *Translating · shown at 90%* or *Waiting its
+  turn*.
+- An answer that is not the list (cut off, a few broken lines, a refusal) no
+  longer holds a language up: the lines that are whole are kept, the rest is
+  asked again in smaller pieces (50 → 25 → 12 → 6 → 5), and only a piece of 5
+  that still goes wrong counts against its texts. Three wrong answers in a row
+  stop the AI for 15 minutes, so a free key's day is not spent on it.
+- "100% safe" was read as a placeholder (`% s`), so its translations were
+  refused: only real ones count now (`%s`, `%d`, `%1$s`, `%.1f`, `%%`). The
+  texts the AI got wrong are asked again once.
+
 ## App updates follow Google Play; members' safe uploads go live at once (2.50)
 
 **App updates** (Y4APK ▸ App updates):

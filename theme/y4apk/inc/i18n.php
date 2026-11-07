@@ -201,6 +201,7 @@ class Y4APK_I18n {
 		if (is_admin() && !wp_doing_ajax()) {
 			add_action('admin_menu', [__CLASS__, 'register_page'], 108);
 			add_action('admin_init', [__CLASS__, 'schedule']);
+			add_action('admin_init', [__CLASS__, 'upgrade']);
 			add_action('admin_post_y4apk_i18n_save', [__CLASS__, 'handle_save']);
 			add_action('admin_post_y4apk_i18n_texts', [__CLASS__, 'handle_texts']);
 		}
@@ -242,6 +243,8 @@ class Y4APK_I18n {
 		add_filter('rank_math/frontend/canonical', [__CLASS__, 'original_url'], 99);
 		add_filter('rank_math/opengraph/url', [__CLASS__, 'original_url'], 99);
 		add_filter('rank_math/frontend/disable_hreflang', '__return_true');
+		// Rank Math compares the site's address with the one it was connected with, on every page: /th/ is not a move
+		add_filter('rank_math/registration/do_url_check', '__return_false', 99);
 		add_filter('get_term', [__CLASS__, 'f_term'], 20, 2);
 		add_filter('wp_get_nav_menu_items', [__CLASS__, 'f_menu_items'], 20);
 		foreach (['hero_title', 'hero_btn_name'] as $mod) {
@@ -856,6 +859,35 @@ class Y4APK_I18n {
 		}
 	}
 
+	/**
+	 * 2.51.1, once: Rank Math's "site URL has changed" that a /th/ page made it
+	 * write (it writes it again by itself if the address really changed), and
+	 * the texts the AI got wrong are asked again (the check of %s was too strict).
+	 */
+	public static function upgrade() {
+		if (get_option('y4apk_i18n_v') === '2.51.1') {
+			return;
+		}
+		update_option('y4apk_i18n_v', '2.51.1');
+		try {
+			if (class_exists('\\RankMath\\Helper') && method_exists('\\RankMath\\Helper', 'remove_notification') && function_exists('rank_math') && !empty(rank_math()->notification)) {
+				\RankMath\Helper::remove_notification('rank-math-site-url-mismatch');
+			}
+		} catch (\Throwable $e) {
+			// Rank Math changed: nothing to tidy
+		}
+		$st = self::state();
+		foreach ($st as $code => $s) {
+			if (is_array($s)) {
+				$st[$code]['bad'] = [];
+				$st[$code]['size'] = self::BATCH;
+				$st[$code]['streak'] = 0;
+			}
+		}
+		update_option(self::STATE, $st, false);
+		self::count_all();
+	}
+
 	/** Can the AI translate? (a key in Write with AI ▸ Settings) */
 	public static function can_translate() {
 		if (!class_exists('Y4APK_Writer')) {
@@ -900,7 +932,7 @@ class Y4APK_I18n {
 				continue;
 			}
 			while (microtime(true) - $start < $budget) {
-				$todo = self::todo($code, $items, self::BATCH);
+				$todo = self::todo($code, $items, self::size($code));
 				if (!$todo) {
 					break;
 				}
@@ -918,7 +950,9 @@ class Y4APK_I18n {
 					update_option(self::STATE, $st, false);
 					if ($r->get_error_code() === 'busy') {
 						$data = $r->get_error_data();
-						set_transient('y4apk_i18n_wait', time() + (int) ($data['wait'] ?? 120), (int) ($data['wait'] ?? 120));
+						$wait = max(20, (int) ($data['wait'] ?? 120));
+						set_transient('y4apk_i18n_wait', time() + $wait, $wait);
+						return new WP_Error('busy', $r->get_error_message(), ['wait' => $wait]);
 					}
 					return $r;
 				}
@@ -929,6 +963,64 @@ class Y4APK_I18n {
 			}
 		}
 		return $done;
+	}
+
+	/** Texts per question for a language: halved after a question that went wrong, back up after one that went right. */
+	private static function size($code) {
+		$st = self::state();
+		$n = (int) ($st[$code]['size'] ?? self::BATCH);
+		return max(5, min(self::BATCH, $n ?: self::BATCH));
+	}
+
+	/**
+	 * A question that went wrong for this batch (an answer that was not the
+	 * list, cut off, or declined): asked again in smaller pieces, and only a
+	 * piece of 5 that still goes wrong counts against its texts (twice, then
+	 * they wait for you). So one odd text never holds a language up.
+	 */
+	private static function failed($code, $todo, $why) {
+		$st = self::state();
+		$size = self::size($code);
+		$streak = (int) ($st[$code]['streak'] ?? 0) + 1; // wrong in a row: the AI itself, not a text, after a few
+		$st[$code]['streak'] = $streak;
+		if ($size > 5) {
+			$st[$code]['size'] = max(5, intdiv($size, 2));
+		} elseif ($streak <= 4) {
+			$bad = isset($st[$code]['bad']) && is_array($st[$code]['bad']) ? $st[$code]['bad'] : [];
+			foreach (array_keys($todo) as $key) {
+				$bad[$key] = (int) ($bad[$key] ?? 0) + 1;
+			}
+			$st[$code]['bad'] = $bad;
+		}
+		$st[$code]['err'] = (string) $why;
+		update_option(self::STATE, $st, false);
+		if ($streak >= 3) {
+			// Three wrong in a row: not asked again for 15 minutes (a free key's day is not spent on it)
+			return new WP_Error('busy', (string) $why, ['wait' => 15 * MINUTE_IN_SECONDS]);
+		}
+		return 0;
+	}
+
+	/** The AI's answer as [number => text]: the JSON, or — cut off or a little broken — the pairs in it that are whole. */
+	private static function parse($answer) {
+		$a = strpos($answer, '{');
+		$b = strrpos($answer, '}');
+		if ($a !== false && $b !== false && $b > $a) {
+			$j = json_decode(substr($answer, $a, $b - $a + 1), true);
+			if (is_array($j)) {
+				return $j;
+			}
+		}
+		$out = [];
+		if (preg_match_all('/"(\d+)"\s*:\s*("(?:[^"\\\\]|\\\\.)*")/', $answer, $m, PREG_SET_ORDER)) {
+			foreach ($m as $x) {
+				$v = json_decode($x[2]);
+				if (is_string($v)) {
+					$out[$x[1]] = $v;
+				}
+			}
+		}
+		return $out;
 	}
 
 	/** The texts of $code still to translate (left out: those the AI got wrong twice). */
@@ -954,7 +1046,7 @@ class Y4APK_I18n {
 
 	/** Placeholders, tags and {words} a translation must keep: [sorted list]. */
 	private static function marks($s) {
-		preg_match_all('~%(?:\d+\$)?[-+ 0#\']*\d*(?:\.\d+)?[bcdeEfFgGosuxX]|%%|</?[a-z][^>]*>|\{[a-z_]+\}~i', (string) $s, $m);
+		preg_match_all('~%(?:\d+\$)?(?:\d+)?(?:\.\d+)?[sdfuxXc]|%%|</?[a-z][^>]*>|\{[a-z_]+\}~', (string) $s, $m);
 		$list = array_map(function ($x) {
 			return preg_replace('/\s+/', ' ', $x);
 		}, $m[0]);
@@ -997,14 +1089,12 @@ class Y4APK_I18n {
 		$user = wp_json_encode($lines, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		$r = Y4APK_Writer::ask_text($system, $user, 8000);
 		if (is_wp_error($r)) {
-			return $r;
+			// This batch's own trouble: smaller pieces. The AI's limit or its key: everything waits.
+			return in_array($r->get_error_code(), ['api', 'refused'], true) ? self::failed($code, $todo, $r->get_error_message()) : $r;
 		}
-		$answer = (string) $r[0];
-		$a = strpos($answer, '{');
-		$b = strrpos($answer, '}');
-		$got = $a !== false && $b !== false ? json_decode(substr($answer, $a, $b - $a + 1), true) : null;
-		if (!is_array($got)) {
-			return new WP_Error('api', __('The AI did not answer with the list asked for. It is asked again in a few minutes.', 'y4apk'));
+		$got = self::parse((string) $r[0]);
+		if (!$got) {
+			return self::failed($code, $todo, __('The AI did not answer with the list asked for: asked again in smaller pieces.', 'y4apk'));
 		}
 		$dict = get_option(self::DICT . $code, []);
 		$dict = is_array($dict) ? $dict : [];
@@ -1034,6 +1124,8 @@ class Y4APK_I18n {
 		$st[$code]['at'] = time();
 		$st[$code]['err'] = '';
 		$st[$code]['by'] = $r[1];
+		$st[$code]['size'] = min(self::BATCH, self::size($code) * 2);
+		$st[$code]['streak'] = 0;
 		update_option(self::STATE, $st, false);
 		self::count($code);
 		return $saved;
@@ -1489,7 +1581,8 @@ class Y4APK_I18n {
 			delete_transient('y4apk_i18n_lock');
 		}
 		if (is_wp_error($r)) {
-			wp_send_json_error(['message' => $r->get_error_message(), 'langs' => self::progress(), 'left' => self::left()]);
+			$data = $r->get_error_data();
+			wp_send_json_error(['message' => $r->get_error_message(), 'code' => $r->get_error_code(), 'wait' => is_array($data) ? (int) ($data['wait'] ?? 0) : 0, 'langs' => self::progress(), 'left' => self::left()]);
 		}
 		wp_send_json_success(['saved' => $r, 'langs' => self::progress(), 'left' => self::left()]);
 	}
@@ -1612,6 +1705,7 @@ class Y4APK_I18n {
 		.y4i-chip.ok{background:#edfaef;color:#00691b}
 		.y4i-chip.wait{background:#fcf9e8;color:#7a5d00}
 		.y4i-chip.err{background:#fcf0f1;color:#a00}
+		.y4i-why{display:block;max-width:300px;margin-top:4px;font-size:12px;line-height:1.4;color:#646970}
 		.y4i-off td{opacity:.6}
 		.y4i-run{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
 		.y4i-run [data-status]{color:#50575e}
@@ -1646,6 +1740,7 @@ class Y4APK_I18n {
 		}
 		$ready = array_diff(self::ready(), ['en']);
 		$can = self::can_translate();
+		$wait_until = (int) get_transient('y4apk_i18n_wait');
 		?>
 		<h1><?php esc_html_e('Languages', 'y4apk'); ?></h1>
 		<?php if (!empty($_GET['saved'])) : ?>
@@ -1687,7 +1782,7 @@ class Y4APK_I18n {
 							<div class="y4i-bar<?php echo $pct >= self::READY ? ' is-ready' : ''; ?>"><i style="width:<?php echo (int) $pct; ?>%"></i></div>
 							<span class="y4i-pct" data-pct><?php echo esc_html(sprintf(__('%1$s%% · %2$s of %3$s', 'y4apk'), $pct, number_format_i18n((int) ($s['done'] ?? 0)), number_format_i18n((int) ($s['total'] ?? count($items))))); ?></span>
 						<?php else : ?>—<?php endif; ?></td>
-						<td><?php if (!$is_on) : ?>—<?php elseif ($pct >= self::READY) : ?><span class="y4i-chip ok"><?php esc_html_e('Yes', 'y4apk'); ?></span><?php elseif ($err !== '') : ?><span class="y4i-chip err" title="<?php echo esc_attr($err); ?>"><?php esc_html_e('Waiting for the AI', 'y4apk'); ?></span><?php else : ?><span class="y4i-chip wait"><?php echo esc_html(sprintf(__('At %s%%', 'y4apk'), self::READY)); ?></span><?php endif; ?></td>
+						<td><?php if (!$is_on) : ?>—<?php elseif ($pct >= self::READY) : ?><span class="y4i-chip ok"><?php esc_html_e('Yes', 'y4apk'); ?></span><?php elseif ($err !== '') : ?><span class="y4i-chip err"><?php esc_html_e('Waiting for the AI', 'y4apk'); ?></span><small class="y4i-why"><?php echo esc_html($err); ?><?php if ($wait_until > time()) : ?> · <?php echo esc_html(sprintf(__('goes on by itself at %s', 'y4apk'), wp_date(get_option('time_format'), $wait_until))); ?><?php endif; ?></small><?php elseif ($pct > 0) : ?><span class="y4i-chip wait"><?php echo esc_html(sprintf(__('Translating · shown at %s%%', 'y4apk'), self::READY)); ?></span><?php else : ?><span class="y4i-chip"><?php esc_html_e('Waiting its turn', 'y4apk'); ?></span><?php endif; ?></td>
 						<td><?php if ($is_on) : ?>
 							<a href="<?php echo esc_url(add_query_arg(['page' => self::SLUG, 'edit' => $c], admin_url('admin.php'))); ?>"><?php esc_html_e('Edit texts', 'y4apk'); ?></a> ·
 							<a href="<?php echo esc_url(self::add_code(home_url('/'), $c)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'y4apk'); ?></a>
@@ -1725,7 +1820,18 @@ class Y4APK_I18n {
 				fetch(ajaxurl, {method: 'POST', body: f, credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
 					var d = j && j.data ? j.data : {};
 					update(d.langs);
-					if (!j || !j.success) { st.textContent = d.message || <?php echo wp_json_encode(__('Something went wrong. Try again in a minute.', 'y4apk')); ?>; stop(); return; }
+					if (j && !j.success && d.code === 'busy' && running && d.wait && d.wait <= 900) {
+						// The AI's limit for the minute: wait, then go on (as the background does)
+						var left = d.wait;
+						var tickWait = function () {
+							if (!running) { return; }
+							st.textContent = <?php echo wp_json_encode(__('The AI is at its limit for now (%1$s). Going on by itself in %2$s s…', 'y4apk')); ?>.replace('%1$s', d.message).replace('%2$s', left);
+							if (left-- <= 0) { step(); } else { setTimeout(tickWait, 1000); }
+						};
+						tickWait();
+						return;
+					}
+					if (!j || !j.success) { st.textContent = (d.message || <?php echo wp_json_encode(__('Something went wrong. Try again in a minute.', 'y4apk')); ?>) + (d.code === 'busy' ? ' ' + <?php echo wp_json_encode(__('It goes on by itself in the background when the AI lets it.', 'y4apk')); ?> : ''); stop(); return; }
 					if (!d.left) { st.textContent = <?php echo wp_json_encode(__('Everything is translated. Clear the page cache so visitors get it.', 'y4apk')); ?>; stop(); return; }
 					st.textContent = <?php echo wp_json_encode(__('Translating… %s left. You can leave this page: it goes on in the background.', 'y4apk')); ?>.replace('%s', d.left.toLocaleString());
 					if (running) { setTimeout(step, d.busy ? 8000 : 400); }
