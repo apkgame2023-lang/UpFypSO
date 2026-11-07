@@ -145,7 +145,7 @@
 			post: u.form.querySelector('input[name=post]').value,
 			name: u.file.name,
 			size: u.file.size,
-			type: (line.querySelector('.au-type').textContent || 'MOD').trim(),
+			type: (line.querySelector('.au-type').value || line.querySelector('.au-type').textContent || 'MOD').trim(), // a first file picks its type (2.50.1)
 			version: version ? version.value : ''
 		}).then(function (s) {
 			u.id = s.uploadId;

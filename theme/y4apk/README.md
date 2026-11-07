@@ -673,6 +673,14 @@ small letters. The Edit profile page says so.
 - Background steps change posts with WordPress's HTML filter off: a cron step
   has no user, and the filter would take the article's iframes out.
 
+2.50.1: a game or app on Google Play with **no download at all** is listed in
+*Need a new file* ("No file yet"), and its form takes a first file: pick the
+type (MOD, APK, XAPK, APKS, OBB), upload, Save — the download folder
+(`files/up/NNNNN-Name-MOD.apk`, its page pointing at the file on R2) and the
+download row (with the MOD text from the post) are made by themselves. A
+pasted link works too. Nothing is made before there is a file, so visitors
+never get a download that leads nowhere.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and
