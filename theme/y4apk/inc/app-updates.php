@@ -1754,6 +1754,14 @@ class Y4APK_App_Updates {
 		// The APK download, and each ticked download with the same version;
 		// with a file uploaded to R2 for it, its key.
 		$updates = [$index => ['download_version' => $version, 'download_size' => $size, 'download_url' => $url]];
+		if (!$fresh) {
+			// 2.50.3: the type chosen in the form (the post's own one, or one of the usual)
+			$was = trim((string) (isset($link['download_name']) ? $link['download_name'] : ''));
+			$pick = trim(sanitize_text_field(isset($in['type']) ? $in['type'] : ''));
+			if ($pick !== '' && strcasecmp($pick, $was) !== 0 && in_array(strtoupper($pick), self::NEW_TYPES, true)) {
+				$updates[$index]['download_name'] = strtoupper($pick);
+			}
+		}
 		$uploads = [];
 		if (!empty($in['r2'])) {
 			$uploads[$index] = sanitize_text_field($in['r2']);
@@ -1797,7 +1805,7 @@ class Y4APK_App_Updates {
 		// Uploaded files: point the download pages at them, now that the form is good.
 		foreach ($uploads as $i => $key) {
 			$r = class_exists('Y4APK_R2')
-				? Y4APK_R2::attach($post_id, $key, html_entity_decode((string) $links[$i]['download_url']), isset($links[$i]['download_name']) ? $links[$i]['download_name'] : 'MOD', !$add)
+				? Y4APK_R2::attach($post_id, $key, html_entity_decode((string) $links[$i]['download_url']), isset($updates[$i]['download_name']) ? $updates[$i]['download_name'] : (isset($links[$i]['download_name']) ? $links[$i]['download_name'] : 'MOD'), !$add)
 				: new WP_Error('y4apk_r2', 'R2 uploads are not available.');
 			if (is_wp_error($r)) {
 				set_transient('y4apk_upload_error', $r->get_error_message(), 5 * MINUTE_IN_SECONDS);
@@ -1967,11 +1975,13 @@ class Y4APK_App_Updates {
 					<?php wp_nonce_field('y4apk-vc-save-' . $id); ?>
 					<span class="au-label"><?php esc_html_e('New file', 'y4apk'); ?></span>
 					<div class="au-line" data-row="main">
-						<?php if ($none) : ?>
-							<select class="au-type" name="type" aria-label="<?php esc_attr_e('Type', 'y4apk'); ?>"><?php foreach (self::NEW_TYPES as $t) : ?><option value="<?php echo esc_attr($t); ?>"><?php echo esc_html($t); ?></option><?php endforeach; ?></select>
-						<?php else : ?>
-						<span class="au-type"><?php echo esc_html($link && !empty($link['download_name']) ? $link['download_name'] : 'APK'); ?></span>
-						<?php endif; ?>
+						<?php // 2.50.3: its type, to change (MOD, APK, XAPK…); a type of the post's own stays in the list
+						$is = $link && !empty($link['download_name']) ? trim((string) $link['download_name']) : 'MOD';
+						$types = self::NEW_TYPES;
+						if (!in_array(strtoupper($is), $types, true)) {
+							$types[] = $is;
+						} ?>
+						<select class="au-type" name="type" aria-label="<?php esc_attr_e('Type', 'y4apk'); ?>"><?php foreach ($types as $t) : ?><option value="<?php echo esc_attr($t); ?>" <?php selected(strtoupper($t) === strtoupper($is)); ?>><?php echo esc_html(strtoupper($t)); ?></option><?php endforeach; ?></select>
 						<input type="text" name="version" value="<?php echo esc_attr($suggest); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>">
 						<input type="text" name="size" value="<?php echo esc_attr($link && !empty($link['download_size']) ? $link['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>">
 						<input type="url" name="url" value="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(!$nolink ? $link['download_url'] : ''); ?>" placeholder="<?php echo esc_attr($nolink ? __('Made for you when you upload (or paste a link)', 'y4apk') : __('Link to the new file', 'y4apk')); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>">
@@ -2576,6 +2586,29 @@ class Y4APK_App_Updates {
 					r.addEventListener('change', function () { form.querySelector('.au-warn:not(.au-need)').hidden = true; });
 				});
 			});
+			// 2.50.3: the type — "v5.9.1.apk" becomes "v5.9.1.xapk" for XAPK; an .xapk, .apks or .obb file picks its type
+			var exts = { MOD: 'apk', APK: 'apk', XAPK: 'xapk', APKS: 'apks', OBB: 'zip' };
+			document.querySelectorAll('select.au-type').forEach(function (sel) {
+				sel.addEventListener('change', function () {
+					var v = sel.closest('.au-line').querySelector('input[name=version]');
+					if (v && exts[sel.value]) {
+						v.value = v.value.replace(/\.(apk|xapk|apks|apkm|zip|obb)$/i, '.' + exts[sel.value]);
+					}
+				});
+			});
+			document.addEventListener('change', function (e) {
+				var f = e.target;
+				if (f.type !== 'file' || !f.closest('.au-up') || !f.files.length) {
+					return;
+				}
+				var sel = f.closest('.au-line').querySelector('select.au-type');
+				var ext = (f.files[0].name.split('.').pop() || '').toLowerCase();
+				var to = { xapk: 'XAPK', apks: 'APKS', obb: 'OBB' }[ext];
+				if (sel && to && sel.value !== to && [].some.call(sel.options, function (o) { return o.value === to; })) {
+					sel.value = to;
+					sel.dispatchEvent(new Event('change'));
+				}
+			}, true); // before the upload starts, so it is named with its type
 			document.querySelectorAll('[data-au-filter]').forEach(function (input) {
 				var list = document.getElementById(input.getAttribute('data-au-filter'));
 				input.addEventListener('input', function () {

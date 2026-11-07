@@ -687,6 +687,12 @@ file is uploaded (Replace keeps the post's folder; Add, or a row with no
 folder, gets a new one). Saving with neither a file nor a link says so on the
 page. Posts with such rows are listed in *Need a new file* once.
 
+2.50.3: the file's **type** is a dropdown on every row (MOD, APK, XAPK, APKS,
+OBB, and the row's own type when it is another): Save puts it on the
+download, and a new folder is named with it. The version's ending follows
+("v7.4.1.apk" → "v7.4.1.xapk" for XAPK, ".zip" for OBB), and uploading an
+.xapk, .apks or .obb file picks its type by itself.
+
 **Reports** (Y4APK ▸ Review): a published post is listed only once 3 different
 people reported it since you last looked (Members ▸ Limits). Dismiss or Hide
 and review again remembers who reported it: they cannot report it again, and
