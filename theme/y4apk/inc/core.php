@@ -417,6 +417,47 @@ function y4apk_card($row) {
 	return [$name, $link !== '' ? $link : ($id ? get_permalink($id) : home_url('/'))];
 }
 
+/**
+ * The categories row at the top of /games/ and /apps/ (2.53.2): every category of Games (or Apps), the ones
+ * with the most posts first, like the menu — the menu shows only 12. On a category's own page the same row,
+ * with that one marked.
+ */
+function y4apk_category_chips() {
+	if (!is_category()) {
+		return;
+	}
+	$term = get_queried_object();
+	if (!$term || empty($term->term_id)) {
+		return;
+	}
+	$up = get_ancestors($term->term_id, 'category', 'taxonomy');
+	$top = $up ? (int) end($up) : (int) $term->term_id;
+	$skip = class_exists('Y4APK_Roblox') && Y4APK_Roblox::in_menu() ? array_map('intval', (array) Y4APK_Roblox::categories()) : [];
+	if (in_array($top, $skip, true) || in_array((int) $term->term_id, $skip, true)) {
+		return; // Roblox has its own pages
+	}
+	$kids = get_categories(['parent' => $top, 'hide_empty' => true, 'exclude' => $skip]);
+	if (count($kids) < 2) {
+		return;
+	}
+	usort($kids, function ($a, $b) { return ($b->count <=> $a->count) ?: strcasecmp($a->name, $b->name); });
+	$top_term = get_term($top, 'category');
+	echo '<nav class="y4-cats" aria-label="' . esc_attr__('Categories', 'y4apk') . '">';
+	echo '<a href="' . esc_url(get_category_link($top)) . '"' . ($top === (int) $term->term_id ? ' class="is-on" aria-current="page"' : '') . '><span>'
+		. esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($top_term && !is_wp_error($top_term) ? $top_term->name : '', ENT_QUOTES, 'UTF-8'))) . '</span></a>';
+	foreach ($kids as $c) {
+		$icon = (string) get_term_meta($c->term_id, 'category_icon', true);
+		$on = (int) $c->term_id === (int) $term->term_id || in_array((int) $c->term_id, array_map('intval', $up), true);
+		echo '<a href="' . esc_url(get_category_link($c->term_id)) . '"' . ($on ? ' class="is-on" aria-current="page"' : '') . '>'
+			. ($icon !== '' ? '<img src="' . esc_url($icon) . '" alt="" width="24" height="24" loading="lazy" decoding="async">' : '')
+			. '<span>' . esc_html(html_entity_decode($c->name, ENT_QUOTES, 'UTF-8')) . '</span><small>' . esc_html(number_format_i18n($c->count)) . '</small></a>';
+	}
+	echo '</nav>';
+	// Phones: the row scrolls sideways; the marked one comes into view
+	echo '<script id="y4apk-pwa-cats" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>'
+		. '(function(){var n=document.querySelector(".y4-cats"),a=n&&n.querySelector("a.is-on");if(a&&n.scrollWidth>n.clientWidth){n.scrollLeft=Math.max(0,a.offsetLeft-16);}})();</script>';
+}
+
 function y4apk_icon_url($post_id = null, $size = 'post-thumbnail') {
 	$post_id = $post_id ? $post_id : get_the_ID();
 	$url = get_the_post_thumbnail_url($post_id, $size);

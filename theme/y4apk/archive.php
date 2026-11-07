@@ -28,6 +28,7 @@ get_header();
                     </i>
                 </div>
             </div>
+            <?php if (function_exists('y4apk_category_chips')) { y4apk_category_chips(); } // every category of Games / Apps (2.53.2) ?>
             <?php if (have_posts()) : ?>
             <div class="list-app">
                 <?php

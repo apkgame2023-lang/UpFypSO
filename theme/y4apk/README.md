@@ -644,6 +644,10 @@ small letters. The Edit profile page says so.
 (their text and other plugins' filters) only to list their titles in the card
 pickers. The list now comes from one light query for the ID and title alone,
 on the posts table's own index.
+Also: /games/ and /apps/ (and their categories' pages) start with a row of
+every category as chips, the ones with the most posts first, so the ones
+past the menu's 12 are one tap away; the page's own category is marked, and
+on phones the row scrolls sideways to it.
 
 2.53.1:
 - **Games and Apps menus** like the Roblox one: 12 categories, those with the
