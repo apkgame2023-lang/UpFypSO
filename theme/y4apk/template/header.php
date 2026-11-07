@@ -123,7 +123,7 @@ if ($subcategories_2) {
                     </a>
                     <div class="h-menu-drop" style="display:none;">
                         <div class="wrp">
-                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_1; ?>" style="display:none;"><?php esc_html_e('All', 'y4apk'); ?> <?php echo $menu_name_1; ?></a>
+                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_1; ?>" style="display:none;"><?php echo esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($menu_name_1, ENT_QUOTES, 'UTF-8'))); ?></a>
                             <?php if(!empty($subcategories_1) && $hasMenu1CategoryIcon) { ?>
                             <ul class="h-menu-subitems">
                                 <?php foreach($subcategories_1 as $subcategory) { 
@@ -165,7 +165,7 @@ if ($subcategories_2) {
                     </a>
                     <div class="h-menu-drop" style="display:none;">
                         <div class="wrp">
-                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_2; ?>" style="display:none;">All <?php echo $menu_name_2; ?></a>
+                            <a class="h-menu-drop-all btn btn-border" href="<?php echo $menu_link_2; ?>" style="display:none;"><?php echo esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($menu_name_2, ENT_QUOTES, 'UTF-8'))); ?></a>
                             <?php if(!empty($subcategories_2) && $hasMenu2CategoryIcon) { ?>
                             <ul class="h-menu-subitems">
                                 <?php foreach($subcategories_2 as $subcategory) { 

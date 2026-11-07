@@ -50,6 +50,7 @@ class Y4APK_I18n {
 	const PER_DAY = 100;  // questions a day in the background, so Write with AI keeps most of a free key's day
 	const BATCH   = 50;   // texts per question to the AI
 	const SITE    = 'y4apk site text'; // the context of the site's own texts: categories, menu items, the home page
+	const ENGLISH = 'y4apk_i18n_english'; // [key => true: stays in English | false: translated], over english_default()
 	const SEP     = "\x04";
 
 	/** The language of this request ('' = English, the original) and whether its links get /xx/. */
@@ -487,8 +488,29 @@ class Y4APK_I18n {
 	}
 
 	/** A translation of $key, or null; a miss is remembered so it can be translated. */
+	private static $english = null;
+
+	/**
+	 * Words that stay in English in every language (2.51.2): the site's own
+	 * names — its categories ("Games", "Apps", so "Popular Games"), menu items,
+	 * the home page's heading and button — and the home page's badges ("Best of
+	 * the best", "Recommend"), as the brand has them. Any other text can be
+	 * kept the same way in Y4APK ▸ Languages ▸ Edit texts, and these let go.
+	 */
+	public static function english_default($key) {
+		return strpos($key, self::SITE . self::SEP) === 0 || in_array($key, ['Best of the best', 'Recommend', 'All %s'], true);
+	}
+
+	public static function kept($key) {
+		if (self::$english === null) {
+			$e = get_option(self::ENGLISH, []);
+			self::$english = is_array($e) ? $e : [];
+		}
+		return isset(self::$english[$key]) ? (bool) self::$english[$key] : self::english_default($key);
+	}
+
 	private static function look($key, $text, $ctx, $plural = '') {
-		if (self::$lang === '' || self::$paused) {
+		if (self::$lang === '' || self::$paused || self::kept($key)) {
 			return null;
 		}
 		$d = self::dict();
@@ -1032,7 +1054,7 @@ class Y4APK_I18n {
 		$out = [];
 		$chars = 0;
 		foreach ($items as $key => $it) {
-			if ((isset($dict[$key]) && $dict[$key] !== '') || (int) ($bad[$key] ?? 0) >= 2) {
+			if ((isset($dict[$key]) && $dict[$key] !== '') || (int) ($bad[$key] ?? 0) >= 2 || self::kept($key)) {
 				continue;
 			}
 			$out[$key] = $it;
@@ -1137,7 +1159,12 @@ class Y4APK_I18n {
 		$dict = get_option(self::DICT . $code, []);
 		$dict = is_array($dict) ? $dict : [];
 		$done = 0;
+		$total = 0;
 		foreach ($items as $key => $it) {
+			if (self::kept($key)) {
+				continue; // stays in English: nothing to translate
+			}
+			$total++;
 			if (isset($dict[$key]) && $dict[$key] !== '') {
 				$done++;
 			}
@@ -1145,7 +1172,7 @@ class Y4APK_I18n {
 		$st = self::state();
 		$st[$code] = (isset($st[$code]) && is_array($st[$code]) ? $st[$code] : []) + ['bad' => [], 'mine' => [], 'at' => 0, 'err' => ''];
 		$st[$code]['done'] = $done;
-		$st[$code]['total'] = count($items);
+		$st[$code]['total'] = $total;
 		$all = self::languages();
 		$ask = 'See this site in %s?';
 		$st[$code]['toast'] = [
@@ -1626,11 +1653,20 @@ class Y4APK_I18n {
 		$items = self::items_raw();
 		$keys = isset($_POST['k']) && is_array($_POST['k']) ? wp_unslash($_POST['k']) : [];
 		$vals = isset($_POST['t']) && is_array($_POST['t']) ? wp_unslash($_POST['t']) : [];
+		$ticks = isset($_POST['en']) && is_array($_POST['en']) ? $_POST['en'] : [];
+		$english = get_option(self::ENGLISH, []);
+		$english = is_array($english) ? $english : [];
 		$wrong = 0;
 		foreach ($keys as $i => $k64) {
 			$key = base64_decode((string) $k64, true);
 			if ($key === false || !isset($items[$key])) {
 				continue;
+			}
+			$keep = !empty($ticks[$i]);
+			if ($keep === self::english_default($key)) {
+				unset($english[$key]);
+			} else {
+				$english[$key] = $keep;
 			}
 			$new = trim(str_replace("\r", '', (string) ($vals[$i] ?? '')));
 			$old = (string) ($dict[$key] ?? '');
@@ -1658,7 +1694,9 @@ class Y4APK_I18n {
 		$st[$code]['mine'] = $mine;
 		$st[$code]['bad'] = $bad;
 		update_option(self::STATE, $st, false);
-		self::count($code);
+		update_option(self::ENGLISH, $english);
+		self::$english = null;
+		self::count_all(); // kept in English in every language
 		$back = isset($_POST['back']) ? esc_url_raw(wp_unslash($_POST['back'])) : '';
 		$back = $back !== '' ? $back : add_query_arg(['page' => self::SLUG, 'edit' => $code], admin_url('admin.php'));
 		wp_safe_redirect(add_query_arg(['saved' => 1, 'wrong' => $wrong], $back));
@@ -1717,6 +1755,8 @@ class Y4APK_I18n {
 		.y4i-texts tr.is-missing textarea{border-color:#dba617;background:#fffbea}
 		.y4i-texts tr.is-mine .y4i-who{color:#00691b}
 		.y4i-who{font-size:11px;color:#8c8f94}
+		.y4i-en{display:inline-flex;align-items:center;gap:4px;margin-left:10px;font-size:12px;color:#50575e}
+		.y4i-texts tr.is-english textarea{opacity:.45}
 		.y4i-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
 		</style>
 		<?php
@@ -1726,7 +1766,9 @@ class Y4APK_I18n {
 		$all = self::languages();
 		$on = self::enabled();
 		$st = self::state();
-		$items = self::items_raw();
+		$items = array_filter(self::items_raw(), function ($key) {
+			return !self::kept($key);
+		}, ARRAY_FILTER_USE_KEY);
 		$words = 0;
 		foreach ($items as $it) {
 			$words += str_word_count(wp_strip_all_tags((string) $it['s']));
@@ -1860,7 +1902,8 @@ class Y4APK_I18n {
 		$rows = [];
 		foreach ($items as $key => $it) {
 			$has = isset($dict[$key]) && $dict[$key] !== '';
-			if (($show === 'missing' && $has) || ($show === 'done' && !$has) || ($show === 'mine' && empty($mine[$key])) || ($show === 'bad' && ($has || empty($bad[$key])))) {
+			$en = self::kept($key);
+			if (($show === 'missing' && ($has || $en)) || ($show === 'done' && !$has) || ($show === 'mine' && empty($mine[$key])) || ($show === 'bad' && ($has || $en || empty($bad[$key]))) || ($show === 'english' && !$en)) {
 				continue;
 			}
 			if ($q !== '' && stripos($it['s'], $q) === false && stripos((string) ($dict[$key] ?? ''), $q) === false) {
@@ -1882,13 +1925,13 @@ class Y4APK_I18n {
 		<?php if (!empty($_GET['wrong'])) : ?>
 			<div class="notice notice-error"><p><?php echo esc_html(sprintf(_n('%s line was not saved: it must keep the same %%s, %%d, tags and {words} as the English.', '%s lines were not saved: they must keep the same %%s, %%d, tags and {words} as the English.', (int) $_GET['wrong'], 'y4apk'), number_format_i18n((int) $_GET['wrong']))); ?></p></div>
 		<?php endif; ?>
-		<p class="y4i-lead"><?php esc_html_e('Change any line and Save: a line you wrote is never replaced by the AI. Empty a line to have the AI translate it again.', 'y4apk'); ?></p>
+		<p class="y4i-lead"><?php esc_html_e('Change any line and Save: a line you wrote is never replaced by the AI. Empty a line to have the AI translate it again. Tick “Keep in English” for words that should stay as they are in every language (the site’s categories, menu and home page heading are kept so at first).', 'y4apk'); ?></p>
 		<form class="y4i-filter" method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
 			<input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>">
 			<input type="hidden" name="edit" value="<?php echo esc_attr($code); ?>">
 			<input type="search" name="q" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('Find a text', 'y4apk'); ?>">
 			<select name="show">
-				<?php foreach (['all' => __('All', 'y4apk'), 'missing' => __('Not translated yet', 'y4apk'), 'done' => __('Translated', 'y4apk'), 'mine' => __('Written by you', 'y4apk'), 'bad' => __('The AI got wrong', 'y4apk')] as $k => $label) : ?>
+				<?php foreach (['all' => __('All', 'y4apk'), 'missing' => __('Not translated yet', 'y4apk'), 'done' => __('Translated', 'y4apk'), 'mine' => __('Written by you', 'y4apk'), 'bad' => __('The AI got wrong', 'y4apk'), 'english' => __('Kept in English', 'y4apk')] as $k => $label) : ?>
 					<option value="<?php echo esc_attr($k); ?>" <?php selected($show, $k); ?>><?php echo esc_html($label); ?></option>
 				<?php endforeach; ?>
 			</select>
@@ -1909,14 +1952,16 @@ class Y4APK_I18n {
 				<?php endif; ?>
 				<?php $i = 0; foreach ($slice as $key => $it) :
 					$has = isset($dict[$key]) && $dict[$key] !== '';
+					$en = self::kept($key);
 					$where = $it['f'] === 'site' ? __('the site’s own text (category, menu, home page)', 'y4apk') : ($it['f'] === 'seen' ? __('seen on a page', 'y4apk') : ($it['f'] === 'wp' ? __('dates', 'y4apk') : $it['f']));
 					?>
-					<tr class="<?php echo $has ? '' : 'is-missing'; ?><?php echo !empty($mine[$key]) ? ' is-mine' : ''; ?>">
+					<tr class="<?php echo $en ? 'is-english' : ($has ? '' : 'is-missing'); ?><?php echo !empty($mine[$key]) ? ' is-mine' : ''; ?>">
 						<td class="y4i-src"><div><?php echo esc_html($it['s']); ?></div><small><?php echo esc_html($where . ($it['c'] !== '' && $it['c'] !== self::SITE && strpos($it['c'], 'wp') !== 0 ? ' · ' . $it['c'] : '')); ?></small></td>
 						<td>
 							<input type="hidden" name="k[<?php echo (int) $i; ?>]" value="<?php echo esc_attr(base64_encode($key)); ?>">
 							<textarea name="t[<?php echo (int) $i; ?>]" rows="<?php echo strlen($it['s']) > 90 ? 3 : 1; ?>" lang="<?php echo esc_attr($all[$code][2]); ?>"<?php echo $rtl ? ' dir="rtl"' : ''; ?>><?php echo esc_textarea(trim((string) ($dict[$key] ?? ''))); ?></textarea>
-							<span class="y4i-who"><?php echo !empty($mine[$key]) ? esc_html__('written by you', 'y4apk') : ($has ? esc_html__('by the AI', 'y4apk') : (!empty($bad[$key]) && $bad[$key] >= 2 ? esc_html__('the AI got it wrong twice: write it yourself', 'y4apk') : esc_html__('not translated yet', 'y4apk'))); ?></span>
+							<span class="y4i-who"><?php echo $en ? esc_html__('shown in English', 'y4apk') : (!empty($mine[$key]) ? esc_html__('written by you', 'y4apk') : ($has ? esc_html__('by the AI', 'y4apk') : (!empty($bad[$key]) && $bad[$key] >= 2 ? esc_html__('the AI got it wrong twice: write it yourself', 'y4apk') : esc_html__('not translated yet', 'y4apk')))); ?></span>
+							<label class="y4i-en"><input type="checkbox" name="en[<?php echo (int) $i; ?>]" value="1" <?php checked($en); ?>> <?php esc_html_e('Keep in English (every language)', 'y4apk'); ?></label>
 						</td>
 					</tr>
 				<?php $i++; endforeach; ?>

@@ -735,6 +735,16 @@ background), then clear the page cache. Check a language at `/th/`.
   refused: only real ones count now (`%s`, `%d`, `%1$s`, `%.1f`, `%%`). The
   texts the AI got wrong are asked again once.
 
+2.51.2: **Keep in English.** The site's own names stay as they are in every
+language: its categories (the menu's *Games* and *Apps*, so *Popular Games*,
+*All Games*), menu items, the home page's heading and button, and the home
+page's badges *Best of the best* and *Recommend*. Any other text can be kept
+in English the same way (Y4APK ▸ Languages ▸ Edit texts ▸ *Keep in English
+(every language)*, filter *Kept in English*), and these can be let go to be
+translated. Kept texts are not sent to the AI and do not count in the %.
+The menu's two *All …* buttons are the same text now (one was not
+translatable).
+
 ## App updates follow Google Play; members' safe uploads go live at once (2.50)
 
 **App updates** (Y4APK ▸ App updates):
