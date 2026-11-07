@@ -28,21 +28,18 @@ if (!function_exists('y4apk_post_choices')) {
 			return $choices;
 		}
 
-		$posts = get_posts([
-			'post_type'              => 'post',
-			'post_status'            => 'publish',
-			'posts_per_page'         => (int) apply_filters('y4apk_choices_post_limit', 1000), // 2.53.1: 200 left older games out
-			'orderby'                => 'date',
-			'order'                  => 'DESC',
-			'suppress_filters'       => false,
-			'no_found_rows'          => true,
-			'update_post_meta_cache' => false,
-			'update_post_term_cache' => false,
-		]);
+		// Only the ID and the title (2.53.2): one light query on the posts table's own index, no post bodies,
+		// no meta, no other plugins' filters. 2.53.1 loaded 1,000 whole posts here and the Customizer hung.
+		global $wpdb;
+		$limit = max(1, min(2000, (int) apply_filters('y4apk_choices_post_limit', 1000)));
+		$rows = $wpdb->get_results($wpdb->prepare(
+			"SELECT ID, post_title FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' ORDER BY post_date DESC LIMIT %d",
+			$limit
+		));
 
 		$choices = [];
-		foreach ($posts as $post) {
-			$choices[$post->ID] = $post->post_title;
+		foreach ((array) $rows as $row) {
+			$choices[(int) $row->ID] = $row->post_title !== '' ? $row->post_title : '#' . (int) $row->ID;
 		}
 		// The posts already on a card stay in the list, however old (2.53): the list holds only the newest ones
 		foreach (['featured_posts', 'recommend_posts'] as $mod) {

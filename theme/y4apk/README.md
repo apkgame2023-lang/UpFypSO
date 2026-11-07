@@ -640,6 +640,11 @@ small letters. The Edit profile page says so.
 
 ## FAQ, the legal pages for every region, one-line sign-in panel (2.53)
 
+2.53.2: the Customizer stayed on "Loading…": 2.53.1 fetched 1,000 whole posts
+(their text and other plugins' filters) only to list their titles in the card
+pickers. The list now comes from one light query for the ID and title alone,
+on the posts table's own index.
+
 2.53.1:
 - **Games and Apps menus** like the Roblox one: 12 categories, those with the
   most posts first, six to a row, then *All Games →* / *All Apps →* and
