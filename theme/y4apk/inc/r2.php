@@ -121,6 +121,7 @@ setTimeout(()=>location.href="https://y4apk.com/run-script-apk/",3000);
 HTML;
 
 	public static function init() {
+		add_action('y4apk_r2_rename', [__CLASS__, 'run_renames']); // 2.60.1: big files renamed after Save has answered
 		if (!is_admin()) {
 			return;
 		}
@@ -380,7 +381,7 @@ HTML;
 	 * parts above 5 GB — then the old name goes. true or a WP_Error (the file
 	 * is then still under its old name).
 	 */
-	public static function move($from, $to, $size = 0) {
+	public static function move($from, $to, $size = 0, $remove = true) {
 		if ($from === $to) {
 			return true;
 		}
@@ -416,8 +417,95 @@ HTML;
 				return $done;
 			}
 		}
-		self::remove($from);
+		if ($remove) {
+			self::remove($from);
+		}
 		return true;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Renames that wait (2.60.1)
+	 *
+	 * R2 renames a file by copying it, and a file of a few GB takes longer
+	 * than Cloudflare waits for a page (100 s): Save answered "520" although
+	 * it went on and saved. Now a big file keeps its first name when Save
+	 * answers, and is renamed right after on the server: copied, its download
+	 * page pointed at the copy, then the first name taken off. Cut short, the
+	 * next background step finishes it; until then it downloads as it is.
+	 * ---------------------------------------------------------------- */
+
+	const RENAMES    = 'y4apk_r2_renames';
+	const RENAME_NOW = 314572800; // 300 MB: smaller ones are renamed during Save, as before
+
+	public static function rename_later($from, $to, $size, $folder) {
+		$q = self::renames_left($from);
+		$q[] = ['from' => (string) $from, 'to' => (string) $to, 'size' => (float) $size, 'folder' => (string) $folder, 'at' => time(), 'tries' => 0];
+		update_option(self::RENAMES, $q, false);
+		if (!wp_next_scheduled('y4apk_r2_rename')) {
+			wp_schedule_single_event(time() + 5 * MINUTE_IN_SECONDS, 'y4apk_r2_rename');
+		}
+	}
+
+	/** The waiting renames, without the one for $from. */
+	private static function renames_left($from = '') {
+		$q = get_option(self::RENAMES, []);
+		return array_values(array_filter(is_array($q) ? $q : [], function ($j) use ($from) {
+			return is_array($j) && !empty($j['from']) && $j['from'] !== $from;
+		}));
+	}
+
+	/** Does the waiting renames (one run at a time). */
+	public static function run_renames() {
+		if (get_transient('y4apk_r2_renaming') || !self::can_store()) {
+			return;
+		}
+		set_transient('y4apk_r2_renaming', 1, 20 * MINUTE_IN_SECONDS);
+		ignore_user_abort(true);
+		if (function_exists('set_time_limit')) {
+			@set_time_limit(1200); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+		foreach (self::renames_left() as $j) {
+			if (self::folder_key($j['folder']) !== $j['from']) {
+				update_option(self::RENAMES, self::renames_left($j['from']), false); // its page points elsewhere now: nothing to do
+				continue;
+			}
+			$moved = self::move($j['from'], $j['to'], $j['size'], false);
+			$ok = !is_wp_error($moved) && !is_wp_error(self::point_folder($j['folder'], self::public_url($j['to'])));
+			if ($ok) {
+				self::remove($j['from']);
+			} elseif (!is_wp_error($moved)) {
+				self::remove($j['to']); // the page could not follow: the copy goes, the file keeps its first name
+			}
+			$q = self::renames_left($j['from']);
+			if (!$ok && (int) $j['tries'] < 4) {
+				$j['tries'] = (int) $j['tries'] + 1;
+				$q[] = $j;
+			}
+			update_option(self::RENAMES, $q, false);
+		}
+		delete_transient('y4apk_r2_renaming');
+		if (self::renames_left() && !wp_next_scheduled('y4apk_r2_rename')) {
+			wp_schedule_single_event(time() + 10 * MINUTE_IN_SECONDS, 'y4apk_r2_rename');
+		}
+	}
+
+	/** Sends the answer to the browser now and goes on working (PHP-FPM, LiteSpeed). */
+	public static function answer_now() {
+		ignore_user_abort(true);
+		if (function_exists('fastcgi_finish_request')) {
+			fastcgi_finish_request();
+		} elseif (function_exists('litespeed_finish_request')) {
+			litespeed_finish_request();
+		} else {
+			if (!headers_sent()) {
+				header('Content-Length: 0');
+				header('Connection: close');
+			}
+			while (ob_get_level() > 0) {
+				ob_end_flush();
+			}
+			flush();
+		}
 	}
 
 	/**

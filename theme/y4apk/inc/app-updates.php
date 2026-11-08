@@ -1769,9 +1769,16 @@ class Y4APK_App_Updates {
 		if (!current_user_can('edit_post', $post_id)) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
 		}
+		// 2.60.1: a dropped connection never leaves a half-done save
+		ignore_user_abort(true);
+		if (function_exists('set_time_limit')) {
+			@set_time_limit(600); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
 		$in = wp_unslash($_POST);
 		$version = sanitize_text_field(isset($in['version']) ? $in['version'] : '');
 		$size = sanitize_text_field(isset($in['size']) ? $in['size'] : '');
+		// The same Save sent again (the browser does after an error page): it went through the first time
+		$once = 'y4apk_vc_saved_' . md5($post_id . '|' . (isset($in['sig']) ? (string) $in['sig'] : '') . '|' . (isset($in['r2']) ? (string) $in['r2'] : '') . '|' . $version);
 		$url = esc_url_raw(isset($in['url']) ? trim($in['url']) : '');
 		$back = isset($in['back']) && $in['back'] === 'file'
 			? add_query_arg(['page' => self::SLUG, 'view' => 'file', 'post' => $post_id], admin_url('admin.php'))
@@ -1873,7 +1880,7 @@ class Y4APK_App_Updates {
 			exit;
 		}
 		if (!isset($in['sig']) || $in['sig'] !== self::links_sig($post_id)) {
-			wp_safe_redirect(add_query_arg('y4apk_error', 'changed', $back));
+			wp_safe_redirect(get_transient($once) ? add_query_arg('y4apk_saved', $post_id, $back) : add_query_arg('y4apk_error', 'changed', $back));
 			exit;
 		}
 
@@ -1935,7 +1942,8 @@ class Y4APK_App_Updates {
 		// with it (the upload starts as soon as the file is picked, with what the
 		// boxes said then): "…-MOD-v1.7.7-…" becomes "…-MOD-v1.7.3-…".
 		$notes = [];
-		$named = function ($key, $type, $version) use (&$notes) {
+		$later = []; // 2.60.1: big files, renamed once Save has answered: key => ['to', 'size', 'folder']
+		$named = function ($key, $type, $version, $folder = '') use (&$notes, &$later) {
 			if (!class_exists('Y4APK_R2')) {
 				return $key;
 			}
@@ -1944,6 +1952,11 @@ class Y4APK_App_Updates {
 				return $key;
 			}
 			$done = get_transient('y4apk_r2_done_' . md5($key));
+			$bytes = is_array($done) ? (float) $done['size'] : 0;
+			if ($bytes <= 0 || $bytes > Y4APK_R2::RENAME_NOW) {
+				$later[$key] = ['to' => $to, 'size' => $bytes, 'folder' => $folder];
+				return $key; // under its first name for now
+			}
 			$moved = Y4APK_R2::move($key, $to, is_array($done) ? $done['size'] : 0);
 			if (is_wp_error($moved)) {
 				$notes[] = $moved->get_error_message();
@@ -1974,7 +1987,7 @@ class Y4APK_App_Updates {
 			$folder = Y4APK_R2::folder_of(html_entity_decode((string) $updates[$index]['download_url']));
 			$was = $folder !== '' ? Y4APK_R2::folder_key($folder) : '';
 			if ($was !== '') {
-				$now = $named($was, isset($updates[$index]['download_name']) ? $updates[$index]['download_name'] : (isset($link['download_name']) ? $link['download_name'] : 'MOD'), $updates[$index]['download_version']);
+				$now = $named($was, isset($updates[$index]['download_name']) ? $updates[$index]['download_name'] : (isset($link['download_name']) ? $link['download_name'] : 'MOD'), $updates[$index]['download_version'], $folder);
 				if ($now !== $was) {
 					$pointed = Y4APK_R2::point_folder($folder, Y4APK_R2::public_url($now));
 					if (is_wp_error($pointed)) {
@@ -1999,6 +2012,9 @@ class Y4APK_App_Updates {
 			if ($i === $index) {
 				$size = $r['size'];
 			}
+			if (isset($later[$key])) {
+				$later[$key]['folder'] = $r['folder'];
+			}
 		}
 
 		// 2.50.4: another download uploaded again keeps its folder; an added file gets its own
@@ -2011,6 +2027,9 @@ class Y4APK_App_Updates {
 				exit;
 			}
 			$edits[$i] = array_merge(isset($edits[$i]) ? $edits[$i] : [], ['download_url' => $r['url'], 'download_size' => $r['size']]);
+			if (isset($later[$key])) {
+				$later[$key]['folder'] = $r['folder'];
+			}
 		}
 		foreach ($extras as $n => $x) {
 			if ($x['r2'] === '') {
@@ -2024,6 +2043,9 @@ class Y4APK_App_Updates {
 			}
 			$extras[$n]['row']['download_url'] = $r['url'];
 			$extras[$n]['row']['download_size'] = $r['size'];
+			if (isset($later[$x['r2']])) {
+				$later[$x['r2']]['folder'] = $r['folder'];
+			}
 		}
 
 		// A folder Write with AI made has its file now (or the post another link).
@@ -2086,8 +2108,7 @@ class Y4APK_App_Updates {
 			if (class_exists('Y4APK_Versions')) {
 				Y4APK_Versions::purge($post_id);
 			}
-			wp_safe_redirect(add_query_arg('y4apk_saved', $post_id, $back));
-			exit;
+			self::saved_then_rename($once, add_query_arg('y4apk_saved', $post_id, $back), $later);
 		}
 
 		$old = self::number(isset($link['download_version']) ? $link['download_version'] : '');
@@ -2114,7 +2135,29 @@ class Y4APK_App_Updates {
 		self::update_quietly($args); // also marks the post as just updated
 		self::refresh_flag($post_id);
 
-		wp_safe_redirect(add_query_arg('y4apk_saved', $post_id, $back));
+		self::saved_then_rename($once, add_query_arg('y4apk_saved', $post_id, $back), $later);
+	}
+
+	/**
+	 * Save's end (2.60.1): noted as done (so the same Save sent again says
+	 * saved), the page answered at once, then the big files renamed for their
+	 * version — after the answer, so no Cloudflare 520 however big they are.
+	 */
+	private static function saved_then_rename($once, $url, $later) {
+		set_transient($once, 1, 15 * MINUTE_IN_SECONDS);
+		$later = array_filter((array) $later, function ($l) {
+			return !empty($l['folder']);
+		});
+		if (!$later || !class_exists('Y4APK_R2')) {
+			wp_safe_redirect($url);
+			exit;
+		}
+		foreach ($later as $from => $l) {
+			Y4APK_R2::rename_later($from, $l['to'], $l['size'], $l['folder']);
+		}
+		wp_safe_redirect(add_query_arg('y4apk_renaming', 1, $url));
+		Y4APK_R2::answer_now();
+		Y4APK_R2::run_renames();
 		exit;
 	}
 
@@ -2938,8 +2981,12 @@ class Y4APK_App_Updates {
 				.au-autos { gap: 10px; }
 				.au-act { justify-content: flex-start; }
 				.au-srow form { grid-column: auto; }
-				.au-line { grid-template-columns: 60px 1fr 1fr; }
+				.au-line { grid-template-columns: 76px 1fr 1fr; }
 				.au-line input[type=url] { grid-column: 1 / -1; }
+				/* 2.60.1: Upload under the link, the bin alone at the right (it sat on the button) */
+				.au-line .au-up { grid-column: 1 / 3; justify-self: start; }
+				.au-line .au-del, .au-line .au-del-none { grid-column: 3; justify-self: end; }
+				.au-del { width: 40px; height: 40px; border: 1px solid #dcdcde; border-radius: 10px; background: #fff; }
 				.au-toolbar .au-search { min-width: 0; width: 100%; }
 				.au-dl { grid-template-columns: 1fr; }
 				.au-dl dt { border-bottom: 0; padding-bottom: 0; }
@@ -3052,7 +3099,7 @@ class Y4APK_App_Updates {
 			<?php if (!empty($_GET['y4apk_note']) && !empty($_GET['y4apk_saved'])) : ?>
 				<div class="notice notice-warning is-dismissible"><p><?php echo esc_html(sprintf(__('Saved. The file’s name on R2 could not follow its version (%s): it downloads under its first name.', 'y4apk'), (string) get_transient('y4apk_upload_note'))); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_saved'])) : $sid = absint($_GET['y4apk_saved']); ?>
-				<div class="notice notice-success is-dismissible"><p><?php printf(esc_html__('Saved: %s', 'y4apk'), '<a href="' . esc_url(get_permalink($sid)) . '" target="_blank">' . esc_html(get_the_title($sid)) . '</a>'); ?></p></div>
+				<div class="notice notice-success is-dismissible"><p><?php printf(esc_html__('Saved: %s', 'y4apk'), '<a href="' . esc_url(get_permalink($sid)) . '" target="_blank">' . esc_html(get_the_title($sid)) . '</a>'); ?><?php if (!empty($_GET['y4apk_renaming'])) : ?> <?php esc_html_e('Its file is being renamed on R2 for its version (a big file takes a minute or two); it downloads all the while.', 'y4apk'); ?><?php endif; ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_gsc'])) : $g = self::gsc(); ?>
 				<div class="notice notice-success is-dismissible"><p><?php echo esc_html(sprintf(__('Google Search numbers updated: %1$s pages, %2$s posts matched.', 'y4apk'), number_format_i18n($g['rows']), number_format_i18n(count($g['posts'])))); ?></p></div>
 			<?php elseif (isset($_GET['outside'])) : ?>

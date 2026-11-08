@@ -13,6 +13,16 @@ class Y4APK_Admin_UI {
 
 	private static $printed = false;
 
+	public static function init() {
+		add_filter('admin_viewport_meta', [__CLASS__, 'viewport']);
+	}
+
+	/** Y4APK's own admin pages on a phone (2.60.1): the page stays at its size — a pinch or a tap no longer zooms it. */
+	public static function viewport($content) {
+		$page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		return strpos($page, 'y4apk') === 0 ? 'width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no' : $content;
+	}
+
 	/** Small pictures for the pages' heads. */
 	public static function icon($name, $size = 24) {
 		$p = [
@@ -158,3 +168,5 @@ class Y4APK_Admin_UI {
 		<?php
 	}
 }
+
+Y4APK_Admin_UI::init();

@@ -640,6 +640,28 @@ small letters. The Edit profile page says so.
 
 ## Your own rows on the home page (2.60)
 
+2.60.1 — **Save after a big upload no longer ends in Cloudflare's 520.** The
+upload names the file on R2 for what the version box said when the file was
+picked; when the file then says another version (the box follows it), Save
+renamed the file — and R2 renames by copying, which for a file of a few GB
+takes longer than Cloudflare waits (100 s). The save itself went on and
+finished, but the page showed 520, and Save pressed again said “Nothing
+saved: the post's downloads were changed”. Now:
+
+- a file over 300 MB keeps its first name when Save answers (at once), and
+  is renamed right after on the server: copied, its download page pointed at
+  the copy, then the first name taken off. If that is cut short, the next
+  background step finishes it (`y4apk_r2_rename`, the queue in the option
+  `y4apk_r2_renames`); it downloads all the while. The saved notice says so;
+- Save works to the end even if the connection drops;
+- the same Save sent again (as a browser does after an error page) says
+  *Saved* instead of *Nothing saved*.
+
+On phones, App updates' bin no longer sits on the Upload button (it has its
+own place at the right, bigger), and Y4APK's own admin pages keep their size
+(no pinch or tap zoom).
+
+
 Y4APK ▸ Home page ▸ **Your own rows**: *+ Add a row* (up to 10). Each row
 has its heading, an optional *“See all” link* (the heading becomes a link
 with the arrow, like the lists of games), *Show*, its cards — **wide**, like
