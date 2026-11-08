@@ -186,37 +186,59 @@ class Y4APK_Home_Admin {
 			<?php
 		};
 		?>
-		<div class="wrap y4hm">
-			<h1><?php esc_html_e('Home page', 'y4apk'); ?></h1>
-			<p class="y4hm-lead"><?php esc_html_e('The top of the home page and its cards. These are the same settings as Customize ▸ Y4APK Panel, so either place shows the same.', 'y4apk'); ?></p>
+		<div class="wrap y4hm y4ui">
+			<?php Y4APK_Admin_UI::head([
+				'icon'    => 'home',
+				'tint'    => 'green',
+				'title'   => esc_html__('Home page', 'y4apk'),
+				'sub'     => esc_html__('The top of the home page and its cards, each with a preview. These are the same settings as Customize ▸ Y4APK Panel, so either place shows the same.', 'y4apk'),
+				'actions' => '<a class="button button-large" href="' . esc_url(home_url('/')) . '" target="_blank" rel="noopener">' . Y4APK_Admin_UI::icon('eye', 16) . ' ' . esc_html__('View the home page', 'y4apk') . '</a>'
+					. '<button class="button button-primary button-large" form="y4hm-form">' . esc_html__('Save', 'y4apk') . '</button>',
+			]); ?>
 			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors see it.', 'y4apk'); ?></p></div><?php endif; ?>
 
-			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="y4hm-form">
 				<input type="hidden" name="action" value="y4apk_home_save">
 				<?php wp_nonce_field('y4apk-home-save'); ?>
 
-				<section class="y4hm-box">
-					<h2><?php esc_html_e('Top of the page', 'y4apk'); ?></h2>
-					<table class="form-table" role="presentation">
-						<tr><th><label for="y4hm-ht"><?php esc_html_e('Heading', 'y4apk'); ?></label></th><td><input id="y4hm-ht" type="text" class="large-text" name="hero_title" value="<?php echo esc_attr($hero_title); ?>"></td></tr>
-						<tr><th><label for="y4hm-hb"><?php esc_html_e('Button', 'y4apk'); ?></label></th><td><input id="y4hm-hb" type="text" class="regular-text" name="hero_btn_name" value="<?php echo esc_attr($hero_btn); ?>"></td></tr>
-						<tr><th><label for="y4hm-hu"><?php esc_html_e('Button link', 'y4apk'); ?></label></th><td><input id="y4hm-hu" type="text" class="regular-text code" name="hero_btn_url" value="<?php echo esc_attr($hero_url); ?>"><p class="description"><?php esc_html_e('A full address, or one on this site such as /games/.', 'y4apk'); ?></p></td></tr>
-						<tr><th><?php esc_html_e('Picture', 'y4apk'); ?></th><td><?php $img_field('hero_img', $hero_img, __('Choose from Media Library', 'y4apk')); ?><p class="description"><?php esc_html_e('Empty: the theme’s own drawing.', 'y4apk'); ?></p></td></tr>
-					</table>
+				<section class="y4ui-card">
+					<div class="y4ui-card-h"><div>
+						<h2><?php esc_html_e('Top of the page', 'y4apk'); ?></h2>
+						<p><?php esc_html_e('The first thing visitors see: a heading, a button and a picture.', 'y4apk'); ?></p>
+					</div></div>
+					<div class="y4ui-card-b y4hm-top">
+						<div class="y4ui-fields is-two">
+							<div class="y4ui-field is-wide"><label for="y4hm-ht"><?php esc_html_e('Heading', 'y4apk'); ?></label><input id="y4hm-ht" type="text" name="hero_title" value="<?php echo esc_attr($hero_title); ?>" data-hero-in="title"></div>
+							<div class="y4ui-field"><label for="y4hm-hb"><?php esc_html_e('Button', 'y4apk'); ?></label><input id="y4hm-hb" type="text" name="hero_btn_name" value="<?php echo esc_attr($hero_btn); ?>" data-hero-in="btn"></div>
+							<div class="y4ui-field"><label for="y4hm-hu"><?php esc_html_e('Button link', 'y4apk'); ?></label><input id="y4hm-hu" type="text" class="code" name="hero_btn_url" value="<?php echo esc_attr($hero_url); ?>"><p class="description"><?php esc_html_e('A full address, or one on this site such as /games/.', 'y4apk'); ?></p></div>
+							<div class="y4ui-field is-wide"><span class="y4ui-label"><?php esc_html_e('Picture', 'y4apk'); ?></span><?php $img_field('hero_img', $hero_img, __('Choose from Media Library', 'y4apk')); ?><p class="description"><?php esc_html_e('Empty: the theme’s own drawing.', 'y4apk'); ?></p></div>
+						</div>
+						<div class="y4hm-hero" aria-hidden="true">
+							<span class="y4hm-hero-tag"><?php esc_html_e('Preview', 'y4apk'); ?></span>
+							<div class="y4hm-hero-t">
+								<b data-hero="title"><?php echo esc_html(wp_strip_all_tags($hero_title)); ?></b>
+								<span class="y4hm-hero-btn" data-hero="btn"><?php echo esc_html($hero_btn); ?></span>
+							</div>
+							<div class="y4hm-hero-pic"><img src="<?php echo esc_url($hero_img); ?>" alt="" data-hero="img"<?php echo $hero_img === '' ? ' hidden' : ''; ?>><span class="y4hm-hero-own" data-hero="own"<?php echo $hero_img !== '' ? ' hidden' : ''; ?>><?php esc_html_e('The theme’s own drawing', 'y4apk'); ?></span></div>
+						</div>
+					</div>
 				</section>
 
 				<?php foreach (self::sets() as $set => $s) :
 					$show = get_theme_mod($s[1], false);
 					$show = $show && $show !== 'off';
 					?>
-					<section class="y4hm-box">
-						<div class="y4hm-head">
-							<h2><?php echo esc_html($s[2]); ?></h2>
+					<section class="y4ui-card">
+						<div class="y4ui-card-h">
+							<div>
+								<h2><?php echo esc_html($s[2]); ?></h2>
+								<p><?php echo esc_html($s[3]); ?> <?php esc_html_e('A card without a post is left out.', 'y4apk'); ?></p>
+							</div>
 							<label class="y4hm-switch"><input type="checkbox" name="show[<?php echo esc_attr($set); ?>]" value="1" <?php checked($show); ?>><span></span><?php esc_html_e('Show on the home page', 'y4apk'); ?></label>
 						</div>
-						<p class="description"><?php echo esc_html($s[3]); ?> <?php esc_html_e('A card without a post is left out.', 'y4apk'); ?></p>
+						<div class="y4ui-card-b">
 						<?php if ($set === 'recommend') : ?>
-							<p class="y4hm-logo"><b><?php esc_html_e('Picture beside the cards', 'y4apk'); ?></b><?php $img_field('home_recommend_logo', $rec_logo, __('Choose', 'y4apk')); ?></p>
+							<div class="y4hm-logo"><b><?php esc_html_e('Picture beside the cards', 'y4apk'); ?></b><?php $img_field('home_recommend_logo', $rec_logo, __('Choose', 'y4apk')); ?></div>
 						<?php endif; ?>
 						<div class="y4hm-grid">
 							<?php foreach (self::rows($set) as $n => $r) :
@@ -255,19 +277,27 @@ class Y4APK_Home_Admin {
 								</div>
 							<?php endforeach; ?>
 						</div>
+						</div>
 					</section>
 				<?php endforeach; ?>
 
-				<p class="y4hm-save"><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></p>
+				<div class="y4ui-savebar">
+					<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
+					<span class="y4ui-hint"><?php esc_html_e('After saving, clear the page cache (10Web ▸ Clear Cache) so visitors see it.', 'y4apk'); ?></span>
+				</div>
 			</form>
 		</div>
 		<style>
-			.y4hm { max-width: 1240px; }
-			.y4hm-lead { max-width: 760px; color: #50575e; }
-			.y4hm-box { margin: 16px 0 20px; padding: 20px 24px 24px; background: #fff; border: 1px solid #dcdcde; border-radius: 12px; }
-			.y4hm-box h2 { margin: 0 0 6px; font-size: 17px; }
-			.y4hm-box .form-table th { width: 140px; }
-			.y4hm-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+			/* The top of the page: its fields, and how it looks */
+			.y4hm-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+			.y4hm-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 12px; min-height: 230px; padding: 28px 24px; border-radius: 14px; overflow: hidden; background: radial-gradient(120% 120% at 100% 0, #e6f7fd 0, #f6fbfd 45%, #fff 100%); border: 1px solid #e6eef2; }
+			.y4hm-hero-tag { position: absolute; top: 10px; left: 12px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #135e96; background: #e8f1fb; }
+			.y4hm-hero-t b { display: block; margin: 12px 0 14px; font-size: 22px; line-height: 1.25; color: #172021; overflow-wrap: anywhere; }
+			.y4hm-hero-btn { display: inline-block; padding: 9px 18px; border-radius: 99px; font-size: 12px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: #fff; background: #29b1d8; box-shadow: 0 8px 18px -8px rgba(41, 177, 216, .8); }
+			.y4hm-hero-pic { display: grid; place-items: center; min-height: 150px; }
+			.y4hm-hero-pic img { max-width: 100%; max-height: 190px; object-fit: contain; }
+			.y4hm-hero-own { padding: 10px 14px; border: 1px dashed #b7d7e4; border-radius: 12px; color: #4f7787; font-size: 12px; text-align: center; }
+			@media (max-width: 1100px) { .y4hm-top { grid-template-columns: minmax(0, 1fr); } }
 			.y4hm-switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
 			.y4hm-switch input { position: absolute; opacity: 0; pointer-events: none; }
 			.y4hm-switch span { position: relative; width: 36px; height: 20px; border-radius: 20px; background: #c3c4c7; transition: background .15s; }
@@ -275,11 +305,14 @@ class Y4APK_Home_Admin {
 			.y4hm-switch input:checked + span { background: #2271b1; }
 			.y4hm-switch input:checked + span::after { transform: translateX(16px); }
 			.y4hm-switch input:focus-visible + span { outline: 2px solid #2271b1; outline-offset: 2px; }
-			.y4hm-logo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0 0; }
+			.y4hm-logo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; max-width: 760px; }
+			.y4hm-logo .y4hm-img { flex: 1; min-width: 260px; }
 			.y4hm-img { display: flex; gap: 6px; align-items: center; }
 			.y4hm-img input { flex: 1; min-width: 0; }
-			.y4hm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
-			.y4hm-card { display: flex; flex-direction: column; border: 1px solid #e0e0e3; border-radius: 12px; overflow: visible; background: #fafbfc; }
+			.y4hm-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+			@media (max-width: 1400px) { .y4hm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+			@media (max-width: 700px) { .y4hm-grid { grid-template-columns: minmax(0, 1fr); } }
+			.y4hm-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid #e0e0e3; border-radius: 14px; overflow: visible; background: #fafbfc; }
 			.y4hm-prev { position: relative; overflow: hidden; height: 136px; margin: 12px 12px 0; padding: 0 16px 14px; border-radius: 14px; display: flex; flex-direction: column; justify-content: flex-end; color: #fff; background: linear-gradient(120deg, var(--c), color-mix(in srgb, var(--c) 70%, #000)); }
 			.y4hm-card[data-shape="tall"] .y4hm-prev { height: 200px; }
 			.y4hm-prev-bg { position: absolute; right: 0; bottom: 0; height: 100%; width: auto; max-width: 70%; object-fit: contain; object-position: right bottom; }
@@ -303,7 +336,6 @@ class Y4APK_Home_Admin {
 			.y4hm-hits img { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex: none; }
 			.y4hm-hits .none { padding: 8px; color: #787c82; }
 			.y4hm-fields input[type="color"] { width: 64px; height: 32px; padding: 2px; }
-			.y4hm-save { position: sticky; bottom: 0; margin: 0; padding: 12px 0; background: linear-gradient(transparent, #f0f0f1 30%); }
 		</style>
 		<script>
 		jQuery(function ($) {
@@ -316,6 +348,10 @@ class Y4APK_Home_Admin {
 				frame.on('select', function () { input.val(frame.state().get('selection').first().toJSON().url).trigger('input'); });
 				frame.open();
 			});
+			// The top of the page: its preview follows what is typed
+			$('[data-hero-in="title"]').on('input', function () { $('[data-hero="title"]').text($('<div>').html(this.value).text() || '…'); });
+			$('[data-hero-in="btn"]').on('input', function () { $('[data-hero="btn"]').text(this.value || '…'); });
+			$('input[name="hero_img"]').on('input change', function () { var v = $.trim(this.value); $('[data-hero="img"]').attr('src', v).prop('hidden', !v); $('[data-hero="own"]').prop('hidden', !!v); });
 			$('[data-card]').each(function () {
 				var card = $(this), q = card.find('[data-q]'), hits = card.find('[data-hits]'), timer = null, seq = 0, base = card.find('[data-prev-name]').text();
 				var name = function () { var v = $.trim(card.find('[data-name]').val()); card.find('[data-prev-name]').text(v || base || T.choose); };

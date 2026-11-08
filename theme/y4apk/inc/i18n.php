@@ -1763,7 +1763,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		}
 		$edit = isset($_GET['edit']) ? str_replace('_', '-', sanitize_key(wp_unslash($_GET['edit']))) : '';
 		self::styles();
-		echo '<div class="wrap y4i">';
+		echo '<div class="wrap y4i y4ui">';
 		if ($edit !== '' && in_array($edit, self::enabled(), true)) {
 			self::render_texts($edit);
 		} else {
@@ -1775,13 +1775,17 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 	private static function styles() {
 		?>
 		<style>
-		.y4i{max-width:1180px}
 		.y4i-lead{max-width:860px;font-size:14px;color:#3c434a}
 		.y4i-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:16px 0}
 		.y4i-card{padding:14px 16px;border:1px solid #dcdcde;border-radius:10px;background:#fff}
 		.y4i-card b{display:block;font-size:22px;line-height:1.2;margin-bottom:2px}
 		.y4i-card span{color:#646970}
-		.y4i-table{border-radius:10px;overflow:hidden}
+		.y4i-table .y4i-acts{display:inline-flex;gap:6px;flex-wrap:nowrap}
+		.y4i-table td:last-child{width:1%;white-space:nowrap;text-align:right}
+		.y4i-more{padding:12px 16px;border-top:1px solid #f0f0f1;text-align:center}
+		.y4i-table .y4i-bar{width:200px}
+		@media (max-width:1000px){.y4i-table .y4i-bar{width:110px}}
+		.y4i-table input[type=checkbox]{margin:0}
 		.y4i-table td,.y4i-table th{vertical-align:middle}
 		.y4i-name b{display:block;font-size:14px}
 		.y4i-name small{color:#646970}
@@ -1808,9 +1812,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		.y4i-en{display:inline-flex;align-items:center;gap:4px;margin-left:10px;font-size:12px;color:#50575e}
 		.y4i-texts tr.is-english textarea{opacity:.45}
 		.y4i-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
-		.y4i-order-box{max-width:620px;margin:20px 0 24px;padding:16px 18px;border:1px solid #dcdcde;border-radius:10px;background:#fff}
-		.y4i-order-box h2{margin:0 0 4px;font-size:16px}
-		.y4i-order{margin:12px 0 0;padding:0;list-style:none;counter-reset:y4i}
+		.y4i-order{margin:0;padding:0;list-style:none;counter-reset:y4i}
 		.y4i-order li{display:flex;align-items:center;gap:10px;margin:0;padding:8px 10px;border:1px solid #e0e0e2;border-radius:8px;background:#fff;counter-increment:y4i}
 		.y4i-order li+li{margin-top:6px}
 		.y4i-order li::before{content:counter(y4i);min-width:18px;font-variant-numeric:tabular-nums;color:#8c8f94;text-align:right}
@@ -1848,22 +1850,44 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		$can = self::can_translate();
 		$wait_until = (int) get_transient('y4apk_i18n_wait');
 		?>
-		<h1><?php esc_html_e('Languages', 'y4apk'); ?></h1>
+		<?php
+		$left = self::left();
+		Y4APK_Admin_UI::head([
+			'icon'    => 'globe',
+			'title'   => esc_html__('Languages', 'y4apk'),
+			'sub'     => esc_html__('Menus, buttons and messages appear in the visitor’s language, at its own address (/th/, /id/ …); games, apps, scripts and articles stay as you wrote them. Write with AI translates in the background, and a language joins the globe menu once 90% of it is done.', 'y4apk'),
+			'actions' => '<span class="y4ui-status" data-status>' . esc_html($can ? __('Also happens on its own, every 5 minutes, while there is something to translate.', 'y4apk') : __('Add an AI key first', 'y4apk')) . '</span>'
+				. '<button type="button" class="button button-primary button-large" data-run' . disabled(!$can || !$on, true, false) . '>' . esc_html__('Translate now', 'y4apk') . '</button>',
+		]);
+		?>
 		<?php if (!empty($_GET['saved'])) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so the language menu shows the change.', 'y4apk'); ?></p></div>
 		<?php endif; ?>
 		<?php if (!$can) : ?>
 			<div class="notice notice-warning"><p><?php echo wp_kses_post(sprintf(__('Translations are made by Write with AI. Add a key first in <a href="%s">Y4APK ▸ Write with AI ▸ Settings</a> (Gemini’s is free).', 'y4apk'), esc_url(admin_url('admin.php?page=y4apk-writer')))); ?></p></div>
 		<?php endif; ?>
-		<p class="y4i-lead"><?php esc_html_e('The way YouTube and TikTok do it: menus, buttons and messages appear in the visitor’s language, at its own address (/th/, /id/ …); games, apps, scripts and articles stay as you wrote them. Write with AI translates the texts in the background, a few at a time. A language shows in the visitors’ menu (the globe in the header) once 90% of it is done, and visitors whose phone is set to it are asked once if they want it.', 'y4apk'); ?></p>
-		<div class="y4i-cards">
-			<div class="y4i-card"><b><?php echo esc_html(number_format_i18n(count($ready))); ?> / <?php echo esc_html(number_format_i18n(count($on))); ?></b><span><?php esc_html_e('languages ready for visitors', 'y4apk'); ?></span></div>
-			<div class="y4i-card"><b><?php echo esc_html(number_format_i18n(count($items))); ?></b><span><?php echo esc_html(sprintf(__('texts to translate (%s words), in each language', 'y4apk'), number_format_i18n($words))); ?></span></div>
-			<div class="y4i-card"><b><?php echo esc_html(number_format_i18n(self::left())); ?></b><span><?php esc_html_e('translations still to make', 'y4apk'); ?></span></div>
-		</div>
-		<div class="y4i-run">
-			<button type="button" class="button button-primary" data-run <?php disabled(!$can || !$on); ?>><?php esc_html_e('Translate now', 'y4apk'); ?></button>
-			<span data-status><?php echo esc_html($can ? __('Also happens on its own, every 5 minutes, while there is something to translate.', 'y4apk') : ''); ?></span>
+		<div class="y4ui-kpis">
+			<div class="y4ui-kpi">
+				<span class="y4ui-kpi-l"><?php esc_html_e('Ready for visitors', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($ready))); ?> <small>/ <?php echo esc_html(number_format_i18n(count($on))); ?></small></span>
+				<span class="y4ui-bar is-green"><i style="width:<?php echo (int) ($on ? round(100 * count($ready) / count($on)) : 0); ?>%"></i></span>
+				<span class="y4ui-kpi-s"><?php esc_html_e('languages in the globe menu, besides English', 'y4apk'); ?></span>
+			</div>
+			<div class="y4ui-kpi">
+				<span class="y4ui-kpi-l"><?php esc_html_e('Texts in each language', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($items))); ?></span>
+				<span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s words: menus, buttons, messages', 'y4apk'), number_format_i18n($words))); ?></span>
+			</div>
+			<div class="y4ui-kpi<?php echo $left ? '' : ' is-green'; ?>">
+				<span class="y4ui-kpi-l"><?php esc_html_e('Still to translate', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($left)); ?></span>
+				<span class="y4ui-kpi-s"><?php echo esc_html($left ? __('Goes on by itself, a few at a time', 'y4apk') : __('Everything is translated', 'y4apk')); ?></span>
+			</div>
+			<a class="y4ui-kpi<?php echo $can ? '' : ' is-red'; ?>" href="<?php echo esc_url(admin_url('admin.php?page=y4apk-writer')); ?>">
+				<span class="y4ui-kpi-l"><?php esc_html_e('Translated by', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n" style="font-size:20px"><?php esc_html_e('Write with AI', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-s"><?php echo $can ? '<span class="y4ui-chip is-green">' . esc_html__('Ready', 'y4apk') . '</span>' : '<span class="y4ui-chip is-red">' . esc_html__('No key yet', 'y4apk') . '</span>'; ?></span>
+			</a>
 		</div>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 			<input type="hidden" name="action" value="y4apk_i18n_save">
@@ -1874,33 +1898,6 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 			$o = get_option(self::OPTION, null);
 			$custom = is_array($o) && !empty($o['menu']);
 			?>
-			<div class="y4i-order-box">
-				<h2><?php esc_html_e('Order in the language menu', 'y4apk'); ?></h2>
-				<p class="description"><?php esc_html_e('The order visitors see when they press the globe. Drag a language, or use the arrows. English always stays first. Languages you tick below join the end of the list once you save.', 'y4apk'); ?></p>
-				<input type="hidden" name="menu" value="" data-menu>
-				<ol class="y4i-order" data-order>
-					<li class="is-pinned"><span class="y4i-grip" aria-hidden="true"></span><span class="y4i-name"><b>English</b><small><?php esc_html_e('Always first', 'y4apk'); ?></small></span></li>
-					<?php foreach (self::menu_order() as $c) :
-						if ($c === 'en' || !in_array($c, $on, true)) { continue; }
-						$shown = in_array($c, $ready, true);
-						?>
-						<li draggable="true" data-code="<?php echo esc_attr($c); ?>">
-							<span class="y4i-grip" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg></span>
-							<span class="y4i-name"><b lang="<?php echo esc_attr($all[$c][2]); ?>"><?php echo esc_html($all[$c][0]); ?></b><small><?php echo esc_html($all[$c][1]); ?></small></span>
-							<span class="y4i-chip<?php echo $shown ? ' ok' : ''; ?>"><?php echo esc_html($shown ? __('In the menu', 'y4apk') : sprintf(__('Shown at %s%%', 'y4apk'), self::READY)); ?></span>
-							<span class="y4i-move">
-								<button type="button" class="button button-small" data-up aria-label="<?php echo esc_attr(sprintf(__('Move %s up', 'y4apk'), $all[$c][1])); ?>">↑</button>
-								<button type="button" class="button button-small" data-down aria-label="<?php echo esc_attr(sprintf(__('Move %s down', 'y4apk'), $all[$c][1])); ?>">↓</button>
-							</span>
-						</li>
-					<?php endforeach; ?>
-				</ol>
-				<p class="y4i-order-acts">
-					<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
-					<button type="button" class="button" data-az><?php esc_html_e('Sort A–Z', 'y4apk'); ?></button>
-					<span class="description" data-order-note><?php echo esc_html($custom ? __('Your own order.', 'y4apk') : __('A–Z by their own names (as YouTube lists them).', 'y4apk')); ?></span>
-				</p>
-			</div>
 			<script>
 			(function () {
 				var list = document.querySelector('.y4i [data-order]'), input = document.querySelector('.y4i [data-menu]'), note = document.querySelector('.y4i [data-order-note]');
@@ -1936,7 +1933,13 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 				});
 			})();
 			</script>
-			<table class="widefat striped y4i-table">
+			<div class="y4ui-cols">
+			<div class="y4ui-card">
+				<div class="y4ui-card-h"><div>
+					<h2><?php esc_html_e('Languages', 'y4apk'); ?></h2>
+					<p><?php esc_html_e('Tick the ones to offer. Ticked languages are translated top to bottom, once each (a few dozen questions to the AI); new texts after a theme update are translated the same way.', 'y4apk'); ?></p>
+				</div><span class="y4ui-chip is-blue"><?php echo esc_html(sprintf(__('%1$s of %2$s on', 'y4apk'), number_format_i18n(count($on)), number_format_i18n(count($all) - 1))); ?></span></div>
+			<div class="y4ui-scroll"><table class="y4ui-table y4i-table">
 				<thead><tr><th style="width:44px"><?php esc_html_e('On', 'y4apk'); ?></th><th><?php esc_html_e('Language', 'y4apk'); ?></th><th><?php esc_html_e('Address', 'y4apk'); ?></th><th><?php esc_html_e('Translated', 'y4apk'); ?></th><th><?php esc_html_e('Visitors see it', 'y4apk'); ?></th><th></th></tr></thead>
 				<tbody>
 				<?php
@@ -1947,28 +1950,73 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 					$s = $st[$c] ?? [];
 					$err = (string) ($s['err'] ?? '');
 					?>
-					<tr class="<?php echo $is_on ? '' : 'y4i-off'; ?>" data-lang="<?php echo esc_attr($c); ?>">
+					<tr class="<?php echo $is_on ? '' : 'y4i-off'; ?>" data-lang="<?php echo esc_attr($c); ?>"<?php echo $is_on ? '' : ' data-more hidden'; ?>>
 						<td><input type="checkbox" name="langs[]" value="<?php echo esc_attr($c); ?>" <?php checked($is_on); ?> aria-label="<?php echo esc_attr($all[$c][1]); ?>"></td>
 						<td class="y4i-name"><b lang="<?php echo esc_attr($all[$c][2]); ?>"><?php echo esc_html($all[$c][0]); ?></b><small><?php echo esc_html($all[$c][1]); ?><?php echo $all[$c][3] ? ' · ' . esc_html__('right to left: the layout stays left to right', 'y4apk') : ''; ?></small></td>
-						<td><code>/<?php echo esc_html($c); ?>/</code></td>
+						<td><span class="y4ui-chip is-code">/<?php echo esc_html($c); ?>/</span></td>
 						<td><?php if ($is_on) : ?>
 							<div class="y4i-bar<?php echo $pct >= self::READY ? ' is-ready' : ''; ?>"><i style="width:<?php echo (int) $pct; ?>%"></i></div>
 							<span class="y4i-pct" data-pct><?php echo esc_html(sprintf(__('%1$s%% · %2$s of %3$s', 'y4apk'), $pct, number_format_i18n((int) ($s['done'] ?? 0)), number_format_i18n((int) ($s['total'] ?? count($items))))); ?></span>
 						<?php else : ?>—<?php endif; ?></td>
 						<td><?php if (!$is_on) : ?>—<?php elseif ($pct >= self::READY) : ?><span class="y4i-chip ok"><?php esc_html_e('Yes', 'y4apk'); ?></span><?php elseif ($err !== '') : ?><span class="y4i-chip err"><?php esc_html_e('Waiting for the AI', 'y4apk'); ?></span><small class="y4i-why"><?php echo esc_html($err); ?><?php if ($wait_until > time()) : ?> · <?php echo esc_html(sprintf(__('goes on by itself at %s', 'y4apk'), wp_date(get_option('time_format'), $wait_until))); ?><?php endif; ?></small><?php elseif ($pct > 0) : ?><span class="y4i-chip wait"><?php echo esc_html(sprintf(__('Translating · shown at %s%%', 'y4apk'), self::READY)); ?></span><?php else : ?><span class="y4i-chip"><?php esc_html_e('Waiting its turn', 'y4apk'); ?></span><?php endif; ?></td>
 						<td><?php if ($is_on) : ?>
-							<a href="<?php echo esc_url(add_query_arg(['page' => self::SLUG, 'edit' => $c], admin_url('admin.php'))); ?>"><?php esc_html_e('Edit texts', 'y4apk'); ?></a> ·
-							<a href="<?php echo esc_url(self::add_code(home_url('/'), $c)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'y4apk'); ?></a>
+							<span class="y4i-acts"><a class="button" href="<?php echo esc_url(add_query_arg(['page' => self::SLUG, 'edit' => $c], admin_url('admin.php'))); ?>"><?php esc_html_e('Edit texts', 'y4apk'); ?></a>
+							<a class="button" href="<?php echo esc_url(self::add_code(home_url('/'), $c)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'y4apk'); ?> ↗</a></span>
 						<?php endif; ?></td>
 					</tr>
 				<?php endforeach; ?>
 				</tbody>
-			</table>
-			<p>
-				<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
-				<label style="margin-left:12px"><input type="checkbox" name="rescan" value="1"> <?php esc_html_e('Look for new texts in the theme too', 'y4apk'); ?></label>
-			</p>
-			<p class="description" style="max-width:860px"><?php esc_html_e('Ticked languages are translated top to bottom. Each one costs a few dozen questions to the AI, once; new texts after a theme update are translated the same way. Search engines keep only the original pages: a /th/ page says noindex and points to the original, because its posts are the same.', 'y4apk'); ?></p>
+			</table></div>
+			<?php $more = count($all) - 1 - count($on); if ($more > 0) : ?>
+				<div class="y4i-more"><button type="button" class="button" data-more-btn aria-expanded="false"><?php echo esc_html(sprintf(_n('Show the other %s language', 'Show the other %s languages', $more, 'y4apk'), number_format_i18n($more))); ?></button></div>
+				<script>
+				(function () {
+					var b = document.querySelector('.y4i [data-more-btn]'), open = false, label = b.textContent;
+					b.addEventListener('click', function () {
+						open = !open;
+						document.querySelectorAll('.y4i tr[data-more]').forEach(function (tr) { tr.hidden = !open; });
+						b.textContent = open ? <?php echo wp_json_encode(__('Show only the ticked languages', 'y4apk')); ?> : label;
+						b.setAttribute('aria-expanded', open ? 'true' : 'false');
+					});
+				})();
+				</script>
+			<?php endif; ?>
+			</div>
+			<aside class="y4ui-side"><div class="y4ui-card y4i-order-box">
+				<div class="y4ui-card-h"><div>
+					<h2><?php esc_html_e('Order in the language menu', 'y4apk'); ?></h2>
+					<p><?php esc_html_e('What visitors see when they press the globe. Drag a language or use the arrows; English always stays first. A language you tick joins the end once you save.', 'y4apk'); ?></p>
+				</div></div>
+				<div class="y4ui-card-b">
+				<input type="hidden" name="menu" value="" data-menu>
+				<ol class="y4i-order" data-order>
+					<li class="is-pinned"><span class="y4i-grip" aria-hidden="true"></span><span class="y4i-name"><b>English</b><small><?php esc_html_e('Always first', 'y4apk'); ?></small></span></li>
+					<?php foreach (self::menu_order() as $c) :
+						if ($c === 'en' || !in_array($c, $on, true)) { continue; }
+						$shown = in_array($c, $ready, true);
+						?>
+						<li draggable="true" data-code="<?php echo esc_attr($c); ?>">
+							<span class="y4i-grip" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg></span>
+							<span class="y4i-name"><b lang="<?php echo esc_attr($all[$c][2]); ?>"><?php echo esc_html($all[$c][0]); ?></b><small><?php echo esc_html($all[$c][1]); ?></small></span>
+							<span class="y4i-chip<?php echo $shown ? ' ok' : ''; ?>"><?php echo esc_html($shown ? __('In the menu', 'y4apk') : sprintf(__('Shown at %s%%', 'y4apk'), self::READY)); ?></span>
+							<span class="y4i-move">
+								<button type="button" class="button button-small" data-up aria-label="<?php echo esc_attr(sprintf(__('Move %s up', 'y4apk'), $all[$c][1])); ?>">↑</button>
+								<button type="button" class="button button-small" data-down aria-label="<?php echo esc_attr(sprintf(__('Move %s down', 'y4apk'), $all[$c][1])); ?>">↓</button>
+							</span>
+						</li>
+					<?php endforeach; ?>
+				</ol>
+				<p class="y4i-order-acts">
+					<button type="button" class="button" data-az><?php esc_html_e('Sort A–Z', 'y4apk'); ?></button>
+					<span class="description" data-order-note><?php echo esc_html($custom ? __('Your own order.', 'y4apk') : __('A–Z by their own names (as YouTube lists them).', 'y4apk')); ?></span>
+				</p>
+			</div></div></aside>
+			</div>
+			<div class="y4ui-savebar">
+				<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
+				<label><input type="checkbox" name="rescan" value="1"> <?php esc_html_e('Look for new texts in the theme too', 'y4apk'); ?></label>
+				<span class="y4ui-hint"><?php esc_html_e('Search engines keep only the original pages: a /th/ page says noindex and points to the original, because its posts are the same.', 'y4apk'); ?></span>
+			</div>
 		</form>
 		<script>
 		(function () {
@@ -2049,14 +2097,18 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		$here = add_query_arg(array_filter(['page' => self::SLUG, 'edit' => $code, 'q' => $q, 'show' => $show !== 'all' ? $show : '', 'p' => $page > 1 ? $page : '']), admin_url('admin.php'));
 		$rtl = !empty($all[$code][3]);
 		?>
-		<h1><?php echo esc_html(sprintf(__('Texts in %s', 'y4apk'), $all[$code][1])); ?> <a class="page-title-action" href="<?php echo esc_url(add_query_arg('page', self::SLUG, admin_url('admin.php'))); ?>"><?php esc_html_e('All languages', 'y4apk'); ?></a></h1>
+		<?php Y4APK_Admin_UI::head([
+			'icon'  => 'text',
+			'title' => esc_html(sprintf(__('Texts in %s', 'y4apk'), $all[$code][1])),
+			'back'  => [add_query_arg('page', self::SLUG, admin_url('admin.php')), __('All languages', 'y4apk')],
+			'sub'   => esc_html__('Change any line and Save: a line you wrote is never replaced by the AI. Empty a line to have the AI translate it again. Tick “Keep in English” for words that should stay as they are in every language (the site’s categories, menu and home page heading are kept so at first).', 'y4apk'),
+		]); ?>
 		<?php if (!empty($_GET['saved'])) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache so visitors get it.', 'y4apk'); ?></p></div>
 		<?php endif; ?>
 		<?php if (!empty($_GET['wrong'])) : ?>
 			<div class="notice notice-error"><p><?php echo esc_html(sprintf(_n('%s line was not saved: it must keep the same %%s, %%d, tags and {words} as the English.', '%s lines were not saved: they must keep the same %%s, %%d, tags and {words} as the English.', (int) $_GET['wrong'], 'y4apk'), number_format_i18n((int) $_GET['wrong']))); ?></p></div>
 		<?php endif; ?>
-		<p class="y4i-lead"><?php esc_html_e('Change any line and Save: a line you wrote is never replaced by the AI. Empty a line to have the AI translate it again. Tick “Keep in English” for words that should stay as they are in every language (the site’s categories, menu and home page heading are kept so at first).', 'y4apk'); ?></p>
 		<form class="y4i-filter" method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
 			<input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>">
 			<input type="hidden" name="edit" value="<?php echo esc_attr($code); ?>">

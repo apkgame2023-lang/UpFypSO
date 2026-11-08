@@ -2759,7 +2759,7 @@ class Y4APK_App_Updates {
 							</span>
 						</div>
 					</div>
-					<dl class="au-vers">
+					<dl class="au-avers">
 						<div><dt><?php esc_html_e('Post', 'y4apk'); ?></dt><dd><?php echo esc_html($v($r['shown'])); ?></dd></div>
 						<div><dt><?php esc_html_e('Google Play', 'y4apk'); ?></dt><dd class="<?php echo $r['state'] === 'behind' ? 'is-new' : ''; ?>"><?php echo esc_html($r['state'] === 'cant' ? ($r['source'] === 'aptoide' && $r['latest'] !== '' ? 'Aptoide v' . $r['latest'] : '—') : $v($r['latest'])); ?></dd></div>
 						<div><dt><?php esc_html_e('Your file', 'y4apk'); ?></dt><dd class="<?php echo $r['needs'] ? 'is-old' : ''; ?>"><?php echo esc_html($v($file)); ?></dd></div>
@@ -2904,11 +2904,11 @@ class Y4APK_App_Updates {
 			.au-auto .au-kpi-value { font-size: 24px; }
 			.au-auto-find { margin: 0; }
 			.au-arow { display: grid; grid-template-columns: minmax(240px, 1.4fr) minmax(250px, 1fr) minmax(220px, 1fr) 170px; gap: 18px; padding: 14px 18px; align-items: center; }
-			.au-vers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
-			.au-vers dt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--au-muted); }
-			.au-vers dd { margin: 2px 0 0; font: 600 13px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--au-ink); overflow-wrap: anywhere; }
-			.au-vers dd.is-new { color: var(--au-green); }
-			.au-vers dd.is-old { color: var(--au-red); }
+			.au-avers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+			.au-avers dt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--au-muted); }
+			.au-avers dd { margin: 2px 0 0; font: 600 13px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--au-ink); overflow-wrap: anywhere; }
+			.au-avers dd.is-new { color: var(--au-green); }
+			.au-avers dd.is-old { color: var(--au-red); }
 			.au-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 			.au-state .au-small { flex-basis: 100%; margin: 0; }
 			.au-st { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1; background: #f0f0f1; color: #50575e; white-space: nowrap; }

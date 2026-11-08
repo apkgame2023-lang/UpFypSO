@@ -638,6 +638,31 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Y4APK's admin pages, one look (2.58)
+
+Languages, Home page and Support (with its message and pages screens, and a
+language's texts) share one look, the Dashboard's, across the whole width
+(`inc/admin-ui.php`, class `Y4APK_Admin_UI`): a head with a coloured picture,
+the name, a line about the page and its buttons; number cards; cards with a
+head; tabs like the Dashboard's range; chips; light tables; and a Save bar
+that stays at the bottom of the screen.
+
+- **Languages**: the numbers (ready for visitors, texts, still to translate,
+  Write with AI ready or not), *Translate now* in the head; the languages'
+  table in a card on the left (only the ticked ones, *Show the other …
+  languages* for the rest), *Order in the language menu* beside it, and
+  Save in the bar.
+- **Home page**: *Top of the page* has its fields beside a live preview
+  (heading, button, picture); the two rows of cards show four across; Save in
+  the head and in the bar; *View the home page*.
+- **Support**: numbers that open their tab (to answer, copyright notices,
+  feedback, closed), the tabs and the search on one line, each message with
+  who sent it and an *Answer* / *Open* button; new ones marked red.
+- In the Y4APK menu, **Support** is right under Dashboard.
+- App updates: 2.57's Auto updates list took the name of the "Need a new
+  file" rows' version column (`.au-vers`), which squeezed that column into
+  three; the list has its own name now (`.au-avers`).
+
 ## Auto updates on App updates (2.57)
 
 Y4APK ▸ App updates ▸ **Auto updates** shows where every game and app linked

@@ -537,7 +537,8 @@ class Y4APK_Help {
 		if (get_option('y4apk_help_v') !== self::VERSION) {
 			self::setup();
 		}
-		echo '<div class="wrap y4s">';
+		echo '<div class="wrap y4s y4ui">';
+		Y4APK_Admin_UI::css();
 		self::admin_styles();
 		$id = isset($_GET['t']) ? (int) $_GET['t'] : 0;
 		$view = isset($_GET['view']) ? sanitize_key(wp_unslash($_GET['view'])) : 'open';
@@ -554,19 +555,20 @@ class Y4APK_Help {
 	private static function admin_styles() {
 		?>
 		<style>
-		.y4s{max-width:1180px}
-		.y4s-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
-		.y4s-tabs a{padding:6px 12px;border-radius:20px;background:#f0f0f1;color:#2c3338;text-decoration:none;font-weight:600}
-		.y4s-tabs a.on{background:#2271b1;color:#fff}
-		.y4s-list{border-radius:10px;overflow:hidden}
 		.y4s-list td{vertical-align:top}
-		.y4s-list .y4s-msg{color:#50575e;max-width:560px}
+		.y4s-list .y4s-msg{margin-top:4px;color:#50575e;max-width:760px;line-height:1.5}
+		.y4s-list .y4s-topic{font-size:14px;font-weight:700;text-decoration:none}
+		.y4s-list .y4s-who{display:flex;align-items:center;gap:10px;min-width:0}
+		.y4s-list .y4s-av{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#e8f1fb;color:#135e96;font-weight:700}
+		.y4s-list .y4s-who small{display:block;color:#8c8f94}
+		.y4s-list tr.is-new td:first-child{box-shadow:inset 3px 0 0 #d63638}
+		.y4s-list td:last-child{width:1%;white-space:nowrap;text-align:right}
 		.y4s-chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;background:#f0f0f1;color:#50575e;white-space:nowrap}
 		.y4s-chip.new{background:#fcf0f1;color:#a00}.y4s-chip.open{background:#f0f6fc;color:#135e96}.y4s-chip.done{background:#edfaef;color:#00691b}
 		.y4s-chip.copy{background:#fcf9e8;color:#7a5d00}
-		.y4s-card{padding:16px 18px;margin:0 0 14px;border:1px solid #dcdcde;border-radius:10px;background:#fff}
-		.y4s-card h2{margin:0 0 10px;font-size:15px}
-		.y4s-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+		.y4s-card{padding:18px 20px;margin:0 0 16px;border:1px solid #dcdcde;border-radius:14px;background:#fff}
+		.y4s-card h2{margin:0 0 12px;font-size:16px;font-weight:700}
+		.y4s-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}
 		@media (max-width:960px){.y4s-grid{grid-template-columns:1fr}}
 		.y4s-body{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.6}
 		.y4s-dl{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;margin:0}
@@ -597,22 +599,65 @@ class Y4APK_Help {
 		}
 		$paged = max(1, isset($_GET['paged']) ? (int) $_GET['paged'] : 1);
 		$query = new WP_Query(['post_type' => self::CPT, 'post_status' => 'publish', 'posts_per_page' => 30, 'paged' => $paged, 's' => $q, 'meta_query' => $meta ? array_merge(['relation' => 'AND'], $meta) : []]);
+		// How many in each tab (2.58)
+		$count = function ($m) {
+			$c = new WP_Query(['post_type' => self::CPT, 'post_status' => 'publish', 'posts_per_page' => 1, 'fields' => 'ids', 'meta_query' => $m ? array_merge(['relation' => 'AND'], $m) : []]);
+			return (int) $c->found_posts;
+		};
+		$n = [
+			'open'     => $count([['key' => self::PRE . 'status', 'value' => ['new', 'open'], 'compare' => 'IN'], ['key' => self::PRE . 'kind', 'value' => 'feedback', 'compare' => '!=']]),
+			'copy'     => $count([['key' => self::PRE . 'topic', 'value' => 'copy'], ['key' => self::PRE . 'status', 'value' => ['new', 'open'], 'compare' => 'IN']]),
+			'feedback' => $count([['key' => self::PRE . 'kind', 'value' => 'feedback']]),
+			'done'     => $count([['key' => self::PRE . 'status', 'value' => 'done']]),
+		];
+		$new = self::count_new();
+		$tab = function ($k) { return add_query_arg(['page' => self::SLUG, 'view' => $k], admin_url('admin.php')); };
+		Y4APK_Admin_UI::head([
+			'icon'    => 'support',
+			'tint'    => 'violet',
+			'title'   => esc_html__('Support', 'y4apk'),
+			'sub'     => sprintf(__('Messages from the <a href="%1$s" target="_blank">Contact</a>, <a href="%2$s" target="_blank">Copyright</a> and <a href="%3$s" target="_blank">Feedback</a> pages. An answer you write here is emailed to the sender (in their language’s words around yours); your own address is never shown.', 'y4apk'), esc_url(self::url('contact')), esc_url(self::url('copyright')), esc_url(self::url('feedback'))),
+			'actions' => '<a class="button button-large" href="' . esc_url($tab('pages')) . '">' . Y4APK_Admin_UI::icon('page', 16) . ' ' . esc_html__('Help & legal pages', 'y4apk') . '</a>',
+		]);
 		?>
-		<h1><?php esc_html_e('Support', 'y4apk'); ?></h1>
 		<?php if (!empty($_GET['deleted'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Deleted.', 'y4apk'); ?></p></div><?php endif; ?>
-		<p style="max-width:860px"><?php echo wp_kses_post(sprintf(__('Messages from the <a href="%1$s" target="_blank">Contact</a>, <a href="%2$s" target="_blank">Copyright</a> and <a href="%3$s" target="_blank">Feedback</a> pages. An answer you write here is emailed to the sender (in their language’s words around yours); your own address is never shown.', 'y4apk'), esc_url(self::url('contact')), esc_url(self::url('copyright')), esc_url(self::url('feedback')))); ?></p>
-		<nav class="y4s-tabs">
-			<?php foreach ($tabs as $k => $label) : ?>
-				<a class="<?php echo $k === $view ? 'on' : ''; ?>" href="<?php echo esc_url(add_query_arg(['page' => self::SLUG, 'view' => $k], admin_url('admin.php'))); ?>"><?php echo esc_html($label); ?><?php echo $k === 'open' && ($n = self::count_new()) ? ' (' . esc_html(number_format_i18n($n)) . ')' : ''; ?></a>
-			<?php endforeach; ?>
-		</nav>
+		<div class="y4ui-kpis">
+			<a class="y4ui-kpi<?php echo $view === 'open' ? ' is-on' : ''; ?><?php echo $new ? ' is-red' : ''; ?>" href="<?php echo esc_url($tab('open')); ?>">
+				<span class="y4ui-kpi-l"><?php echo Y4APK_Admin_UI::icon('mail', 14); // phpcs:ignore WordPress.Security.EscapeOutput ?> <?php esc_html_e('To answer', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($n['open'])); ?></span>
+				<span class="y4ui-kpi-s"><?php echo esc_html($new ? sprintf(_n('%s not opened yet', '%s not opened yet', $new, 'y4apk'), number_format_i18n($new)) : __('Nothing new', 'y4apk')); ?></span>
+			</a>
+			<a class="y4ui-kpi<?php echo $view === 'copy' ? ' is-on' : ''; ?>" href="<?php echo esc_url($tab('copy')); ?>">
+				<span class="y4ui-kpi-l"><?php echo Y4APK_Admin_UI::icon('shield', 14); // phpcs:ignore WordPress.Security.EscapeOutput ?> <?php esc_html_e('Copyright notices', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($n['copy'])); ?></span>
+				<span class="y4ui-kpi-s"><?php esc_html_e('open: look at them first', 'y4apk'); ?></span>
+			</a>
+			<a class="y4ui-kpi<?php echo $view === 'feedback' ? ' is-on' : ''; ?>" href="<?php echo esc_url($tab('feedback')); ?>">
+				<span class="y4ui-kpi-l"><?php echo Y4APK_Admin_UI::icon('star', 14); // phpcs:ignore WordPress.Security.EscapeOutput ?> <?php esc_html_e('Feedback', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($n['feedback'])); ?></span>
+				<span class="y4ui-kpi-s"><?php esc_html_e('ratings and words from visitors', 'y4apk'); ?></span>
+			</a>
+			<a class="y4ui-kpi is-green<?php echo $view === 'done' ? ' is-on' : ''; ?>" href="<?php echo esc_url($tab('done')); ?>">
+				<span class="y4ui-kpi-l"><?php echo Y4APK_Admin_UI::icon('check', 14); // phpcs:ignore WordPress.Security.EscapeOutput ?> <?php esc_html_e('Closed', 'y4apk'); ?></span>
+				<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($n['done'])); ?></span>
+				<span class="y4ui-kpi-s"><?php esc_html_e('answered or done', 'y4apk'); ?></span>
+			</a>
+		</div>
+		<div class="y4ui-bar-row">
+			<nav class="y4ui-tabs" aria-label="<?php esc_attr_e('Messages', 'y4apk'); ?>">
+				<?php foreach ($tabs as $k => $label) : if ($k === 'pages') { continue; } ?>
+					<a class="<?php echo $k === $view ? 'is-on' : ''; ?>" href="<?php echo esc_url($tab($k)); ?>"><?php echo esc_html($label); ?><?php if ($k === 'open' && $new) : ?> <span class="y4ui-n is-red"><?php echo esc_html(number_format_i18n($new)); ?></span><?php endif; ?></a>
+				<?php endforeach; ?>
+			</nav>
+			<form method="get" class="y4ui-find"><input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>"><input type="hidden" name="view" value="<?php echo esc_attr($view); ?>">
+				<input type="search" name="q" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('Find a message, a name or a reference', 'y4apk'); ?>"> <button class="button"><?php esc_html_e('Find', 'y4apk'); ?></button></form>
+		</div>
 		<?php if ($view === 'feedback') { self::feedback_summary(); } ?>
-		<form method="get" style="margin:0 0 10px"><input type="hidden" name="page" value="<?php echo esc_attr(self::SLUG); ?>"><input type="hidden" name="view" value="<?php echo esc_attr($view); ?>">
-			<input type="search" name="q" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('Find a message', 'y4apk'); ?>"> <button class="button"><?php esc_html_e('Find', 'y4apk'); ?></button></form>
-		<table class="widefat striped y4s-list">
-			<thead><tr><th style="width:110px"><?php esc_html_e('Status', 'y4apk'); ?></th><th><?php esc_html_e('Message', 'y4apk'); ?></th><th style="width:180px"><?php esc_html_e('From', 'y4apk'); ?></th><th style="width:120px"><?php esc_html_e('Sent', 'y4apk'); ?></th></tr></thead>
+		<div class="y4ui-card">
+		<table class="y4ui-table y4s-list">
+			<thead><tr><th style="width:130px"><?php esc_html_e('Status', 'y4apk'); ?></th><th><?php esc_html_e('Message', 'y4apk'); ?></th><th style="width:220px"><?php esc_html_e('From', 'y4apk'); ?></th><th style="width:130px"><?php esc_html_e('Sent', 'y4apk'); ?></th><th></th></tr></thead>
 			<tbody>
-			<?php if (!$query->posts) : ?><tr><td colspan="4"><?php esc_html_e('Nothing here.', 'y4apk'); ?></td></tr><?php endif; ?>
+			<?php if (!$query->posts) : ?><tr><td colspan="5" class="y4ui-empty"><?php echo esc_html($view === 'open' ? __('Nothing to answer. All done!', 'y4apk') : __('Nothing here.', 'y4apk')); ?></td></tr><?php endif; ?>
 			<?php foreach ($query->posts as $p) :
 				$st = self::m($p->ID, 'status', 'new');
 				$kind = self::m($p->ID, 'kind');
@@ -620,17 +665,19 @@ class Y4APK_Help {
 				$label = $kind === 'feedback' ? __('Feedback', 'y4apk') : (self::topics()[$topic][0] ?? '');
 				$url = add_query_arg(['page' => self::SLUG, 't' => $p->ID], admin_url('admin.php'));
 				?>
-				<tr>
+				<tr class="<?php echo $st === 'new' ? 'is-new' : ''; ?>">
 					<td><span class="y4s-chip <?php echo esc_attr($st); ?>"><?php echo esc_html(self::statuses()[$st] ?? $st); ?></span></td>
-					<td><a href="<?php echo esc_url($url); ?>"><b><?php echo esc_html($label); ?></b></a> <span class="y4s-chip<?php echo $topic === 'copy' ? ' copy' : ''; ?>"><?php echo esc_html(self::m($p->ID, 'ref')); ?></span>
+					<td><a class="y4s-topic" href="<?php echo esc_url($url); ?>"><?php echo esc_html($label); ?></a> <span class="y4s-chip<?php echo $topic === 'copy' ? ' copy' : ''; ?>"><?php echo esc_html(self::m($p->ID, 'ref')); ?></span>
 						<?php if ($kind === 'feedback') : ?> <span class="y4s-stars"><?php echo esc_html(str_repeat('★', (int) self::m($p->ID, 'rating')) . str_repeat('☆', 5 - (int) self::m($p->ID, 'rating'))); ?></span><?php endif; ?>
 						<div class="y4s-msg"><?php echo esc_html(wp_trim_words($p->post_content, 30) ?: '—'); ?></div></td>
-					<td><?php echo esc_html(self::m($p->ID, 'name', '—')); ?><?php echo self::m($p->ID, 'user') ? '<br><small>' . esc_html('@' . (string) get_the_author_meta('user_login', (int) self::m($p->ID, 'user'))) . '</small>' : ''; ?></td>
+					<td><?php $who = (string) self::m($p->ID, 'name', '—'); ?><span class="y4s-who"><span class="y4s-av" aria-hidden="true"><?php echo esc_html(mb_strtoupper(mb_substr($who, 0, 1))); ?></span><span><?php echo esc_html($who); ?><?php echo self::m($p->ID, 'user') ? '<small>' . esc_html('@' . (string) get_the_author_meta('user_login', (int) self::m($p->ID, 'user'))) . '</small>' : ''; ?></span></span></td>
 					<td><?php echo esc_html(sprintf(__('%s ago', 'y4apk'), human_time_diff(get_post_time('U', true, $p)))); ?></td>
+					<td><a class="button" href="<?php echo esc_url($url); ?>"><?php echo esc_html(in_array($st, ['new', 'open'], true) && $kind !== 'feedback' ? __('Answer', 'y4apk') : __('Open', 'y4apk')); ?></a></td>
 				</tr>
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		</div>
 		<?php if ($query->max_num_pages > 1) : ?>
 			<p><?php echo paginate_links(['base' => add_query_arg('paged', '%#%'), 'format' => '', 'current' => $paged, 'total' => $query->max_num_pages]); ?></p>
 		<?php endif;
@@ -680,7 +727,13 @@ class Y4APK_Help {
 			echo '</form>';
 		};
 		?>
-		<h1><?php echo esc_html($label); ?> <span class="y4s-chip"><?php echo esc_html(self::m($id, 'ref')); ?></span> <a class="page-title-action" href="<?php echo esc_url(add_query_arg('page', self::SLUG, admin_url('admin.php'))); ?>"><?php esc_html_e('All messages', 'y4apk'); ?></a></h1>
+		<?php Y4APK_Admin_UI::head([
+			'icon'  => $topic === 'copy' ? 'shield' : ($kind === 'feedback' ? 'star' : 'mail'),
+			'tint'  => 'violet',
+			'title' => esc_html($label) . ' <span class="y4ui-chip is-code">' . esc_html(self::m($id, 'ref')) . '</span>',
+			'back'  => [add_query_arg('page', self::SLUG, admin_url('admin.php')), __('All messages', 'y4apk')],
+			'sub'   => esc_html(sprintf(__('From %1$s · %2$s ago', 'y4apk'), self::m($id, 'name', '—'), human_time_diff(get_post_time('U', true, $p)))),
+		]); ?>
 		<?php if (isset($notes[$note])) : ?><div class="notice notice-<?php echo $note === 'mailfail' ? 'warning' : 'success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div><?php endif; ?>
 		<div class="y4s-grid">
 			<div>
@@ -754,12 +807,18 @@ class Y4APK_Help {
 		$map = get_option(self::MAP, []);
 		$own = get_option(self::OWN, []);
 		?>
-		<h1><?php esc_html_e('Support', 'y4apk'); ?> · <?php esc_html_e('Pages', 'y4apk'); ?></h1>
+		<?php Y4APK_Admin_UI::head([
+			'icon'  => 'page',
+			'tint'  => 'violet',
+			'title' => esc_html__('Help & legal pages', 'y4apk'),
+			'back'  => [add_query_arg('page', self::SLUG, admin_url('admin.php')), __('Messages', 'y4apk')],
+			'sub'   => esc_html__('Terms, Privacy, DMCA, Copyright, Contact, Feedback and the FAQ: where they are, and whether they show the theme’s words.', 'y4apk'),
+		]); ?>
 		<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache).', 'y4apk'); ?></p></div><?php endif; ?>
-		<nav class="y4s-tabs"><a href="<?php echo esc_url(add_query_arg('page', self::SLUG, admin_url('admin.php'))); ?>">← <?php esc_html_e('Messages', 'y4apk'); ?></a></nav>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 			<input type="hidden" name="action" value="y4apk_help"><input type="hidden" name="do" value="pages"><?php wp_nonce_field('y4apk-help'); ?>
-			<table class="widefat striped" style="max-width:900px">
+			<div class="y4ui-card">
+			<table class="y4ui-table">
 				<thead><tr><th><?php esc_html_e('Page', 'y4apk'); ?></th><th><?php esc_html_e('Address', 'y4apk'); ?></th><th><?php esc_html_e('Shows the theme’s words', 'y4apk'); ?></th></tr></thead>
 				<tbody>
 				<?php foreach (self::pages() as $k => $p) : $pid = (int) ($map[$k] ?? 0); ?>
@@ -769,8 +828,11 @@ class Y4APK_Help {
 				<?php endforeach; ?>
 				</tbody>
 			</table>
-			<p><label><input type="checkbox" name="remake" value="1"> <?php esc_html_e('Make any page that is missing (or was deleted) again', 'y4apk'); ?></label></p>
-			<p><button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button></p>
+			</div>
+			<div class="y4ui-savebar">
+				<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
+				<label><input type="checkbox" name="remake" value="1"> <?php esc_html_e('Make any page that is missing (or was deleted) again', 'y4apk'); ?></label>
+			</div>
 			<p class="description" style="max-width:860px"><?php esc_html_e('A page your site already had at one of the usual addresses (/privacy-policy/, /dmca-policy/, /feedback/ …) was used as it is: its address and SEO settings stay; its own text is kept in the editor and comes back if you untick it here.', 'y4apk'); ?></p>
 		</form>
 		<?php
