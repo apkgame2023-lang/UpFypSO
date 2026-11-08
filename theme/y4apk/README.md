@@ -638,6 +638,34 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Auto updates on App updates (2.57)
+
+Y4APK ▸ App updates ▸ **Auto updates** shows where every game and app linked
+to Google Play stands, in four lists (each a card at the top with its count):
+
+- **Up to date with Google Play**: the post shows Google Play's latest
+  version. *Updated by itself* says what the background put in and when
+  (v4.9.11 → v4.9.12 · 3 hours ago); *Waiting for your file* when the file is
+  still the old one, with *Upload the new file*. Newest first; *All · Waiting
+  for your file · File up to date too*. From 2.57 each post keeps a note of
+  the version it put in by itself (`_y4apk_followed`); for those updated
+  before, it is read from the post (its version is newer than its file).
+- **Not updated yet**: Google Play has a newer version than the post shows,
+  and why: *Waiting* (goes in by itself at the next steps, 40 a step, with the
+  time), *Off in Settings*, or *Left as it is* (the file is that version
+  already). *Check now* checks it at once.
+- **Queue**: the order the background checks Google Play in, with when each
+  is next (*Next step*, *in 45 mins*, *in 2 days* …) and when it was last
+  checked: the posts Google shows most and people follow first, then all the
+  others by turn. The card says when the next step runs, how many posts a
+  step does and how long a full round takes.
+- **Can't follow by itself**: Google Play shows no version number (*Varies
+  with device*), or only Aptoide's (another build, shown to look at only):
+  update those with *Update any file*.
+
+Each row: the icon and name, the version on the post, on Google Play and of
+your file, its state, and a button. A box finds a game or app in the list.
+
 ## The top of the upload pages (2.56)
 
 2.56.1: the card is light now, in the look of the choices in the steps under
