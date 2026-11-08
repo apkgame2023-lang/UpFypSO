@@ -640,6 +640,10 @@ small letters. The Edit profile page says so.
 
 ## Y4APK's admin pages, one look (2.58)
 
+2.58.1: the Y4APK menu is at the top of the admin menu, right under
+WordPress's Dashboard (position 2.1, before Site Kit and the rest); inside
+it, Support is back at the end, as before.
+
 Languages, Home page and Support (with its message and pages screens, and a
 language's texts) share one look, the Dashboard's, across the whole width
 (`inc/admin-ui.php`, class `Y4APK_Admin_UI`): a head with a coloured picture,
@@ -658,7 +662,6 @@ that stays at the bottom of the screen.
 - **Support**: numbers that open their tab (to answer, copyright notices,
   feedback, closed), the tabs and the search on one line, each message with
   who sent it and an *Answer* / *Open* button; new ones marked red.
-- In the Y4APK menu, **Support** is right under Dashboard.
 - App updates: 2.57's Auto updates list took the name of the "Need a new
   file" rows' version column (`.au-vers`), which squeezed that column into
   three; the list has its own name now (`.au-avers`).
