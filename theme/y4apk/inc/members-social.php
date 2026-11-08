@@ -349,7 +349,7 @@ class Y4APK_Social {
 			return ['meta' => '', 'max' => self::upload_max(), 'types' => $types, 'min' => [480, 270], 'out' => [1280, 720], 'anim' => [640, 360], 'gif' => [1280, 720], 'keep' => 8 * MB_IN_BYTES, 'label' => __('cover', 'y4apk')];
 		}
 		return $kind === 'banner'
-			? ['meta' => self::BANNER, 'max' => self::upload_max(), 'types' => $types, 'min' => [600, 200], 'out' => [1800, 600], 'anim' => [1200, 400], 'gif' => [2000, 1000], 'keep' => 20 * MB_IN_BYTES, 'label' => __('banner', 'y4apk')]
+			? ['meta' => self::BANNER, 'max' => self::upload_max(), 'types' => $types, 'min' => [480, 160], 'out' => [1800, 600], 'anim' => [1200, 400], 'gif' => [2000, 1000], 'keep' => 20 * MB_IN_BYTES, 'label' => __('banner', 'y4apk')]
 			: ['meta' => self::PIC, 'max' => self::upload_max(), 'types' => $types, 'min' => [96, 96], 'out' => [400, 400], 'anim' => [320, 320], 'gif' => [1000, 1000], 'keep' => 10 * MB_IN_BYTES, 'label' => __('profile picture', 'y4apk')];
 	}
 

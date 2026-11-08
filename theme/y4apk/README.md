@@ -640,6 +640,12 @@ small letters. The Edit profile page says so.
 
 ## Your own rows on the home page (2.60)
 
+2.60.2 — a member's **banner** may be from **480 × 160** pixels (it was 600 ×
+200): GIFs are very often 540 pixels wide, and one of 540 × 230 was turned
+down. It is still shown across the top, cut to shape; a moving GIF stays
+moving.
+
+
 2.60.1 — **Save after a big upload no longer ends in Cloudflare's 520.** The
 upload names the file on R2 for what the version box said when the file was
 picked; when the file then says another version (the box follows it), Save
