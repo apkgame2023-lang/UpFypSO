@@ -90,14 +90,19 @@ $ic = function ($name, $s = 18) {
 $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('Details', 'y4apk'), 4 => __('Upload the file', 'y4apk'), 5 => __('Review and send', 'y4apk')];
 ?>
 <div class="acc-crumb"><a href="<?php echo esc_url($M::url()); ?>">← <?php esc_html_e('My uploads', 'y4apk'); ?></a></div>
-<?php if (!$editing) { $kinds_switch($kind); } ?>
 <div class="acc-wiz shr" data-shr data-cfg="<?php echo esc_attr(wp_json_encode($cfg)); ?>">
 	<div class="acc-wiz-head">
 		<span class="acc-wiz-badge shr-badge" data-head-icon><?php echo $ic($kind === 'app' ? 'app' : 'pad', 24); ?></span>
-		<div>
+		<div class="acc-wiz-head-t">
+			<span class="acc-wiz-eyebrow"><?php esc_html_e('Share on Y4APK', 'y4apk'); ?></span>
 			<h1 data-head-title><?php echo esc_html($editing ? __('Edit your upload', 'y4apk') : ($kind === 'app' ? __('Share an app', 'y4apk') : __('Share a game', 'y4apk'))); ?></h1>
-			<p><?php echo esc_html(sprintf(__('APK, XAPK, APKS, APKM, ZIP or OBB, up to %s. It stays private until we check it.', 'y4apk'), size_format($sh['max']))); ?></p>
+			<p class="acc-wiz-meta">
+				<span>APK · XAPK · APKS · APKM · ZIP · OBB</span>
+				<span><?php echo $ic('bolt', 14); ?><?php echo esc_html(sprintf(__('Up to %s', 'y4apk'), size_format($sh['max']))); ?></span>
+				<span><?php echo $ic('shield', 14); ?><?php esc_html_e('Checked before it goes live', 'y4apk'); ?></span>
+			</p>
 		</div>
+		<?php if (!$editing) { $kinds_switch($kind); } ?>
 	</div>
 	<div class="acc-wiz-grid">
 		<aside class="acc-card acc-wiz-steps shr-steps">

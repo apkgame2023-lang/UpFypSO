@@ -638,6 +638,19 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## The top of the upload pages (2.56)
+
+/upload/ (scripts), /upload/game/ and /upload/app/ open with one dark card, in
+the family of the profile's header: the picture (the game's icon once it is
+picked), *Share on Y4APK*, the title, and for games and apps three chips
+(the file types, the size limit, *Checked before it goes live*). In it, what to
+share is three cards instead of the old bar: Roblox script (violet), Game
+(blue), App (green), each with what it takes (*A loadstring, keyless or with a
+key*, *APK, XAPK or OBB · up to 10 GB* …); the open one is white with a tick.
+On phones the three sit side by side, the icon over the name. The steps and
+the rest of each page are as they were. Editing an upload shows the card
+without the three.
+
 ## Members' titles without "by …", a post's own cover (2.55)
 
 2.55.1: the share form could be scrolled sideways on a computer: core.css makes

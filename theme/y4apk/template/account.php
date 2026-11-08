@@ -40,11 +40,17 @@ $kinds_switch = function ($on) {
 	if (count($items) < 2) {
 		return;
 	}
-	echo '<nav class="acc-kinds" aria-label="' . esc_attr__('What to share', 'y4apk') . '"><span>' . esc_html__('Share a', 'y4apk') . '</span>';
+	// 2.56: three cards in the page's top card, each with what it takes
+	$max = class_exists('Y4APK_Share') ? size_format(Y4APK_Share::max_bytes()) : '';
+	$about = ['script' => __('A loadstring, keyless or with a key', 'y4apk'), 'game' => sprintf(__('APK, XAPK or OBB · up to %s', 'y4apk'), $max), 'app' => sprintf(__('APK or XAPK · up to %s', 'y4apk'), $max)];
+	echo '<nav class="acc-kinds" aria-label="' . esc_attr__('What to share', 'y4apk') . '"><span class="screen-reader-text">' . esc_html__('Share a', 'y4apk') . '</span><div class="acc-kinds-row">';
 	foreach ($items as $k => $it) {
-		echo '<a href="' . esc_url($it[1]) . '"' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . '><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">' . $it[2] . '</svg>' . esc_html($it[0]) . '</a>';
+		echo '<a class="acc-kind acc-kind-' . esc_attr($k) . ($k === $on ? ' is-on' : '') . '" href="' . esc_url($it[1]) . '"' . ($k === $on ? ' aria-current="page"' : '') . '>'
+			. '<span class="acc-kind-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">' . $it[2] . '</svg></span>'
+			. '<span class="acc-kind-t"><b>' . esc_html($it[0]) . '</b><small>' . esc_html($about[$k]) . '</small></span>'
+			. '<span class="acc-kind-ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg></span></a>';
 	}
-	echo '</nav>';
+	echo '</div></nav>';
 };
 
 /** Errors and the confirmation, above a form. */
@@ -717,14 +723,15 @@ if ($screen === 'login') {
 	};
 	?>
 	<div class="acc-crumb"><a href="<?php echo esc_url($M::url()); ?>">← <?php esc_html_e('My uploads', 'y4apk'); ?></a></div>
-	<?php if (!$editing) { $kinds_switch('script'); } ?>
 	<div class="acc-wiz" data-wiz data-start="<?php echo (int) $start; ?>" data-games="<?php echo esc_attr(wp_json_encode($games)); ?>">
 		<div class="acc-wiz-head">
 			<span class="acc-wiz-badge" data-head-icon><?php echo $icon('code'); ?></span>
-			<div>
+			<div class="acc-wiz-head-t">
+				<span class="acc-wiz-eyebrow"><?php esc_html_e('Share on Y4APK', 'y4apk'); ?></span>
 				<h1><?php echo esc_html($editing ? __('Edit your script', 'y4apk') : __('New script', 'y4apk')); ?></h1>
 				<p><span data-head-game></span><?php echo esc_html($editing && $c['post']->post_status === 'publish' ? __('Live', 'y4apk') : __('Not published yet', 'y4apk')); ?></p>
 			</div>
+			<?php if (!$editing) { $kinds_switch('script'); } ?>
 		</div>
 		<div class="acc-wiz-grid">
 			<aside class="acc-card acc-wiz-steps">
