@@ -142,4 +142,6 @@ foreach($terms as $index => $term) :
 </div>
 <?php endif; if($index === 0 && $is_home_recommend) :
 	get_template_part('components/home/home-recommend');
-endif; endforeach; ?>
+endif; if ($index === 0 && class_exists('Y4APK_Home_Rows')) {
+	Y4APK_Home_Rows::render('middle'); // 2.60: the owner's own rows, after the first list
+} endforeach; ?>

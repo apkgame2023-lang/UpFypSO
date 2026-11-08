@@ -125,6 +125,25 @@ class Y4APK_Home_Admin {
 		return esc_url_raw($v, ['http', 'https']);
 	}
 
+	/** The cards sent for one row: those with a post, in the order they stand on the page. */
+	private static function clean_cards($list) {
+		$rows = [];
+		foreach (array_slice(array_values(array_filter((array) $list, 'is_array')), 0, self::MAX) as $r) {
+			$id = absint($r['post_id'] ?? 0);
+			if (!self::post_info($id)) {
+				continue;
+			}
+			$rows[] = [
+				'post_id'  => (string) $id,
+				'title'    => mb_substr(sanitize_text_field($r['title'] ?? ''), 0, 60),
+				'link'     => self::clean_link($r['link'] ?? ''),
+				'bg_image' => esc_url_raw(trim((string) ($r['bg_image'] ?? ''))),
+				'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: '#29b1d8',
+			];
+		}
+		return $rows;
+	}
+
 	public static function handle_save() {
 		if (!current_user_can('edit_theme_options')) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
@@ -147,21 +166,30 @@ class Y4APK_Home_Admin {
 		// The cards: the slots with a post, in their order
 		foreach (self::sets() as $set => $s) {
 			set_theme_mod($s[1], !empty($p['show'][$set]));
-			$rows = [];
-			foreach (array_slice((array) ($p['cards'][$set] ?? []), 0, self::MAX) as $r) { // in the order they stand on the page
-				$id = absint($r['post_id'] ?? 0);
-				if (!self::post_info($id)) {
+			set_theme_mod($s[0], self::clean_cards($p['cards'][$set] ?? []));
+		}
+
+		// 2.60: the owner's own rows, in their order (one with no heading and no card is left out)
+		if (class_exists('Y4APK_Home_Rows')) {
+			$own = [];
+			foreach (array_slice(array_values(array_filter((array) ($p['rows'] ?? []), 'is_array')), 0, Y4APK_Home_Rows::MAX) as $r) {
+				$cards = self::clean_cards($r['cards'] ?? []);
+				$title = mb_substr(sanitize_text_field($r['title'] ?? ''), 0, 60);
+				if ($title === '' && !$cards) {
 					continue;
 				}
-				$rows[] = [
-					'post_id'  => (string) $id,
-					'title'    => mb_substr(sanitize_text_field($r['title'] ?? ''), 0, 60),
-					'link'     => self::clean_link($r['link'] ?? ''),
-					'bg_image' => esc_url_raw(trim((string) ($r['bg_image'] ?? ''))),
-					'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: '#29b1d8',
+				$id = (string) ($r['id'] ?? '');
+				$own[] = [
+					'id'    => preg_match('/^[a-z0-9]{1,20}$/', $id) ? $id : 'r' . strtolower(wp_generate_password(6, false, false)),
+					'title' => $title,
+					'link'  => self::clean_link($r['link'] ?? ''),
+					'show'  => !empty($r['show']),
+					'style' => ($r['style'] ?? '') === 'tall' ? 'tall' : 'wide',
+					'where' => isset(Y4APK_Home_Rows::places()[$r['where'] ?? '']) ? $r['where'] : 'top',
+					'cards' => $cards,
 				];
 			}
-			set_theme_mod($s[0], $rows);
+			set_theme_mod(Y4APK_Home_Rows::MOD, $own);
 		}
 		wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG . '&saved=1'));
 		exit;
@@ -183,6 +211,15 @@ class Y4APK_Home_Admin {
 				}
 			}
 		}
+		$own = class_exists('Y4APK_Home_Rows') ? Y4APK_Home_Rows::get() : [];
+		foreach ($own as $row) {
+			foreach ($row['cards'] as $r) {
+				$pid = absint($r['post_id'] ?? 0);
+				if ($pid && !isset($posts[$pid]) && ($info = self::post_info($pid))) {
+					$posts[$pid] = $info;
+				}
+			}
+		}
 		$img_field = function ($name, $value, $label) {
 			?>
 			<div class="y4hm-img">
@@ -191,10 +228,10 @@ class Y4APK_Home_Admin {
 			</div>
 			<?php
 		};
-		$card = function ($set, $s, $n, $r, $info) use ($img_field) {
-			$f = 'cards[' . $set . '][' . $n . ']';
+		$card = function ($prefix, $shape, $n, $r, $info) use ($img_field) {
+			$f = $prefix . '[' . $n . ']';
 			?>
-			<div class="y4hm-card" data-card data-shape="<?php echo esc_attr($s[4]); ?>">
+			<div class="y4hm-card" data-card data-shape="<?php echo esc_attr($shape); ?>">
 				<div class="y4hm-bar">
 					<b data-card-label><?php echo esc_html(is_int($n) ? sprintf(__('Card %s', 'y4apk'), $n + 1) : __('New card', 'y4apk')); ?></b>
 					<span class="y4hm-bar-acts">
@@ -290,19 +327,81 @@ class Y4APK_Home_Admin {
 							<div class="y4hm-logo"><b><?php esc_html_e('Picture beside the cards', 'y4apk'); ?></b><?php $img_field('home_recommend_logo', $rec_logo, __('Choose', 'y4apk')); ?></div>
 						<?php endif; ?>
 							<?php $list = self::rows($set); ?>
-							<div class="y4hm-grid" data-cards="<?php echo esc_attr($set); ?>" data-max="<?php echo (int) self::MAX; ?>">
+							<div class="y4hm-grid" data-cards="<?php echo esc_attr($set); ?>" data-prefix="<?php echo esc_attr('cards[' . $set . ']'); ?>" data-shape="<?php echo esc_attr($s[4]); ?>" data-max="<?php echo (int) self::MAX; ?>">
 								<?php foreach ($list as $n => $r) {
-									$card($set, $s, $n, $r, $r['post_id'] ? ($posts[$r['post_id']] ?? null) : null);
+									$card('cards[' . $set . ']', $s[4], $n, $r, $r['post_id'] ? ($posts[$r['post_id']] ?? null) : null);
 								} ?>
 								<button type="button" class="y4hm-add" data-add-card<?php echo count($list) >= self::MAX ? ' hidden' : ''; ?>>
 									<span aria-hidden="true">+</span><b><?php esc_html_e('Add a card', 'y4apk'); ?></b>
 									<small><?php echo esc_html(sprintf(__('Up to %s. With more than four, the row on the home page slides sideways.', 'y4apk'), number_format_i18n(self::MAX))); ?></small>
 								</button>
 							</div>
-							<template data-card-new="<?php echo esc_attr($set); ?>"><?php $card($set, $s, '__N__', ['post_id' => 0, 'title' => '', 'link' => '', 'bg_image' => '', 'bg_color' => '#29b1d8'], null); ?></template>
 						</div>
 					</section>
 				<?php endforeach; ?>
+
+				<?php if (class_exists('Y4APK_Home_Rows')) :
+					$empty_card = ['post_id' => 0, 'title' => '', 'link' => '', 'bg_image' => '', 'bg_color' => '#29b1d8'];
+					$add_tile = function ($count) {
+						?>
+						<button type="button" class="y4hm-add" data-add-card<?php echo $count >= self::MAX ? ' hidden' : ''; ?>>
+							<span aria-hidden="true">+</span><b><?php esc_html_e('Add a card', 'y4apk'); ?></b>
+							<small><?php echo esc_html(sprintf(__('Up to %s. With more than four, the row on the home page slides sideways.', 'y4apk'), number_format_i18n(self::MAX))); ?></small>
+						</button>
+						<?php
+					};
+					$row_html = function ($row) use ($card, $add_tile, $posts, $empty_card) {
+						$rid = $row['id'];
+						$name = 'rows[' . $rid . ']';
+						$cards = $row['cards'] ?: [$empty_card, $empty_card, $empty_card, $empty_card];
+						?>
+						<div class="y4hm-row" data-row>
+							<input type="hidden" name="<?php echo esc_attr($name); ?>[id]" value="<?php echo esc_attr($rid); ?>">
+							<div class="y4hm-row-h">
+								<span class="y4hm-row-n" data-row-n></span>
+								<div class="y4hm-row-fields">
+									<div class="y4ui-field"><label><?php esc_html_e('Heading', 'y4apk'); ?></label><input type="text" maxlength="60" name="<?php echo esc_attr($name); ?>[title]" value="<?php echo esc_attr($row['title']); ?>" placeholder="<?php esc_attr_e('For example: Top Roblox games', 'y4apk'); ?>" data-row-title></div>
+									<div class="y4ui-field"><label><?php esc_html_e('Cards', 'y4apk'); ?></label><select name="<?php echo esc_attr($name); ?>[style]" data-row-style><?php foreach (Y4APK_Home_Rows::styles() as $k => $l) : ?><option value="<?php echo esc_attr($k); ?>" <?php selected($row['style'], $k); ?>><?php echo esc_html($l); ?></option><?php endforeach; ?></select></div>
+									<div class="y4ui-field"><label><?php esc_html_e('Where on the home page', 'y4apk'); ?></label><select name="<?php echo esc_attr($name); ?>[where]"><?php foreach (Y4APK_Home_Rows::places() as $k => $l) : ?><option value="<?php echo esc_attr($k); ?>" <?php selected($row['where'], $k); ?>><?php echo esc_html($l); ?></option><?php endforeach; ?></select></div>
+									<div class="y4ui-field"><label><?php esc_html_e('“See all” link', 'y4apk'); ?> <em><?php esc_html_e('optional', 'y4apk'); ?></em></label><input type="text" class="code" name="<?php echo esc_attr($name); ?>[link]" value="<?php echo esc_attr($row['link']); ?>" placeholder="/games/"></div>
+								</div>
+								<div class="y4hm-row-acts">
+									<label class="y4hm-switch"><input type="checkbox" name="<?php echo esc_attr($name); ?>[show]" value="1" <?php checked($row['show']); ?>><span></span><?php esc_html_e('Show', 'y4apk'); ?></label>
+									<button type="button" class="y4hm-ic" data-row-move="-1" title="<?php esc_attr_e('Move up', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Move up', 'y4apk'); ?>">↑</button>
+									<button type="button" class="y4hm-ic" data-row-move="1" title="<?php esc_attr_e('Move down', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Move down', 'y4apk'); ?>">↓</button>
+									<button type="button" class="y4hm-ic is-del" data-drop-row title="<?php esc_attr_e('Remove this row', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Remove this row', 'y4apk'); ?>">✕</button>
+								</div>
+							</div>
+							<div class="y4hm-grid" data-cards="row-<?php echo esc_attr($rid); ?>" data-prefix="<?php echo esc_attr($name . '[cards]'); ?>" data-shape="<?php echo esc_attr($row['style']); ?>" data-max="<?php echo (int) self::MAX; ?>">
+								<?php foreach (array_values($cards) as $n => $r) {
+									$pid = absint($r['post_id'] ?? 0);
+									$r = array_merge($empty_card, $r, ['post_id' => $pid]);
+									$card($name . '[cards]', $row['style'], $n, $r, $pid ? ($posts[$pid] ?? null) : null);
+								}
+								$add_tile(count($cards)); ?>
+							</div>
+						</div>
+						<?php
+					};
+					?>
+					<section class="y4ui-card">
+						<div class="y4ui-card-h">
+							<div>
+								<h2><?php esc_html_e('Your own rows', 'y4apk'); ?></h2>
+								<p><?php echo esc_html(sprintf(__('Rows of cards you make yourself, each with its heading, its kind of card and its place on the home page. Up to %s rows.', 'y4apk'), number_format_i18n(Y4APK_Home_Rows::MAX))); ?></p>
+							</div>
+							<button type="button" class="button button-primary" data-add-row<?php echo count($own) >= Y4APK_Home_Rows::MAX ? ' hidden' : ''; ?>>+ <?php esc_html_e('Add a row', 'y4apk'); ?></button>
+						</div>
+						<div class="y4ui-card-b">
+							<div class="y4hm-rows" data-rows data-max="<?php echo (int) Y4APK_Home_Rows::MAX; ?>">
+								<?php foreach ($own as $row) { $row_html($row); } ?>
+							</div>
+							<p class="y4hm-rows-empty" data-rows-empty<?php echo $own ? ' hidden' : ''; ?>><?php esc_html_e('No rows of your own yet. “Add a row”, give it a heading and its cards, then Save.', 'y4apk'); ?></p>
+						</div>
+					</section>
+					<template data-row-tpl><?php $row_html(['id' => '__R__', 'title' => '', 'link' => '', 'show' => true, 'style' => 'wide', 'where' => 'top', 'cards' => []]); ?></template>
+				<?php endif; ?>
+				<template data-card-tpl><?php $card('__P__', '__S__', '__N__', ['post_id' => 0, 'title' => '', 'link' => '', 'bg_image' => '', 'bg_color' => '#29b1d8'], null); ?></template>
 
 				<div class="y4ui-savebar">
 					<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
@@ -357,6 +456,20 @@ class Y4APK_Home_Admin {
 			.y4hm-add b { font-size: 14px; }
 			.y4hm-add small { max-width: 220px; color: #646970; line-height: 1.5; }
 			.y4hm-prev { margin-top: 10px !important; }
+			/* The owner's own rows (2.60) */
+			.y4hm-row { padding: 18px 0 22px; border-top: 1px solid #f0f0f1; }
+			.y4hm-row:first-child { padding-top: 0; border-top: 0; }
+			.y4hm-row-h { display: flex; align-items: flex-end; gap: 14px; margin: 0 0 16px; flex-wrap: wrap; }
+			.y4hm-row-n { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e8f1fb; color: #135e96; font-weight: 700; }
+			.y4hm-row-fields { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(180px, 1.6fr) minmax(170px, 1.2fr) minmax(200px, 1.5fr) minmax(150px, 1fr); gap: 12px; }
+			.y4hm-row-fields .y4ui-field > label { font-size: 12px; }
+			.y4hm-row-fields .y4ui-field > label em { font-weight: 400; font-style: normal; color: #787c82; }
+			.y4hm-row-fields select, .y4hm-row-fields input { width: 100%; max-width: none; }
+			.y4hm-row-acts { display: flex; align-items: center; gap: 6px; padding-bottom: 4px; }
+			.y4hm-row-acts .y4hm-switch { margin-right: 6px; }
+			.y4hm-rows-empty { margin: 0; padding: 28px 16px; border: 2px dashed #dcdcde; border-radius: 14px; color: #646970; text-align: center; }
+			@media (max-width: 1280px) { .y4hm-row-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+			@media (max-width: 700px) { .y4hm-row-fields { grid-template-columns: minmax(0, 1fr); } }
 			.y4hm-n { position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; color: #1d2327; background: rgba(255, 255, 255, .9); }
 			.y4hm-fields { padding: 12px 14px 16px; }
 			.y4hm-fields > label { display: block; margin: 10px 0 4px; font-weight: 600; }
@@ -444,8 +557,8 @@ class Y4APK_Home_Admin {
 			};
 			$('[data-cards]').each(function () { renumber($(this)); });
 			$('.y4hm').on('click', '[data-add-card]', function () {
-				var grid = $(this).closest('[data-cards]'), set = grid.data('cards');
-				var html = $('template[data-card-new="' + set + '"]').html().replace(/__N__/g, String(made++));
+				var grid = $(this).closest('[data-cards]');
+				var html = $('template[data-card-tpl]').html().split('__P__').join(grid.attr('data-prefix')).split('__S__').join(grid.attr('data-shape')).replace(/__N__/g, String(made++));
 				var card = $($.parseHTML($.trim(html)));
 				card.insertBefore(this);
 				initCard(card[0]);
@@ -462,6 +575,43 @@ class Y4APK_Home_Admin {
 				if (grid.children('[data-card]').length < 2) { return; }
 				card.remove();
 				renumber(grid);
+			});
+			// 2.60: the owner's own rows
+			var rowsBox = $('[data-rows]');
+			var renumberRows = function () {
+				var rows = rowsBox.children('[data-row]');
+				rows.each(function (i) {
+					$(this).find('[data-row-n]').text(i + 1);
+					$(this).find('[data-row-move="-1"]').prop('disabled', i === 0);
+					$(this).find('[data-row-move="1"]').prop('disabled', i === rows.length - 1);
+				});
+				$('[data-add-row]').prop('hidden', rows.length >= +rowsBox.data('max'));
+				$('[data-rows-empty]').prop('hidden', rows.length > 0);
+			};
+			renumberRows();
+			$('.y4hm').on('click', '[data-add-row]', function () {
+				var html = $('template[data-row-tpl]').html().split('__R__').join('n' + Date.now().toString(36));
+				var row = $($.parseHTML($.trim(html)));
+				rowsBox.append(row);
+				row.find('[data-card]').each(function () { initCard(this); });
+				renumber(row.find('[data-cards]'));
+				renumberRows();
+				row.find('[data-row-title]').trigger('focus');
+			});
+			$('.y4hm').on('change', '[data-row-style]', function () {
+				var grid = $(this).closest('[data-row]').find('[data-cards]');
+				grid.attr('data-shape', this.value);
+				grid.children('[data-card]').attr('data-shape', this.value);
+			});
+			$('.y4hm').on('click', '[data-row-move]', function () {
+				var row = $(this).closest('[data-row]');
+				if (+$(this).data('row-move') < 0) { row.prev('[data-row]').before(row); } else { row.next('[data-row]').after(row); }
+				renumberRows();
+			});
+			$('.y4hm').on('click', '[data-drop-row]', function () {
+				if (!window.confirm(<?php echo wp_json_encode(__('Remove this row and its cards? (Nothing changes until you Save.)', 'y4apk')); ?>)) { return; }
+				$(this).closest('[data-row]').remove();
+				renumberRows();
 			});
 		});
 		</script>

@@ -638,6 +638,23 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Your own rows on the home page (2.60)
+
+Y4APK ▸ Home page ▸ **Your own rows**: *+ Add a row* (up to 10). Each row
+has its heading, an optional *“See all” link* (the heading becomes a link
+with the arrow, like the lists of games), *Show*, its cards — **wide**, like
+Best of the best, or **tall**, like Recommend — and its place on the home
+page: **under “Best of the best”**, **after the first list of games** (by
+Recommend; with no list, where that list would be) or **at the end**, before
+the site's text. Its cards work like the other rows' (up to 12, add, ← →,
+✕); ↑ ↓ moves a row, ✕ removes it. A row with no heading and no card is
+left out when you save. More than four cards slide sideways (‹ › on
+computers, a swipe on phones); on phones a row runs to the screen's edges,
+its first card in line with its heading.
+
+Kept in the theme setting `y4apk_home_rows` (`inc/home-rows.php`,
+`Y4APK_Home_Rows`).
+
 ## More home cards; Review and Direct Link in the new look (2.59)
 
 **Home page cards**: Y4APK ▸ Home page ▸ *Best of the best* and *Recommend*
