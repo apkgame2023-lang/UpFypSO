@@ -268,18 +268,42 @@ class Y4APK_Members_Admin {
 		$show = max(1, (int) Y4APK_Members::settings()['report_show']);
 		$games = get_terms(['taxonomy' => Y4APK_Roblox::TAX, 'hide_empty' => false, 'orderby' => 'name']);
 		$games = is_array($games) ? $games : [];
+		$auto = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => Y4APK_Members::AUTO, 'orderby' => 'meta_value_num', 'order' => 'DESC', 'numberposts' => 20,
+			'meta_query' => [['key' => Y4APK_Members::AUTO, 'value' => time() - 7 * DAY_IN_SECONDS, 'compare' => '>=', 'type' => 'NUMERIC']]]);
 		self::styles();
 		?>
-		<div class="wrap y4rv">
-			<h1><?php esc_html_e('Review', 'y4apk'); ?></h1>
+		<div class="wrap y4rv y4ui">
+			<?php Y4APK_Admin_UI::head([
+				'icon'    => 'review',
+				'tint'    => 'amber',
+				'title'   => esc_html__('Review', 'y4apk'),
+				'sub'     => esc_html__('Scripts, games and apps members sent that did not pass the checks for going live at once (Members ▸ Publish at once), or that you asked to see. Nothing here shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'),
+				'actions' => current_user_can('manage_options') ? '<a class="button button-large" href="' . esc_url(admin_url('admin.php?page=y4apk-members')) . '">' . esc_html__('Members', 'y4apk') . '</a>' : '',
+			]); ?>
 			<?php if ($msg) : ?><div class="notice <?php echo $bad ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($msg); ?></p></div><?php endif; ?>
-			<p class="description"><?php esc_html_e('Scripts, games and apps members sent that did not pass the checks for going live at once (Members ▸ Publish at once), or that you asked to see. Nothing here shows on the site until you approve it. Check where a script’s code loads from, and open a file on a test phone, before you do.', 'y4apk'); ?></p>
+			<div class="y4ui-kpis">
+				<a class="y4ui-kpi<?php echo $pending ? ' is-red' : ' is-green'; ?>" href="#y4rv-wait">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Waiting for review', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($pending))); ?></span>
+					<span class="y4ui-kpi-s"><?php echo esc_html($pending ? __('Oldest first: approve, or send back with a note', 'y4apk') : __('Nothing is waiting', 'y4apk')); ?></span>
+				</a>
+				<a class="y4ui-kpi" href="#y4rv-auto">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Went live at once', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($auto))); ?></span>
+					<span class="y4ui-kpi-s"><?php esc_html_e('this week, after passing the checks', 'y4apk'); ?></span>
+				</a>
+				<a class="y4ui-kpi<?php echo $reported ? ' is-red' : ''; ?>" href="#y4rv-rep">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Reported by visitors', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($reported))); ?></span>
+					<span class="y4ui-kpi-s"><?php echo esc_html(sprintf(_n('listed at %s report from different people', 'listed at %s reports from different people', $show, 'y4apk'), number_format_i18n($show))); ?></span>
+				</a>
+			</div>
 
 			<?php if (class_exists('Y4APK_Versions')) {
 				Y4APK_Versions::restore_box(); // 2.46: a post a 2.44–2.45 approval pointed at a member's file
 			} ?>
-			<h2><?php echo esc_html(sprintf(_n('%s waiting for review', '%s waiting for review', count($pending), 'y4apk'), number_format_i18n(count($pending)))); ?></h2>
-			<?php if (!$pending) : ?><div class="y4rv-empty"><?php esc_html_e('Nothing is waiting. 🎉', 'y4apk'); ?></div><?php endif; ?>
+			<h2 class="y4rv-h" id="y4rv-wait"><?php esc_html_e('Waiting for review', 'y4apk'); ?> <span class="y4ui-n<?php echo $pending ? ' is-red' : ''; ?>"><?php echo esc_html(number_format_i18n(count($pending))); ?></span></h2>
+			<?php if (!$pending) : ?><div class="y4ui-card y4ui-empty"><?php esc_html_e('Nothing is waiting. 🎉', 'y4apk'); ?></div><?php endif; ?>
 			<?php foreach ($pending as $p) {
 				if (class_exists('Y4APK_Share') && Y4APK_Share::is_share($p->ID)) {
 					Y4APK_Share::review_card($p); // a game or app (2.44)
@@ -291,11 +315,9 @@ class Y4APK_Members_Admin {
 				Y4APK_Share::review_styles();
 			} ?>
 
-			<?php $auto = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'meta_key' => Y4APK_Members::AUTO, 'orderby' => 'meta_value_num', 'order' => 'DESC', 'numberposts' => 20,
-				'meta_query' => [['key' => Y4APK_Members::AUTO, 'value' => time() - 7 * DAY_IN_SECONDS, 'compare' => '>=', 'type' => 'NUMERIC']]]);
-			if ($auto) : ?>
-				<h2><?php echo esc_html(sprintf(_n('%s went live at once this week', '%s went live at once this week', count($auto), 'y4apk'), number_format_i18n(count($auto)))); ?></h2>
-				<p class="description"><?php esc_html_e('They passed the checks (Members ▸ Publish at once). Have a look if you like: Hide and review again takes one off the site.', 'y4apk'); ?></p>
+			<?php if ($auto) : ?>
+				<h2 class="y4rv-h" id="y4rv-auto"><?php esc_html_e('Went live at once this week', 'y4apk'); ?> <span class="y4ui-n"><?php echo esc_html(number_format_i18n(count($auto))); ?></span></h2>
+				<p class="y4rv-lead"><?php esc_html_e('They passed the checks (Members ▸ Publish at once). Have a look if you like: Hide and review again takes one off the site.', 'y4apk'); ?></p>
 				<div class="y4rv-auto">
 				<?php foreach ($auto as $p) :
 					$who = get_userdata($p->post_author);
@@ -312,8 +334,8 @@ class Y4APK_Members_Admin {
 			<?php endif; ?>
 
 			<?php if ($reported) : ?>
-				<h2><?php echo esc_html(sprintf(_n('%s published post was reported', '%s published posts were reported', count($reported), 'y4apk'), number_format_i18n(count($reported)))); ?></h2>
-				<p class="description"><?php echo esc_html(sprintf(_n('Listed once %s different person has reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', 'Listed once %s different people have reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', $show, 'y4apk'), number_format_i18n($show))); ?></p>
+				<h2 class="y4rv-h" id="y4rv-rep"><?php esc_html_e('Reported by visitors', 'y4apk'); ?> <span class="y4ui-n is-red"><?php echo esc_html(number_format_i18n(count($reported))); ?></span></h2>
+				<p class="y4rv-lead"><?php echo esc_html(sprintf(_n('Listed once %s different person has reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', 'Listed once %s different people have reported it since you last looked. Dismiss or Hide, and the people who reported it cannot bring it back: it comes again only with new reports.', $show, 'y4apk'), number_format_i18n($show))); ?></p>
 				<?php foreach ($reported as $p) :
 					$rep = get_post_meta($p->ID, self::REPORTS, true);
 					$rep = is_array($rep) ? $rep : [];
@@ -378,7 +400,8 @@ class Y4APK_Members_Admin {
 		?>
 		<div class="y4rv-card">
 			<div class="y4rv-head">
-				<div><strong><?php echo esc_html(get_the_title($p)); ?></strong>
+				<span class="y4rv-av" aria-hidden="true"><?php echo esc_html($user ? mb_strtoupper(mb_substr($user->user_login, 0, 1)) : '?'); ?></span>
+				<div class="y4rv-t"><span class="y4rv-kind"><?php esc_html_e('Roblox script', 'y4apk'); ?></span><strong><?php echo esc_html(get_the_title($p)); ?></strong>
 					<span class="y4rv-sub"><?php if ($user) {
 						echo esc_html(sprintf(__('@%1$s · member for %2$s · %3$s live', 'y4apk'), $user->user_login, human_time_diff(strtotime($user->user_registered)), number_format_i18n($counts)));
 					} ?> · <?php echo esc_html(sprintf(__('sent %s ago', 'y4apk'), human_time_diff(get_post_datetime($p)->getTimestamp()))); ?></span></div>
@@ -418,17 +441,21 @@ class Y4APK_Members_Admin {
 			return;
 		}
 		$done = true;
-		echo '<style>.y4rv h2{margin:1.5rem 0 .75rem}.y4rv-empty{padding:2rem;text-align:center;background:#fff;border:1px dashed #c3c4c7;border-radius:12px;color:#646970}'
-			. '.y4rv-card{margin:0 0 1rem;padding:1rem 1.25rem;background:#fff;border:1px solid #dcdcde;border-radius:12px;max-width:980px}'
-			. '.y4rv-head{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-start;justify-content:space-between}.y4rv-head strong{font-size:15px}'
-			. '.y4rv-sub{display:block;margin-top:2px;font-size:12px;color:#646970}.y4rv-actions{display:flex;gap:.5rem;align-items:center}.y4rv-form{display:inline}'
-			. '.y4rv-danger{color:#b32d2e!important;border-color:#b32d2e!important}.y4rv-desc{margin:.5rem 0;color:#3c434a}'
-			. '.y4rv-code{margin:.5rem 0}.y4rv-code span{font-size:11px;font-weight:600;color:#646970}.y4rv-code pre{margin:2px 0 0;padding:10px 12px;background:#1d2327;color:#f0f0f1;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}'
-			. '.y4rv-hosts{margin:.25rem 0 .75rem;font-size:12px;color:#646970}.y4rv-host{display:inline-block;margin:0 4px 4px 0;padding:2px 8px;border-radius:99px;font-weight:600}'
+		echo '<style>.y4rv-h{display:flex;align-items:center;gap:8px;margin:26px 0 10px!important;font-size:18px!important;font-weight:700;scroll-margin-top:48px}.y4rv-lead{margin:-4px 0 12px;color:#646970;max-width:980px}'
+			. '.y4rv-card{margin:0 0 14px;padding:18px 20px;background:#fff;border:1px solid #dcdcde;border-radius:14px;transition:border-color .15s,box-shadow .15s}.y4rv-card:hover{border-color:#c3c4c7;box-shadow:0 8px 22px -16px rgba(0,0,0,.35)}'
+			. '.y4rv-head{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-start}.y4rv-head > div:first-child,.y4rv-t{flex:1;min-width:240px}.y4rv-head strong{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}.y4rv-head strong a{text-decoration:none}'
+			. '.y4rv-av{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ffc04d,#ef8a12);color:#fff;font-size:16px;font-weight:700}'
+			. '.y4rv-kind{display:inline-block;margin:0 0 4px;padding:1px 8px;border-radius:99px;background:#f1ecff;color:#5b46e5;font-size:11px;font-weight:700}'
+			. '.y4rv-sub{display:block;margin-top:3px;font-size:12px;color:#646970}.y4rv-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.y4rv-form{display:inline}'
+			. '.y4rv-danger{color:#b32d2e!important;border-color:#e3a4a5!important}.y4rv-danger:hover{background:#fcf0f1!important}.y4rv-desc{margin:12px 0 8px;color:#3c434a;font-size:13.5px;line-height:1.55}'
+			. '.y4rv-code{margin:10px 0}.y4rv-code span{display:block;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#646970}.y4rv-code pre{margin:0;padding:12px 14px;background:#1d2327;color:#f0f0f1;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px;line-height:1.5}'
+			. '.y4rv-hosts{margin:6px 0 4px;font-size:12px;color:#646970}.y4rv-host{display:inline-flex;align-items:center;height:22px;margin:0 4px 4px 0;padding:0 9px;border-radius:99px;font-weight:600}'
 			. '.y4rv-host.is-ok{background:#e4f7ea;color:#14602a}.y4rv-host.is-new{background:#fff4de;color:#7a4d00}'
-			. '.y4rv-decide{display:flex;flex-wrap:wrap;gap:.75rem 2rem;align-items:flex-end;padding-top:.75rem;border-top:1px solid #f0f0f1}'
-			. '.y4rv-approve{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end}.y4rv-approve label{display:flex;flex-direction:column;font-size:12px;gap:2px}'
-			. '.y4rv-reject{display:flex;gap:.5rem;flex:1 1 320px;min-width:0;max-width:100%}.y4rv-reject input{flex:1;min-width:0}</style>';
+			. '.y4rv-decide{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;margin:14px -20px -18px;padding:14px 20px;background:#f6f7f7;border-top:1px solid #f0f0f1;border-radius:0 0 14px 14px}'
+			. '.y4rv-approve{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}.y4rv-approve label{display:flex;flex-direction:column;font-size:12px;font-weight:600;gap:4px}.y4rv-approve select,.y4rv-approve input[type=text]{min-width:200px}'
+			. '.y4rv-reject{display:flex;gap:8px;flex:1 1 320px;min-width:0;max-width:100%}.y4rv-reject input{flex:1;min-width:0}'
+			. '.y4rv-autorow{padding:12px 18px}.y4rv-auto{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:0 14px}'
+			. '@media (max-width:782px){.y4rv-auto{grid-template-columns:minmax(0,1fr)}.y4rv-card{padding:14px}.y4rv-decide{margin:12px -14px -14px;padding:12px 14px}.y4rv-approve select,.y4rv-approve input[type=text]{min-width:0;width:100%}.y4rv-approve label{flex:1 1 100%}}</style>';
 	}
 
 	/* ---------------------------------------------------------------- *

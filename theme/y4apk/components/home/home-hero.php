@@ -132,7 +132,9 @@ $featured_posts = get_theme_mod('featured_posts', [
             <i class="best-app-label-stars"></i>
             <img class="best-app-label-bg" src="<?php echo get_template_directory_uri() . '/assets/img/bestapp-bg.svg'; ?>" width="220" height="220" alt="Best App Background">
         </div>
-        <?php if($featured_posts) : ?>
+        <?php if($featured_posts) : $y4_many = count($featured_posts) > 4; // 2.59: more than four slide sideways ?>
+        <div class="y4row<?php echo $y4_many ? ' is-many' : ''; ?>">
+        <?php if ($y4_many) : ?><button type="button" class="y4row-nav is-prev" data-row-prev aria-label="<?php esc_attr_e('Previous', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg></button><button type="button" class="y4row-nav is-next" data-row-next aria-label="<?php esc_attr_e('Next', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z"/></svg></button><?php endif; ?>
         <div class="best-app-over">
             <div class="best-app-list">
                 <?php 
@@ -154,7 +156,7 @@ $featured_posts = get_theme_mod('featured_posts', [
                         <span class="best-app-title"><?php echo esc_html($post_name); ?></span>
                         <span class="best-app-download"><?php esc_html_e('Download', 'y4apk'); ?></span>
                         <div class="best-app-bg" style="background-color: <?php echo $bg_color; ?>;">
-                            <img src="<?php echo esc_url($bg_image_url); ?>" width="190" height="144" alt="<?php echo esc_attr($post_name); ?> Background" decoding="async" loading="lazy">
+                            <?php if ($bg_image_url !== '') : // a card without a picture: its colour only ?><img src="<?php echo esc_url($bg_image_url); ?>" width="190" height="144" alt="<?php echo esc_attr($post_name); ?> Background" decoding="async" loading="lazy"><?php endif; ?>
                         </div>
                         <div class="best-app-shadow" style="box-shadow: 0 0 2rem 0 <?php echo $bg_color; ?>;"></div>
                     </a>
@@ -165,6 +167,8 @@ $featured_posts = get_theme_mod('featured_posts', [
                 </div>
             </div>
         </div>
+        </div>
+        <?php if ($y4_many && function_exists('y4apk_row_script')) { y4apk_row_script(); } ?>
         <?php endif; ?>
     </div>
     <?php 

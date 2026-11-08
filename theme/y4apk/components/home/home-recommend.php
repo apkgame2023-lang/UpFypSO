@@ -35,6 +35,9 @@ if(!empty($recommend_posts)) :
                 <path class="recommend-star-bg" style="display:none;" fill="#FBFDFD" d="M280.67,57.34a52.85,52.85,0,0,1,72.09,23.45,52.75,52.75,0,0,0,39.93,29,52.81,52.81,0,0,1,44.77,59.78,53.09,53.09,0,0,0,15,48.56,52.8,52.8,0,0,1,1.07,74.67,53.08,53.08,0,0,0-16.35,48.11,52.83,52.83,0,0,1-44.56,61.3,52.82,52.82,0,0,0-39.92,29,52.84,52.84,0,0,1-72.07,23.42,52.78,52.78,0,0,0-49.34,0,52.82,52.82,0,0,1-71.51-22.31,53,53,0,0,0-40.48-30.14,52.81,52.81,0,0,1-44.76-60.09,53,53,0,0,0-15.7-48.86A52.81,52.81,0,0,1,58.64,219a53,53,0,0,0,16-48.76,52.85,52.85,0,0,1,45.23-60.5A52.91,52.91,0,0,0,159.65,80a52.84,52.84,0,0,1,71.68-22.64,52.78,52.78,0,0,0,49.34,0Z"></path>
             </svg>
         </div>
+        <?php $y4_many = count(array_filter((array) $recommend_posts, 'is_array')) > 4; // 2.59: more than four slide sideways ?>
+        <div class="y4row<?php echo $y4_many ? ' is-many' : ''; ?>">
+        <?php if ($y4_many) : ?><button type="button" class="y4row-nav is-prev" data-row-prev aria-label="<?php esc_attr_e('Previous', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg></button><button type="button" class="y4row-nav is-next" data-row-next aria-label="<?php esc_attr_e('Next', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z"/></svg></button><?php endif; ?>
         <div class="recommend-over">
             <div class="recommend-list">
 				<?php
@@ -60,7 +63,7 @@ if(!empty($recommend_posts)) :
                             </div>
                         </div>
                         <div class="recommend-app-bg" style="background-color: <?php echo $bg_color; ?>;">
-							<img src="<?php echo esc_url($bg_image_url); ?>" width="208" height="248" alt="<?php echo esc_attr($post_name); ?>" decoding="async" loading="lazy">
+							<?php if ($bg_image_url !== '') : // a card without a picture: its colour only ?><img src="<?php echo esc_url($bg_image_url); ?>" width="208" height="248" alt="<?php echo esc_attr($post_name); ?>" decoding="async" loading="lazy"><?php endif; ?>
 						</div>
                         <div class="recommend-app-shadow" style="box-shadow: 0 0 2rem 0 <?php echo $bg_color; ?>;"></div>
                     </a>
@@ -68,6 +71,8 @@ if(!empty($recommend_posts)) :
 				<?php endforeach; ?>
             </div>
         </div>
+        </div>
+        <?php if ($y4_many && function_exists('y4apk_row_script')) { y4apk_row_script(); } ?>
     </div>
 </div>
 <?php endif; ?>

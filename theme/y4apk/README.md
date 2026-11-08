@@ -638,6 +638,27 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## More home cards; Review and Direct Link in the new look (2.59)
+
+**Home page cards**: Y4APK ▸ Home page ▸ *Best of the best* and *Recommend*
+take up to 12 cards each (they were four): *+ Add a card* at the end of
+each row, and on every card ← → to move it and ✕ to remove it; the order on
+the page is the home page's order. With more than four, the row on the home
+page slides sideways: ‹ › arrows on computers (each moves one card; the one
+at an end hides), a swipe on phones as before; four or fewer look as they
+always did. A card without a picture shows its colour only (it showed a
+broken picture).
+
+**Review**: the head, numbers (waiting, went live at once this week,
+reported) that jump to their part, each part under its own heading with its
+count, cards with the member's letter and *Roblox script* on scripts, and
+the approve / send back line at the foot of each card.
+
+**Direct Link**: the head with On/Off and Save, numbers (opens in 30 days,
+links, when it opens, the script lock), the links' table and *When* as
+three choices on the left, the settings (which link, how often, the script
+lock, the Unlock picture) on the right, and Save in the bar.
+
 ## Y4APK's admin pages, one look (2.58)
 
 2.58.1: the Y4APK menu is at the top of the admin menu, right under

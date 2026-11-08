@@ -382,72 +382,142 @@ class Y4APK_Direct_Link {
 			'off'      => [__('Off', 'y4apk'), ''],
 		];
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e('Direct Link', 'y4apk'); ?></h1>
+		<?php
+		$links = self::links();
+		$opens = self::opens_by_link();
+		$total = array_sum(array_map(function ($l) use ($opens) { return (int) ($opens[$l['id']] ?? 0); }, $links));
+		$rows = $links ?: [['id' => '', 'url' => '', 'name' => '', 'weight' => 1, 'downloads' => true, 'scripts' => true]];
+		$on = $s['mode'] !== 'off' && $links;
+		?>
+		<div class="wrap y4dl y4ui">
+			<?php Y4APK_Admin_UI::head([
+				'icon'    => 'link',
+				'tint'    => 'amber',
+				'title'   => esc_html__('Direct Link', 'y4apk'),
+				'sub'     => esc_html__('Opens your ad link — a Monetag Direct Link (Monetag ▸ Direct Link ▸ Copy link) or any other — in a new tab. Not inside the installed Y4APK app: the app has only one window, so the ad would take it over and closing the ad would close the app. Visitors using a browser are not affected.', 'y4apk'),
+				'actions' => '<span class="y4ui-chip ' . ($on ? 'is-green' : '') . '">' . esc_html($on ? __('On', 'y4apk') : __('Off', 'y4apk')) . '</span>'
+					. '<button class="button button-primary button-large" form="y4dl-form">' . esc_html__('Save', 'y4apk') . '</button>',
+			]); ?>
 			<?php if (!empty($_GET['saved'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors get the change.', 'y4apk'); ?></p></div>
 			<?php endif; ?>
-			<?php $links = self::links(); $opens = self::opens_by_link(); if (!$links) { $links = [['id' => '', 'url' => '', 'name' => '', 'weight' => 1, 'downloads' => true, 'scripts' => true]]; } ?>
-			<?php if ($s['mode'] !== 'off' && !self::links()) : ?>
+			<?php if ($s['mode'] !== 'off' && !$links) : ?>
 				<div class="notice notice-warning"><p><?php esc_html_e('No link entered, so nothing is shown.', 'y4apk'); ?></p></div>
 			<?php endif; ?>
-			<p style="max-width:860px"><?php esc_html_e('Opens your ad link — a Monetag Direct Link (Monetag ▸ Direct Link ▸ Copy link) or any other — in a new tab.', 'y4apk'); ?></p>
-			<p style="max-width:860px"><?php esc_html_e('Not inside the installed Y4APK app: the app has only one window, so the ad would take it over and closing the ad would close the app. Visitors using a browser are not affected.', 'y4apk'); ?></p>
+			<div class="y4ui-kpis">
+				<div class="y4ui-kpi">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Opens, last 30 days', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($total)); ?></span>
+					<span class="y4ui-kpi-s"><?php esc_html_e('counted per link in Analytics', 'y4apk'); ?></span>
+				</div>
+				<div class="y4ui-kpi">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Links', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n(count($links))); ?> <small>/ 20</small></span>
+					<span class="y4ui-kpi-s"><?php echo esc_html($s['pick'] === 'turn' ? __('each in turn', 'y4apk') : __('one at random, by weight', 'y4apk')); ?></span>
+				</div>
+				<div class="y4ui-kpi">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Opens when', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n" style="font-size:18px"><?php echo esc_html($s['mode'] === 'download' ? __('A download button is tapped', 'y4apk') : ($s['mode'] === 'unlock' ? __('Unlock Content box', 'y4apk') : __('Off', 'y4apk'))); ?></span>
+					<span class="y4ui-kpi-s"><?php echo esc_html(['visit' => __('once per visit', 'y4apk'), 'day' => __('once a day', 'y4apk'), 'always' => __('every tap', 'y4apk')][$s['every']] ?? ''); ?></span>
+				</div>
+				<div class="y4ui-kpi">
+					<span class="y4ui-kpi-l"><?php esc_html_e('Script Code', 'y4apk'); ?></span>
+					<span class="y4ui-kpi-n" style="font-size:18px"><?php echo esc_html(!empty($s['script_lock']) ? __('Locked until the ad', 'y4apk') : __('Shown at once', 'y4apk')); ?></span>
+					<span class="y4ui-kpi-s"><?php esc_html_e('on Roblox script posts', 'y4apk'); ?></span>
+				</div>
+			</div>
 
-			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="y4dl-form">
 				<input type="hidden" name="action" value="y4apk_save_direct_link">
 				<?php wp_nonce_field('y4apk-save-direct-link'); ?>
-				<table class="form-table" role="presentation"><tbody>
-					<tr><th scope="row"><?php esc_html_e('Links', 'y4apk'); ?></th>
-						<td>
-							<table class="widefat striped y4dl-links" style="max-width:1100px">
-								<thead><tr><th style="width:38%"><?php esc_html_e('Link', 'y4apk'); ?></th><th><?php esc_html_e('Name (for you)', 'y4apk'); ?></th><th style="width:90px"><?php esc_html_e('Weight', 'y4apk'); ?></th><th style="width:110px"><?php esc_html_e('Download buttons', 'y4apk'); ?></th><th style="width:70px"><?php esc_html_e('Scripts', 'y4apk'); ?></th><th style="width:110px"><?php esc_html_e('Opens, 30 days', 'y4apk'); ?></th><th style="width:40px"></th></tr></thead>
+				<div class="y4ui-cols">
+					<div>
+						<section class="y4ui-card">
+							<div class="y4ui-card-h"><div>
+								<h2><?php esc_html_e('Links', 'y4apk'); ?></h2>
+								<p><?php esc_html_e('Up to 20. Each tap opens one of them: a link with weight 4 is picked four times as often as one with weight 1. Untick “Download buttons” or “Scripts” to keep a link to one place.', 'y4apk'); ?></p>
+							</div><button type="button" class="button" data-add-link>+ <?php esc_html_e('Add a link', 'y4apk'); ?></button></div>
+							<div class="y4ui-scroll">
+							<table class="y4ui-table y4dl-links">
+								<thead><tr><th><?php esc_html_e('Link', 'y4apk'); ?></th><th style="width:22%"><?php esc_html_e('Name (for you)', 'y4apk'); ?></th><th style="width:84px"><?php esc_html_e('Weight', 'y4apk'); ?></th><th style="width:96px"><?php esc_html_e('Download buttons', 'y4apk'); ?></th><th style="width:70px"><?php esc_html_e('Scripts', 'y4apk'); ?></th><th style="width:110px"><?php esc_html_e('Opens, 30 days', 'y4apk'); ?></th><th style="width:44px"></th></tr></thead>
 								<tbody data-links>
-									<?php foreach ($links as $i => $l) : ?>
+									<?php foreach ($rows as $i => $l) : ?>
 									<tr data-link>
-										<td><input type="hidden" name="links[<?php echo (int) $i; ?>][id]" value="<?php echo esc_attr($l['id']); ?>"><input type="url" class="large-text code" name="links[<?php echo (int) $i; ?>][url]" value="<?php echo esc_attr($l['url']); ?>" placeholder="https://cawsg.com/4/1234567"></td>
-										<td><input type="text" class="regular-text" style="width:100%" name="links[<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr($l['name']); ?>" placeholder="Monetag 1" maxlength="40"></td>
+										<td><input type="hidden" name="links[<?php echo (int) $i; ?>][id]" value="<?php echo esc_attr($l['id']); ?>"><input type="url" class="code" style="width:100%" name="links[<?php echo (int) $i; ?>][url]" value="<?php echo esc_attr($l['url']); ?>" placeholder="https://cawsg.com/4/1234567"></td>
+										<td><input type="text" style="width:100%" name="links[<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr($l['name']); ?>" placeholder="Monetag 1" maxlength="40"></td>
 										<td><select name="links[<?php echo (int) $i; ?>][weight]"><?php for ($w = 1; $w <= 10; $w++) : ?><option value="<?php echo (int) $w; ?>" <?php selected($l['weight'], $w); ?>><?php echo (int) $w; ?></option><?php endfor; ?></select></td>
-										<td><label><input type="checkbox" name="links[<?php echo (int) $i; ?>][downloads]" value="1" <?php checked($l['downloads']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
-										<td><label><input type="checkbox" name="links[<?php echo (int) $i; ?>][scripts]" value="1" <?php checked($l['scripts']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
-										<td><?php echo $l['id'] !== '' ? '<b>' . esc_html(number_format_i18n($opens[$l['id']] ?? 0)) . '</b>' : '—'; ?></td>
-										<td><button type="button" class="button-link button-link-delete" data-remove aria-label="<?php esc_attr_e('Remove this link', 'y4apk'); ?>">✕</button></td>
+										<td><label class="y4dl-yes"><input type="checkbox" name="links[<?php echo (int) $i; ?>][downloads]" value="1" <?php checked($l['downloads']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
+										<td><label class="y4dl-yes"><input type="checkbox" name="links[<?php echo (int) $i; ?>][scripts]" value="1" <?php checked($l['scripts']); ?>> <?php esc_html_e('yes', 'y4apk'); ?></label></td>
+										<td><?php echo $l['id'] !== '' ? '<b class="y4dl-opens">' . esc_html(number_format_i18n($opens[$l['id']] ?? 0)) . '</b>' : '—'; ?></td>
+										<td><button type="button" class="y4dl-rm" data-remove aria-label="<?php esc_attr_e('Remove this link', 'y4apk'); ?>" title="<?php esc_attr_e('Remove this link', 'y4apk'); ?>">✕</button></td>
 									</tr>
 									<?php endforeach; ?>
 								</tbody>
 							</table>
-							<p><button type="button" class="button" data-add-link>+ <?php esc_html_e('Add a link', 'y4apk'); ?></button></p>
-							<p class="description" style="max-width:860px"><?php esc_html_e('Up to 20 links. Each tap opens one of them: a link with weight 4 is picked four times as often as one with weight 1. Untick “Download buttons” or “Scripts” to keep a link to one place. Opens are counted per link in Analytics, so you can see which ad network does better.', 'y4apk'); ?></p>
-						</td></tr>
-					<tr><th scope="row"><?php esc_html_e('Which link a tap opens', 'y4apk'); ?></th>
-						<td><fieldset>
-							<label style="display:block;margin:.2rem 0"><input type="radio" name="pick" value="random" <?php checked($s['pick'], 'random'); ?>> <strong><?php esc_html_e('One at random, by weight', 'y4apk'); ?></strong></label>
-							<label style="display:block;margin:.2rem 0"><input type="radio" name="pick" value="turn" <?php checked($s['pick'], 'turn'); ?>> <strong><?php esc_html_e('Each in turn', 'y4apk'); ?></strong> <span class="description"><?php esc_html_e('(the first tap opens link 1, the next link 2…, per browser; weight is not used)', 'y4apk'); ?></span></label>
-						</fieldset></td></tr>
-					<tr><th scope="row"><?php esc_html_e('When', 'y4apk'); ?></th>
-						<td><fieldset>
-							<?php foreach ($modes as $value => $label) : ?>
-								<label style="display:block;margin:.4rem 0"><input type="radio" name="mode" value="<?php echo esc_attr($value); ?>" <?php checked($s['mode'], $value); ?>> <strong><?php echo esc_html($label[0]); ?></strong></label>
-								<?php if ($label[1]) : ?><p class="description" style="margin:0 0 .6rem 1.6rem"><?php echo esc_html($label[1]); ?></p><?php endif; ?>
-							<?php endforeach; ?>
-						</fieldset></td></tr>
-					<tr><th scope="row"><label for="dl-every"><?php esc_html_e('How often', 'y4apk'); ?></label></th>
-						<td><select id="dl-every" name="every">
-								<option value="visit" <?php selected($s['every'], 'visit'); ?>><?php esc_html_e('Once per visit', 'y4apk'); ?></option>
-								<option value="day" <?php selected($s['every'], 'day'); ?>><?php esc_html_e('Once a day', 'y4apk'); ?></option>
-								<option value="always" <?php selected($s['every'], 'always'); ?>><?php esc_html_e('Every tap', 'y4apk'); ?></option>
-							</select>
-							<p class="description"><?php esc_html_e('For download buttons. A visit lasts until the browser tab is closed. The Unlock box is always once per visit.', 'y4apk'); ?></p></td></tr>
-					<tr><th scope="row"><label for="dl-image"><?php esc_html_e('Unlock box image', 'y4apk'); ?></label></th>
-						<td><input id="dl-image" type="url" class="large-text code" name="image" value="<?php echo esc_attr($s['image']); ?>">
-							<p class="description"><?php esc_html_e('Only used by the Unlock box.', 'y4apk'); ?></p></td></tr>
-					<tr><th scope="row"><?php esc_html_e('Script Code', 'y4apk'); ?></th>
-						<td><label><input type="checkbox" name="script_lock" value="1" <?php checked(!empty($s['script_lock'])); ?>> <strong><?php esc_html_e('Lock the script until the ad is tapped', 'y4apk'); ?></strong></label>
-							<p class="description" style="max-width:640px"><?php esc_html_e('On a Roblox script post, the code in the download section is hidden behind “Almost there — 1 step to unlock”. Tapping it opens the Link above in a new tab (the same link), then shows the code. It follows the “How often” setting, and never runs inside the installed app.', 'y4apk'); ?></p></td></tr>
-				</tbody></table>
-				<?php submit_button(__('Save', 'y4apk')); ?>
+							</div>
+						</section>
+
+						<section class="y4ui-card">
+							<div class="y4ui-card-h"><div>
+								<h2><?php esc_html_e('When', 'y4apk'); ?></h2>
+								<p><?php esc_html_e('Where the link opens on game pages.', 'y4apk'); ?></p>
+							</div></div>
+							<div class="y4ui-card-b">
+								<div class="y4ui-opts is-three">
+									<?php foreach ($modes as $value => $label) : ?>
+										<label class="y4ui-opt"><input type="radio" name="mode" value="<?php echo esc_attr($value); ?>" <?php checked($s['mode'], $value); ?>><span><b><?php echo esc_html($label[0]); ?></b><?php if ($label[1]) : ?><small><?php echo esc_html($label[1]); ?></small><?php else : ?><small><?php esc_html_e('No ad link anywhere.', 'y4apk'); ?></small><?php endif; ?></span></label>
+									<?php endforeach; ?>
+								</div>
+							</div>
+						</section>
+					</div>
+
+					<aside class="y4ui-side">
+						<section class="y4ui-card">
+							<div class="y4ui-card-h"><div><h2><?php esc_html_e('Settings', 'y4apk'); ?></h2></div></div>
+							<div class="y4ui-card-b y4ui-fields">
+								<div class="y4ui-field">
+									<span class="y4ui-label"><?php esc_html_e('Which link a tap opens', 'y4apk'); ?></span>
+									<div class="y4ui-opts">
+										<label class="y4ui-opt"><input type="radio" name="pick" value="random" <?php checked($s['pick'], 'random'); ?>><span><b><?php esc_html_e('One at random, by weight', 'y4apk'); ?></b></span></label>
+										<label class="y4ui-opt"><input type="radio" name="pick" value="turn" <?php checked($s['pick'], 'turn'); ?>><span><b><?php esc_html_e('Each in turn', 'y4apk'); ?></b><small><?php esc_html_e('(the first tap opens link 1, the next link 2…, per browser; weight is not used)', 'y4apk'); ?></small></span></label>
+									</div>
+								</div>
+								<div class="y4ui-field">
+									<label for="dl-every"><?php esc_html_e('How often', 'y4apk'); ?></label>
+									<select id="dl-every" name="every" style="width:100%">
+										<option value="visit" <?php selected($s['every'], 'visit'); ?>><?php esc_html_e('Once per visit', 'y4apk'); ?></option>
+										<option value="day" <?php selected($s['every'], 'day'); ?>><?php esc_html_e('Once a day', 'y4apk'); ?></option>
+										<option value="always" <?php selected($s['every'], 'always'); ?>><?php esc_html_e('Every tap', 'y4apk'); ?></option>
+									</select>
+									<p class="description"><?php esc_html_e('For download buttons. A visit lasts until the browser tab is closed. The Unlock box is always once per visit.', 'y4apk'); ?></p>
+								</div>
+								<div class="y4ui-field">
+									<span class="y4ui-label"><?php esc_html_e('Script Code', 'y4apk'); ?></span>
+									<label class="y4ui-opt"><input type="checkbox" name="script_lock" value="1" <?php checked(!empty($s['script_lock'])); ?>><span><b><?php esc_html_e('Lock the script until the ad is tapped', 'y4apk'); ?></b><small><?php esc_html_e('On a Roblox script post, the code in the download section is hidden behind “Almost there — 1 step to unlock”. Tapping it opens the Link above in a new tab (the same link), then shows the code. It follows the “How often” setting, and never runs inside the installed app.', 'y4apk'); ?></small></span></label>
+								</div>
+								<div class="y4ui-field">
+									<label for="dl-image"><?php esc_html_e('Unlock box image', 'y4apk'); ?></label>
+									<input id="dl-image" type="url" class="code" style="width:100%" name="image" value="<?php echo esc_attr($s['image']); ?>">
+									<p class="description"><?php esc_html_e('Only used by the Unlock box.', 'y4apk'); ?></p>
+								</div>
+							</div>
+						</section>
+					</aside>
+				</div>
+				<div class="y4ui-savebar">
+					<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
+					<span class="y4ui-hint"><?php esc_html_e('After saving, clear the page cache (10Web ▸ Clear Cache) so visitors get the change.', 'y4apk'); ?></span>
+				</div>
 			</form>
 		</div>
+		<style>
+		.y4dl-links td{padding-top:10px;padding-bottom:10px}
+		.y4dl-yes{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+		.y4dl-opens{font-size:14px}
+		.y4dl-rm{display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:#b32d2e;font-size:14px;cursor:pointer}
+		.y4dl-rm:hover{background:#fcf0f1}
+		</style>
 		<script>
 		(function () {
 			var body = document.querySelector('[data-links]'), n = 1000;

@@ -27,6 +27,8 @@ class Y4APK_Admin_UI {
 			'shield'  => '<path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4Z"/>',
 			'page'    => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm2 16H8v-2h8v2Zm0-4H8v-2h8v2Zm-3-5V3.5L18.5 9H13Z"/>',
 			'text'    => '<path d="M5 4v3h5.5v12h3V7H19V4H5Z"/>',
+			'link'    => '<path d="M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12ZM8 13h8v-2H8v2Zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10Z"/>',
+			'review'  => '<path d="M19 3h-4.18A3 3 0 0 0 12 1a3 3 0 0 0-2.82 2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm-2 14-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8Z"/>',
 		];
 		return '<svg viewBox="0 0 24 24" width="' . (int) $size . '" height="' . (int) $size . '" fill="currentColor" aria-hidden="true">' . ($p[$name] ?? $p['check']) . '</svg>';
 	}
@@ -136,6 +138,17 @@ class Y4APK_Admin_UI {
 		.y4ui-field input[type=text],.y4ui-field input[type=url],.y4ui-field input[type=search]{width:100%}
 		.y4ui-field .description{margin:6px 0 0;color:var(--ui-mute)}
 		@media (max-width:960px){.y4ui-fields.is-two{grid-template-columns:minmax(0,1fr)}}
+		/* Choices: a box per option, the chosen one outlined */
+		.y4ui-opts{display:grid;gap:8px}
+		.y4ui-opts.is-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+		.y4ui-opt{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--ui-line);border-radius:12px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s}
+		.y4ui-opt:hover{border-color:#a7aaad}
+		.y4ui-opt:has(input:checked){border-color:var(--ui-blue);background:#f3f8fe;box-shadow:0 0 0 1px var(--ui-blue)}
+		.y4ui-opt input{flex:none;margin:2px 0 0!important}
+		.y4ui-field > label.y4ui-opt{display:flex;margin:0;font-weight:inherit}
+		.y4ui-opt b{display:block;font-weight:600;line-height:1.4}
+		.y4ui-opt small{display:block;margin-top:3px;color:var(--ui-ink2);font-size:12px;line-height:1.5}
+		@media (max-width:1100px){.y4ui-opts.is-three{grid-template-columns:minmax(0,1fr)}}
 		/* The save bar */
 		.y4ui-savebar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 0;padding:12px 16px;background:rgba(255,255,255,.95);border:1px solid var(--ui-line);border-radius:14px;box-shadow:0 12px 30px -14px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 		.y4ui-savebar .y4ui-hint{flex:1;min-width:200px;color:var(--ui-ink2)}

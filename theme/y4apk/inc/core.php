@@ -418,6 +418,33 @@ function y4apk_card($row) {
 }
 
 /**
+ * A home card row with more than four cards (2.59): it slides sideways — with ‹ › on computers, by swiping on
+ * phones (as before). The look once, the few lines that work the arrows after each row.
+ */
+function y4apk_row_script() {
+	static $n = 0;
+	$n++;
+	if ($n === 1) {
+		echo '<style id="y4apk-row-css">.y4row{position:relative}.y4row-nav{display:none}'
+			. '@media(min-width:56rem){.y4row.is-many .best-app-over,.y4row.is-many .recommend-over{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none}'
+			. '.y4row.is-many .best-app-over::-webkit-scrollbar,.y4row.is-many .recommend-over::-webkit-scrollbar{display:none}'
+			. '.y4row.is-many .best-app-over{margin:-1.5rem -.5rem -4rem;padding:1rem 0 3.5rem}.y4row.is-many .best-app-list{margin:0}'
+			. '.y4row.is-many .best-app-item,.y4row.is-many .recommend-app{scroll-snap-align:start}'
+			. '.y4row-nav{position:absolute;top:50%;z-index:5;display:grid;place-items:center;width:2.75rem;height:2.75rem;margin-top:-1.375rem;padding:0;border:0;border-radius:50%;background:#fff;color:#172021;box-shadow:0 .5rem 1.5rem -.25rem rgba(0,0,0,.25),0 0 0 1px rgba(0,0,0,.03);cursor:pointer;transition:opacity .2s ease,transform .2s ease,color .2s ease}'
+			. '.y4row-nav:hover{color:#29b1d8;transform:scale(1.06)}.y4row-nav.is-prev{left:-1.375rem}.y4row-nav.is-next{right:-1.375rem}.y4row-nav:disabled{opacity:0;pointer-events:none}}'
+			. '@media(min-width:56rem) and (max-width:61.9375rem){.y4row.is-many .recommend-over{margin:-1.5rem 0 -4rem;padding:1rem 1rem 3.5rem}.y4row.is-many .recommend-list{margin:0}.y4row-nav.is-prev{left:.25rem}.y4row-nav.is-next{right:.25rem}}'
+			. '@media(min-width:62rem){.y4row.is-many .recommend-over{margin:-1.5rem -.5rem -4rem;padding:1rem 0 3.5rem}.y4row.is-many .recommend-list{margin:0}}</style>';
+	}
+	echo '<script id="y4apk-pwa-row' . (int) $n . '" nowprocket data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-delay="1" data-cfasync="false" data-pagespeed-no-defer>'
+		. '(function(){[].forEach.call(document.querySelectorAll(".y4row.is-many"),function(r){if(r.y4row){return;}r.y4row=1;'
+		. 'var o=r.querySelector(".best-app-over,.recommend-over"),p=r.querySelector("[data-row-prev]"),n=r.querySelector("[data-row-next]");if(!o||!p||!n){return;}'
+		. 'var w=function(){var it=o.querySelector(".best-app-item,.recommend-app");return it?it.getBoundingClientRect().width:o.clientWidth/4;};'
+		. 'var upd=function(){p.disabled=o.scrollLeft<4;n.disabled=o.scrollLeft+o.clientWidth>=o.scrollWidth-4;};'
+		. 'p.addEventListener("click",function(){o.scrollBy({left:-w(),behavior:"smooth"});});n.addEventListener("click",function(){o.scrollBy({left:w(),behavior:"smooth"});});'
+		. 'o.addEventListener("scroll",upd,{passive:true});window.addEventListener("resize",upd);upd();});})();</script>';
+}
+
+/**
  * The categories row at the top of /games/ and /apps/ (2.53.2): every category of Games (or Apps), the ones
  * with the most posts first, like the menu — the menu shows only 12. On a category's own page the same row,
  * with that one marked.

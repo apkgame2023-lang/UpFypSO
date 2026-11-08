@@ -14,7 +14,8 @@ defined('ABSPATH') || exit;
 class Y4APK_Home_Admin {
 
 	const SLUG  = 'y4apk-home';
-	const SLOTS = 4;
+	const SLOTS = 4;  // shown at least
+	const MAX   = 12; // cards in a row at most (2.59: add more than four)
 
 	public static function init() {
 		add_action('admin_menu', [__CLASS__, 'register_page'], 101);
@@ -49,21 +50,26 @@ class Y4APK_Home_Admin {
 			: [['bg_image' => $i . 'bg_plans2.webp', 'bg_color' => '#6BCF6A'], ['bg_image' => $i . 'bg_rayman.webp', 'bg_color' => '#F46CF0'], ['bg_image' => $i . 'bg_clashclans.webp', 'bg_color' => '#FF9533'], ['bg_image' => $i . 'bg_surfers.webp', 'bg_color' => '#FF387D']];
 	}
 
-	/** Four slots, filled from the setting (empty ones keep a colour to start from). */
+	/** A colour to start a card with. */
+	private static function tint($n) {
+		$tints = ['#E53D2D', '#F0B835', '#3AC1E0', '#7DB542', '#8E44EC', '#FF387D', '#FF9533', '#2A78D6'];
+		return $tints[$n % count($tints)];
+	}
+
+	/** The cards, filled from the setting: at least four slots (empty ones keep a colour to start from), up to twelve. */
 	private static function rows($set) {
 		$s = self::sets()[$set];
 		$saved = get_theme_mod($s[0], self::defaults($set));
 		$saved = is_array($saved) ? array_values(array_filter($saved, 'is_array')) : [];
-		$tints = ['#E53D2D', '#F0B835', '#3AC1E0', '#7DB542'];
 		$out = [];
-		for ($n = 0; $n < self::SLOTS; $n++) {
+		for ($n = 0; $n < max(self::SLOTS, min(self::MAX, count($saved))); $n++) {
 			$r = $saved[$n] ?? [];
 			$out[] = [
 				'post_id'  => absint($r['post_id'] ?? 0),
 				'title'    => (string) ($r['title'] ?? ''),
 				'link'     => (string) ($r['link'] ?? ''),
 				'bg_image' => (string) ($r['bg_image'] ?? ''),
-				'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: $tints[$n],
+				'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: self::tint($n),
 			];
 		}
 		return $out;
@@ -142,7 +148,7 @@ class Y4APK_Home_Admin {
 		foreach (self::sets() as $set => $s) {
 			set_theme_mod($s[1], !empty($p['show'][$set]));
 			$rows = [];
-			foreach (array_slice((array) ($p['cards'][$set] ?? []), 0, self::SLOTS) as $r) {
+			foreach (array_slice((array) ($p['cards'][$set] ?? []), 0, self::MAX) as $r) { // in the order they stand on the page
 				$id = absint($r['post_id'] ?? 0);
 				if (!self::post_info($id)) {
 					continue;
@@ -182,6 +188,49 @@ class Y4APK_Home_Admin {
 			<div class="y4hm-img">
 				<input type="url" class="regular-text code" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr($value); ?>" placeholder="https://" data-img>
 				<button type="button" class="button" data-pick><?php echo esc_html($label); ?></button>
+			</div>
+			<?php
+		};
+		$card = function ($set, $s, $n, $r, $info) use ($img_field) {
+			$f = 'cards[' . $set . '][' . $n . ']';
+			?>
+			<div class="y4hm-card" data-card data-shape="<?php echo esc_attr($s[4]); ?>">
+				<div class="y4hm-bar">
+					<b data-card-label><?php echo esc_html(is_int($n) ? sprintf(__('Card %s', 'y4apk'), $n + 1) : __('New card', 'y4apk')); ?></b>
+					<span class="y4hm-bar-acts">
+						<button type="button" class="y4hm-ic" data-move="-1" title="<?php esc_attr_e('Move left', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Move left', 'y4apk'); ?>">←</button>
+						<button type="button" class="y4hm-ic" data-move="1" title="<?php esc_attr_e('Move right', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Move right', 'y4apk'); ?>">→</button>
+						<button type="button" class="y4hm-ic is-del" data-drop-card title="<?php esc_attr_e('Remove this card', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Remove this card', 'y4apk'); ?>">✕</button>
+					</span>
+				</div>
+				<div class="y4hm-prev" data-prev style="--c: <?php echo esc_attr($r['bg_color']); ?>">
+					<i class="y4hm-prev-ic" data-prev-ic><?php if ($info && $info['icon']) : ?><img src="<?php echo esc_url($info['icon'], ['http', 'https', 'data']); ?>" alt=""><?php endif; ?></i>
+					<img class="y4hm-prev-bg" data-prev-bg src="<?php echo esc_url($r['bg_image']); ?>" alt=""<?php echo $r['bg_image'] === '' ? ' hidden' : ''; ?>>
+					<b data-prev-name><?php echo esc_html($r['title'] !== '' ? $r['title'] : ($info ? $info['name'] : __('Choose a post', 'y4apk'))); ?></b>
+					<small><?php esc_html_e('Download', 'y4apk'); ?></small>
+					<span class="y4hm-n" data-card-n><?php echo is_int($n) ? (int) $n + 1 : ''; ?></span>
+				</div>
+				<div class="y4hm-fields">
+					<label><?php esc_html_e('Post', 'y4apk'); ?></label>
+					<input type="hidden" name="<?php echo esc_attr($f); ?>[post_id]" value="<?php echo $info ? (int) $info['id'] : ''; ?>" data-id>
+					<div class="y4hm-chosen" data-chosen<?php echo $info ? '' : ' hidden'; ?>>
+						<span data-chosen-t><?php echo $info ? esc_html($info['title']) : ''; ?></span>
+						<button type="button" class="button-link" data-change><?php esc_html_e('Change', 'y4apk'); ?></button>
+						<button type="button" class="button-link y4hm-del" data-clear><?php esc_html_e('Remove', 'y4apk'); ?></button>
+					</div>
+					<div class="y4hm-find" data-find<?php echo $info ? ' hidden' : ''; ?>>
+						<input type="search" class="widefat" placeholder="<?php esc_attr_e('Search a game or app, or paste its link', 'y4apk'); ?>" autocomplete="off" data-q>
+						<ul class="y4hm-hits" data-hits hidden></ul>
+					</div>
+					<label><?php esc_html_e('Card name', 'y4apk'); ?> <em><?php esc_html_e('optional', 'y4apk'); ?></em></label>
+					<input type="text" class="widefat" maxlength="60" name="<?php echo esc_attr($f); ?>[title]" value="<?php echo esc_attr($r['title']); ?>" placeholder="<?php echo esc_attr($info ? $info['name'] : ''); ?>" data-name>
+					<label><?php esc_html_e('Link', 'y4apk'); ?> <em><?php esc_html_e('optional', 'y4apk'); ?></em></label>
+					<input type="text" class="widefat code" name="<?php echo esc_attr($f); ?>[link]" value="<?php echo esc_attr($r['link']); ?>" placeholder="<?php echo esc_attr($info ? wp_make_link_relative($info['url']) : '/roblox/'); ?>" data-link>
+					<label><?php esc_html_e('Picture', 'y4apk'); ?></label>
+					<?php $img_field($f . '[bg_image]', $r['bg_image'], __('Choose', 'y4apk')); ?>
+					<label><?php esc_html_e('Colour', 'y4apk'); ?></label>
+					<input type="color" name="<?php echo esc_attr($f); ?>[bg_color]" value="<?php echo esc_attr($r['bg_color']); ?>" data-color>
+				</div>
 			</div>
 			<?php
 		};
@@ -240,43 +289,17 @@ class Y4APK_Home_Admin {
 						<?php if ($set === 'recommend') : ?>
 							<div class="y4hm-logo"><b><?php esc_html_e('Picture beside the cards', 'y4apk'); ?></b><?php $img_field('home_recommend_logo', $rec_logo, __('Choose', 'y4apk')); ?></div>
 						<?php endif; ?>
-						<div class="y4hm-grid">
-							<?php foreach (self::rows($set) as $n => $r) :
-								$info = $r['post_id'] ? ($posts[$r['post_id']] ?? null) : null;
-								$f = 'cards[' . $set . '][' . $n . ']';
-								?>
-								<div class="y4hm-card" data-card data-shape="<?php echo esc_attr($s[4]); ?>">
-									<div class="y4hm-prev" data-prev style="--c: <?php echo esc_attr($r['bg_color']); ?>">
-										<i class="y4hm-prev-ic" data-prev-ic><?php if ($info && $info['icon']) : ?><img src="<?php echo esc_url($info['icon'], ['http', 'https', 'data']); ?>" alt=""><?php endif; ?></i>
-										<img class="y4hm-prev-bg" data-prev-bg src="<?php echo esc_url($r['bg_image']); ?>" alt=""<?php echo $r['bg_image'] === '' ? ' hidden' : ''; ?>>
-										<b data-prev-name><?php echo esc_html($r['title'] !== '' ? $r['title'] : ($info ? $info['name'] : __('Choose a post', 'y4apk'))); ?></b>
-										<small><?php esc_html_e('Download', 'y4apk'); ?></small>
-										<span class="y4hm-n"><?php echo (int) $n + 1; ?></span>
-									</div>
-									<div class="y4hm-fields">
-										<label><?php esc_html_e('Post', 'y4apk'); ?></label>
-										<input type="hidden" name="<?php echo esc_attr($f); ?>[post_id]" value="<?php echo $info ? (int) $info['id'] : ''; ?>" data-id>
-										<div class="y4hm-chosen" data-chosen<?php echo $info ? '' : ' hidden'; ?>>
-											<span data-chosen-t><?php echo $info ? esc_html($info['title']) : ''; ?></span>
-											<button type="button" class="button-link" data-change><?php esc_html_e('Change', 'y4apk'); ?></button>
-											<button type="button" class="button-link y4hm-del" data-clear><?php esc_html_e('Remove', 'y4apk'); ?></button>
-										</div>
-										<div class="y4hm-find" data-find<?php echo $info ? ' hidden' : ''; ?>>
-											<input type="search" class="widefat" placeholder="<?php esc_attr_e('Search a game or app, or paste its link', 'y4apk'); ?>" autocomplete="off" data-q>
-											<ul class="y4hm-hits" data-hits hidden></ul>
-										</div>
-										<label><?php esc_html_e('Card name', 'y4apk'); ?> <em><?php esc_html_e('optional', 'y4apk'); ?></em></label>
-										<input type="text" class="widefat" maxlength="60" name="<?php echo esc_attr($f); ?>[title]" value="<?php echo esc_attr($r['title']); ?>" placeholder="<?php echo esc_attr($info ? $info['name'] : ''); ?>" data-name>
-										<label><?php esc_html_e('Link', 'y4apk'); ?> <em><?php esc_html_e('optional', 'y4apk'); ?></em></label>
-										<input type="text" class="widefat code" name="<?php echo esc_attr($f); ?>[link]" value="<?php echo esc_attr($r['link']); ?>" placeholder="<?php echo esc_attr($info ? wp_make_link_relative($info['url']) : '/roblox/'); ?>" data-link>
-										<label><?php esc_html_e('Picture', 'y4apk'); ?></label>
-										<?php $img_field($f . '[bg_image]', $r['bg_image'], __('Choose', 'y4apk')); ?>
-										<label><?php esc_html_e('Colour', 'y4apk'); ?></label>
-										<input type="color" name="<?php echo esc_attr($f); ?>[bg_color]" value="<?php echo esc_attr($r['bg_color']); ?>" data-color>
-									</div>
-								</div>
-							<?php endforeach; ?>
-						</div>
+							<?php $list = self::rows($set); ?>
+							<div class="y4hm-grid" data-cards="<?php echo esc_attr($set); ?>" data-max="<?php echo (int) self::MAX; ?>">
+								<?php foreach ($list as $n => $r) {
+									$card($set, $s, $n, $r, $r['post_id'] ? ($posts[$r['post_id']] ?? null) : null);
+								} ?>
+								<button type="button" class="y4hm-add" data-add-card<?php echo count($list) >= self::MAX ? ' hidden' : ''; ?>>
+									<span aria-hidden="true">+</span><b><?php esc_html_e('Add a card', 'y4apk'); ?></b>
+									<small><?php echo esc_html(sprintf(__('Up to %s. With more than four, the row on the home page slides sideways.', 'y4apk'), number_format_i18n(self::MAX))); ?></small>
+								</button>
+							</div>
+							<template data-card-new="<?php echo esc_attr($set); ?>"><?php $card($set, $s, '__N__', ['post_id' => 0, 'title' => '', 'link' => '', 'bg_image' => '', 'bg_color' => '#29b1d8'], null); ?></template>
 						</div>
 					</section>
 				<?php endforeach; ?>
@@ -321,6 +344,19 @@ class Y4APK_Home_Admin {
 			.y4hm-prev b, .y4hm-prev small { position: relative; z-index: 1; text-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
 			.y4hm-prev b { font-size: 17px; line-height: 1.2; max-width: 60%; }
 			.y4hm-prev small { margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
+			.y4hm-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 0 14px; }
+			.y4hm-bar b { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #646970; }
+			.y4hm-bar-acts { display: inline-flex; gap: 4px; }
+			.y4hm-ic { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid #dcdcde; border-radius: 8px; background: #fff; color: #50575e; font-size: 13px; line-height: 1; cursor: pointer; }
+			.y4hm-ic:hover { border-color: #2271b1; color: #2271b1; }
+			.y4hm-ic.is-del:hover { border-color: #d63638; color: #d63638; background: #fcf0f1; }
+			.y4hm-ic:disabled { opacity: .35; cursor: default; border-color: #dcdcde; color: #50575e; background: #fff; }
+			.y4hm-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 240px; padding: 20px; border: 2px dashed #c3c4c7; border-radius: 14px; background: #fff; color: #2271b1; text-align: center; cursor: pointer; transition: border-color .15s, background-color .15s; }
+			.y4hm-add:hover { border-color: #2271b1; background: #f3f8fe; }
+			.y4hm-add span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #e8f1fb; font-size: 26px; line-height: 1; }
+			.y4hm-add b { font-size: 14px; }
+			.y4hm-add small { max-width: 220px; color: #646970; line-height: 1.5; }
+			.y4hm-prev { margin-top: 10px !important; }
 			.y4hm-n { position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; color: #1d2327; background: rgba(255, 255, 255, .9); }
 			.y4hm-fields { padding: 12px 14px 16px; }
 			.y4hm-fields > label { display: block; margin: 10px 0 4px; font-weight: 600; }
@@ -352,8 +388,8 @@ class Y4APK_Home_Admin {
 			$('[data-hero-in="title"]').on('input', function () { $('[data-hero="title"]').text($('<div>').html(this.value).text() || '…'); });
 			$('[data-hero-in="btn"]').on('input', function () { $('[data-hero="btn"]').text(this.value || '…'); });
 			$('input[name="hero_img"]').on('input change', function () { var v = $.trim(this.value); $('[data-hero="img"]').attr('src', v).prop('hidden', !v); $('[data-hero="own"]').prop('hidden', !!v); });
-			$('[data-card]').each(function () {
-				var card = $(this), q = card.find('[data-q]'), hits = card.find('[data-hits]'), timer = null, seq = 0, base = card.find('[data-prev-name]').text();
+			var initCard = function (el) {
+				var card = $(el), q = card.find('[data-q]'), hits = card.find('[data-hits]'), timer = null, seq = 0, base = card.find('[data-prev-name]').text();
 				var name = function () { var v = $.trim(card.find('[data-name]').val()); card.find('[data-prev-name]').text(v || base || T.choose); };
 				var choose = function (p) {
 					card.find('[data-id]').val(p ? p.id : '');
@@ -391,6 +427,41 @@ class Y4APK_Home_Admin {
 				card.find('[data-name]').on('input', name);
 				card.find('[data-color]').on('input', function () { card.find('[data-prev]').css('--c', this.value); });
 				card.find('[data-img]').on('input change', function () { var v = $.trim(this.value); card.find('[data-prev-bg]').attr('src', v).prop('hidden', !v); });
+			};
+			$('[data-card]').each(function () { initCard(this); });
+			// 2.59: more than four cards — add, move, remove; their order is the home page's
+			var made = 100;
+			var renumber = function (grid) {
+				var cards = grid.children('[data-card]');
+				cards.each(function (i) {
+					$(this).find('[data-card-n]').text(i + 1);
+					$(this).find('[data-card-label]').text(<?php echo wp_json_encode(__('Card %s', 'y4apk')); ?>.replace('%s', i + 1));
+					$(this).find('[data-move="-1"]').prop('disabled', i === 0);
+					$(this).find('[data-move="1"]').prop('disabled', i === cards.length - 1);
+					$(this).find('[data-drop-card]').prop('disabled', cards.length < 2);
+				});
+				grid.children('[data-add-card]').prop('hidden', cards.length >= +grid.data('max'));
+			};
+			$('[data-cards]').each(function () { renumber($(this)); });
+			$('.y4hm').on('click', '[data-add-card]', function () {
+				var grid = $(this).closest('[data-cards]'), set = grid.data('cards');
+				var html = $('template[data-card-new="' + set + '"]').html().replace(/__N__/g, String(made++));
+				var card = $($.parseHTML($.trim(html)));
+				card.insertBefore(this);
+				initCard(card[0]);
+				renumber(grid);
+				card.find('[data-q]').trigger('focus');
+			});
+			$('.y4hm').on('click', '[data-move]', function () {
+				var card = $(this).closest('[data-card]'), grid = card.parent();
+				if (+$(this).data('move') < 0) { card.prev('[data-card]').before(card); } else { card.next('[data-card]').after(card); }
+				renumber(grid);
+			});
+			$('.y4hm').on('click', '[data-drop-card]', function () {
+				var card = $(this).closest('[data-card]'), grid = card.parent();
+				if (grid.children('[data-card]').length < 2) { return; }
+				card.remove();
+				renumber(grid);
 			});
 		});
 		</script>
