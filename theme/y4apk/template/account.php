@@ -45,10 +45,11 @@ $kinds_switch = function ($on) {
 	$about = ['script' => __('A loadstring, keyless or with a key', 'y4apk'), 'game' => sprintf(__('APK, XAPK or OBB · up to %s', 'y4apk'), $max), 'app' => sprintf(__('APK or XAPK · up to %s', 'y4apk'), $max)];
 	echo '<nav class="acc-kinds" aria-label="' . esc_attr__('What to share', 'y4apk') . '"><span class="screen-reader-text">' . esc_html__('Share a', 'y4apk') . '</span><div class="acc-kinds-row">';
 	foreach ($items as $k => $it) {
+		// 2.56.1: the look of the choices in the steps below (a dot, the name, what it takes, a big pale picture)
 		echo '<a class="acc-kind acc-kind-' . esc_attr($k) . ($k === $on ? ' is-on' : '') . '" href="' . esc_url($it[1]) . '"' . ($k === $on ? ' aria-current="page"' : '') . '>'
-			. '<span class="acc-kind-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">' . $it[2] . '</svg></span>'
+			. '<span class="acc-kind-dot" aria-hidden="true"></span>'
 			. '<span class="acc-kind-t"><b>' . esc_html($it[0]) . '</b><small>' . esc_html($about[$k]) . '</small></span>'
-			. '<span class="acc-kind-ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg></span></a>';
+			. '<span class="acc-kind-art" aria-hidden="true"><svg viewBox="0 0 24 24" width="72" height="72" fill="currentColor">' . $it[2] . '</svg></span></a>';
 	}
 	echo '</div></nav>';
 };

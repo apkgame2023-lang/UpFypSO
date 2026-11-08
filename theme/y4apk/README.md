@@ -640,7 +640,26 @@ small letters. The Edit profile page says so.
 
 ## The top of the upload pages (2.56)
 
-/upload/ (scripts), /upload/game/ and /upload/app/ open with one dark card, in
+2.56.1: the card is light now, in the look of the choices in the steps under
+it (which stay as they were): white, with *Share on Y4APK*, the title and pale
+grey chips; under a line, Roblox script, Game and App are three choices like
+*On Google Play / Not on Google Play* — a round dot, the name and what it
+takes, a big pale picture in the corner; the open one is light blue with a
+blue edge and its dot filled. On phones the chips use the card's whole width
+on one line and the three choices show the dot and the name.
+
+On the search page the counts on the tabs (All 54, Games 43 …) are small
+round badges on the words' line instead of loose numbers.
+
+**The language menu's order** is yours: Y4APK ▸ Languages ▸ *Order in the
+language menu*. Drag a language or use ↑ ↓, then Save; *Sort A–Z* puts it
+back. English is always first. Until you set one the menu is A–Z by the
+languages' own names, as YouTube lists them (Bahasa Indonesia, Español,
+Filipino … Русский, हिन्दी, ไทย, 한국어, 日本語, 简体中文); a language ticked
+later joins the end. Only the ones ready for visitors (90%) are in the menu;
+the list says which. The order they are translated in stays its own.
+
+2.56.0: /upload/ (scripts), /upload/game/ and /upload/app/ open with one dark card, in
 the family of the profile's header: the picture (the game's icon once it is
 picked), *Share on Y4APK*, the title, and for games and apps three chips
 (the file types, the size limit, *Checked before it goes live*). In it, what to

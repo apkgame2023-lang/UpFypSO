@@ -796,48 +796,49 @@
 .shr-title { position: relative; }
 .shr-title .acc-wiz-count { position: absolute; right: 0; top: .125rem; } /* 0 / 100 beside "Post title" (2.55.1) */
 
-/* ---------------------------------------------------------------- Upload: the top card (2.56) */
-.acc-wiz-head { position: relative; overflow: hidden; flex-wrap: wrap; gap: 1rem 1.125rem; margin: .25rem 0 1.25rem; padding: 1.5rem; border-radius: 1.5rem; color: #fff;
-	background: radial-gradient(circle at 90% -20%, rgba(54, 197, 236, .5), transparent 45%), radial-gradient(circle at -5% 130%, rgba(123, 108, 255, .4), transparent 50%), linear-gradient(135deg, #0b1636 0%, #13265e 55%, #183a85 100%);
-	box-shadow: 0 1.5rem 2.5rem -1.75rem rgba(10, 22, 54, .8); }
-.acc-wiz-head::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(rgba(255, 255, 255, .09) 1px, transparent 1.4px); background-size: 18px 18px;
-	-webkit-mask-image: linear-gradient(100deg, transparent 35%, #000 85%); mask-image: linear-gradient(100deg, transparent 35%, #000 85%); }
-.acc-wiz-head > * { position: relative; z-index: 1; }
+/* ---------------------------------------------------------------- Upload: the top card (2.56.1: light, like the steps' cards) */
+.acc-wiz-head { position: relative; flex-wrap: wrap; gap: 1rem 1.125rem; margin: .25rem 0 1.25rem; padding: 1.5rem; border-radius: 1.25rem; background: #fff; box-shadow: 0 1rem 1.5rem -.75rem rgba(0, 0, 0, .06), 0 0 0 1px rgba(0, 0, 0, .04); }
 .acc-wiz-head-t { flex: 1; min-width: 0; }
-.acc-wiz-eyebrow { display: block; margin-bottom: .125rem; font-size: .6875rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #7fd8f2; }
-.acc .acc-wiz-head h1 { margin: 0; color: #fff; font-size: 1.75rem; line-height: 1.15; overflow-wrap: anywhere; }
-.acc-wiz-head p { margin: .375rem 0 0; color: rgba(255, 255, 255, .72); }
-.acc-wiz-head .acc-wiz-badge { width: 4rem; height: 4rem; border-radius: 1.125rem; box-shadow: 0 0 0 3px rgba(255, 255, 255, .14), 0 1rem 1.5rem -.75rem rgba(0, 0, 0, .6); }
+.acc-wiz-eyebrow { display: block; margin-bottom: .125rem; font-size: .6875rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--acc-blue-d, #1a93b6); }
+.acc .acc-wiz-head h1 { margin: 0; font-size: 1.75rem; line-height: 1.15; overflow-wrap: anywhere; }
+.acc-wiz-head p { margin: .375rem 0 0; }
+.acc-wiz-head .acc-wiz-badge { width: 4rem; height: 4rem; border-radius: 1.125rem; }
 .acc-wiz-meta { display: flex; flex-wrap: wrap; gap: .375rem; }
-.acc-wiz-meta span { display: inline-flex; align-items: center; gap: .3125rem; padding: .25rem .625rem; border-radius: 2rem; font-size: .75rem; font-weight: 700; color: rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
-.acc-wiz-meta svg { opacity: .8; }
+.acc-wiz-meta span { display: inline-flex; align-items: center; gap: .3125rem; height: 1.625rem; padding: 0 .625rem; border-radius: 2rem; font-size: .75rem; font-weight: 700; line-height: 1; color: var(--acc-ink); background: #f2f6f7; box-shadow: inset 0 0 0 1px var(--acc-line); }
+.acc-wiz-meta svg { color: var(--acc-blue); }
 
-/* What to share: three cards in the top card */
-.acc-kinds { flex: 1 1 100%; min-width: 0; margin: .375rem 0 0; }
+/* What to share: three choices, the same as the steps' choices */
+.acc-kinds { flex: 1 1 100%; min-width: 0; margin: .25rem 0 0; padding-top: 1.125rem; border-top: 1px solid var(--acc-line); }
 .acc-kinds .screen-reader-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.acc-kinds-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .625rem; }
-.acc .acc-kind { position: relative; display: flex; align-items: center; gap: .75rem; min-width: 0; padding: .875rem 1rem; text-transform: none; letter-spacing: normal; border-radius: 1.125rem; color: #fff; text-decoration: none; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.acc .acc-kind:hover { color: #fff; background: rgba(255, 255, 255, .12); transform: translateY(-1px); }
-.acc .acc-kind:focus-visible { outline: 2px solid #7fd8f2; outline-offset: 2px; }
-.acc-kind-ic { flex: none; display: grid; place-items: center; width: 2.625rem; height: 2.625rem; border-radius: .875rem; color: #fff; box-shadow: 0 .5rem 1rem -.5rem rgba(0, 0, 0, .6); }
-.acc-kind-script .acc-kind-ic { background: linear-gradient(135deg, #9a7cff, #5532c4); }
-.acc-kind-game .acc-kind-ic { background: linear-gradient(135deg, #3cc4ea, #1a7fc0); }
-.acc-kind-app .acc-kind-ic { background: linear-gradient(135deg, #48d982, #1f9d4c); }
-.acc-kind-t { flex: 1; min-width: 0; }
-.acc-kind-t b { display: block; font-size: .9375rem; line-height: 1.25; }
-.acc-kind-t small { display: block; margin-top: .125rem; overflow: hidden; font-size: .75rem; line-height: 1.35; white-space: nowrap; text-overflow: ellipsis; color: rgba(255, 255, 255, .62); }
-.acc-kind-ok { flex: none; display: none; place-items: center; width: 1.375rem; height: 1.375rem; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #3cc4ea, #1a8fc0); }
-.acc .acc-kind.is-on { color: var(--acc-ink); background: #fff; box-shadow: 0 1rem 1.75rem -1rem rgba(0, 0, 0, .7), inset 0 0 0 2px #3cc4ea; transform: none; }
-.acc .acc-kind.is-on .acc-kind-t small { color: var(--acc-mute); }
-.acc .acc-kind.is-on .acc-kind-ok { display: grid; }
+.acc-kinds-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.acc .acc-kind { position: relative; display: flex; align-items: flex-start; gap: .75rem; min-width: 0; min-height: 5rem; padding: 1rem 1.125rem; border-radius: 1rem; overflow: hidden; text-transform: none; letter-spacing: normal; text-decoration: none; color: var(--acc-ink); background: #f7f9fa; box-shadow: inset 0 0 0 1px var(--acc-line); transition: box-shadow .2s ease, background-color .2s ease; }
+.acc .acc-kind:hover { color: var(--acc-ink); box-shadow: inset 0 0 0 1px rgba(41, 177, 216, .5); }
+.acc .acc-kind:focus-visible { outline: 2px solid var(--acc-blue); outline-offset: 2px; }
+.acc-kind-dot { flex: none; width: 1.125rem; height: 1.125rem; margin-top: .125rem; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 2px #b9c3c7; transition: box-shadow .2s ease; }
+.acc-kind-t { position: relative; z-index: 1; flex: 1; min-width: 0; }
+.acc-kind-t b { display: block; font-size: 1rem; line-height: 1.3; color: var(--acc-ink); }
+.acc-kind-t small { display: block; margin-top: .25rem; font-size: .8125rem; line-height: 1.4; color: var(--acc-mute); }
+.acc-kind-art { position: absolute; right: -.5rem; bottom: -.75rem; color: rgba(23, 32, 33, .07); pointer-events: none; }
+.acc-kind-art svg { display: block; width: 4.5rem; height: 4.5rem; }
+.acc .acc-kind.is-on { background: rgba(41, 177, 216, .07); box-shadow: inset 0 0 0 2px var(--acc-blue); }
+.acc .acc-kind.is-on b { color: var(--acc-blue-d); }
+.acc .acc-kind.is-on .acc-kind-dot { box-shadow: inset 0 0 0 2px var(--acc-blue), inset 0 0 0 5px #fff, inset 0 0 0 9px var(--acc-blue); }
+.acc .acc-kind.is-on .acc-kind-art { color: rgba(41, 177, 216, .16); }
 @media (max-width: 47.99rem) {
-	.acc-wiz-head { padding: 1.125rem; border-radius: 1.25rem; }
+	/* the badge beside the eyebrow and the name; the chips and the choices use the whole width under them */
+	.acc-wiz-head { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .875rem; row-gap: 0; align-items: center; padding: 1.125rem; }
+	.acc-wiz-head-t { display: contents; }
+	.acc-wiz-head .acc-wiz-badge { grid-row: 1 / span 2; width: 3.25rem; height: 3.25rem; border-radius: 1rem; }
+	.acc-wiz-head-t > * { grid-column: 2; }
+	.acc-wiz-head .acc-wiz-meta { grid-column: 1 / -1; margin-top: .875rem; }
+	.acc-wiz-head .acc-kinds { grid-column: 1 / -1; margin-top: 1rem; padding-top: 1rem; }
 	.acc .acc-wiz-head h1 { font-size: 1.375rem; }
-	.acc-wiz-head .acc-wiz-badge { width: 3.25rem; height: 3.25rem; border-radius: 1rem; }
-	.acc-kinds-row { gap: .5rem; }
-	.acc .acc-kind { flex-direction: column; justify-content: center; gap: .375rem; padding: .75rem .375rem; text-align: center; }
-	.acc-kind-t small { display: none; }
-	.acc-kind-t b { font-size: .8125rem; }
-	.acc-kind-ok { position: absolute; top: .375rem; right: .375rem; width: 1.125rem; height: 1.125rem; }
 	.acc-wiz-meta span:first-child { display: none; }
+	.acc-wiz-meta { gap: .25rem; }
+	.acc-wiz-meta span { height: 1.5rem; padding: 0 .5rem; gap: .25rem; font-size: .6875rem; }
+	.acc-kinds-row { gap: .5rem; }
+	.acc .acc-kind { flex-direction: column; align-items: center; gap: .5rem; min-height: 0; padding: .875rem .375rem; text-align: center; }
+	.acc-kind-t small { display: none; }
+	.acc-kind-t b { font-size: .875rem; }
+	.acc-kind-art { display: none; }
 }

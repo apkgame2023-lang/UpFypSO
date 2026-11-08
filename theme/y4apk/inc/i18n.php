@@ -35,7 +35,7 @@ defined('ABSPATH') || exit;
 
 class Y4APK_I18n {
 
-	const OPTION  = 'y4apk_i18n';           // ['langs' => [codes, in the order they are translated]]
+	const OPTION  = 'y4apk_i18n';           // ['langs' => [codes, in the order they are translated], 'menu' => [the owner's order for the menu]]
 	const CATALOG = 'y4apk_i18n_catalog';   // ['v' => theme version, 'at' => time, 'items' => [key => item]]
 	const SEEN    = 'y4apk_i18n_seen';      // texts met on /xx/ pages that the scan did not find: [key => item]
 	const DICT    = 'y4apk_i18n_dict_';     // + code: [key => translation]
@@ -72,51 +72,56 @@ class Y4APK_I18n {
 
 	/**
 	 * The languages the site can have: address code => [own name, English name,
-	 * HTML lang, right to left]. Own names as the big apps list them.
+	 * HTML lang, right to left]. Own names as the big apps list them, in the
+	 * order the menu shows them until the owner sets their own (2.56.1):
+	 * English first, then A–Z by their own names, the way Unicode sorts them
+	 * (Latin letters, then Greek, Cyrillic, Hebrew, Arabic, the Indian scripts,
+	 * Thai, Lao, Burmese, Khmer, Korean, Japanese, Chinese), as YouTube's and
+	 * Google's menus do.
 	 */
 	public static function languages() {
 		return [
 			'en'    => ['English', 'English', 'en', 0],
-			'th'    => ['ไทย', 'Thai', 'th', 0],
+			'az'    => ['Azərbaycan', 'Azerbaijani', 'az', 0],
 			'id'    => ['Bahasa Indonesia', 'Indonesian', 'id', 0],
-			'vi'    => ['Tiếng Việt', 'Vietnamese', 'vi', 0],
 			'ms'    => ['Bahasa Melayu', 'Malay', 'ms', 0],
-			'fil'   => ['Filipino', 'Filipino', 'fil', 0],
+			'cs'    => ['Čeština', 'Czech', 'cs', 0],
+			'de'    => ['Deutsch', 'German', 'de', 0],
 			'es'    => ['Español (Latinoamérica)', 'Spanish (Latin America)', 'es-419', 0],
+			'fil'   => ['Filipino', 'Filipino', 'fil', 0],
+			'fr'    => ['Français', 'French', 'fr', 0],
+			'it'    => ['Italiano', 'Italian', 'it', 0],
+			'sw'    => ['Kiswahili', 'Swahili', 'sw', 0],
+			'hu'    => ['Magyar', 'Hungarian', 'hu', 0],
+			'nl'    => ['Nederlands', 'Dutch', 'nl', 0],
+			'uz'    => ['Oʻzbek', 'Uzbek', 'uz', 0],
+			'pl'    => ['Polski', 'Polish', 'pl', 0],
 			'pt'    => ['Português (Brasil)', 'Portuguese (Brazil)', 'pt-BR', 0],
+			'ro'    => ['Română', 'Romanian', 'ro', 0],
+			'sv'    => ['Svenska', 'Swedish', 'sv', 0],
+			'vi'    => ['Tiếng Việt', 'Vietnamese', 'vi', 0],
+			'tr'    => ['Türkçe', 'Turkish', 'tr', 0],
+			'el'    => ['Ελληνικά', 'Greek', 'el', 0],
+			'kk'    => ['Қазақ тілі', 'Kazakh', 'kk', 0],
 			'ru'    => ['Русский', 'Russian', 'ru', 0],
 			'uk'    => ['Українська', 'Ukrainian', 'uk', 0],
-			'tr'    => ['Türkçe', 'Turkish', 'tr', 0],
-			'hi'    => ['हिन्दी', 'Hindi', 'hi', 0],
-			'bn'    => ['বাংলা', 'Bangla', 'bn', 0],
+			'he'    => ['עברית', 'Hebrew', 'he', 1],
 			'ur'    => ['اردو', 'Urdu', 'ur', 1],
 			'ar'    => ['العربية', 'Arabic', 'ar', 1],
 			'fa'    => ['فارسی', 'Persian', 'fa', 1],
-			'he'    => ['עברית', 'Hebrew', 'he', 1],
-			'ja'    => ['日本語', 'Japanese', 'ja', 0],
-			'ko'    => ['한국어', 'Korean', 'ko', 0],
-			'zh'    => ['简体中文', 'Chinese (Simplified)', 'zh-Hans', 0],
-			'zh-tw' => ['繁體中文', 'Chinese (Traditional)', 'zh-Hant', 0],
-			'fr'    => ['Français', 'French', 'fr', 0],
-			'de'    => ['Deutsch', 'German', 'de', 0],
-			'it'    => ['Italiano', 'Italian', 'it', 0],
-			'pl'    => ['Polski', 'Polish', 'pl', 0],
-			'nl'    => ['Nederlands', 'Dutch', 'nl', 0],
-			'ro'    => ['Română', 'Romanian', 'ro', 0],
-			'cs'    => ['Čeština', 'Czech', 'cs', 0],
-			'hu'    => ['Magyar', 'Hungarian', 'hu', 0],
-			'el'    => ['Ελληνικά', 'Greek', 'el', 0],
-			'sv'    => ['Svenska', 'Swedish', 'sv', 0],
-			'km'    => ['ខ្មែរ', 'Khmer', 'km', 0],
-			'lo'    => ['ລາວ', 'Lao', 'lo', 0],
-			'my'    => ['မြန်မာ', 'Burmese', 'my', 0],
+			'mr'    => ['मराठी', 'Marathi', 'mr', 0],
+			'hi'    => ['हिन्दी', 'Hindi', 'hi', 0],
+			'bn'    => ['বাংলা', 'Bangla', 'bn', 0],
 			'ta'    => ['தமிழ்', 'Tamil', 'ta', 0],
 			'te'    => ['తెలుగు', 'Telugu', 'te', 0],
-			'mr'    => ['मराठी', 'Marathi', 'mr', 0],
-			'kk'    => ['Қазақ тілі', 'Kazakh', 'kk', 0],
-			'uz'    => ['Oʻzbek', 'Uzbek', 'uz', 0],
-			'az'    => ['Azərbaycan', 'Azerbaijani', 'az', 0],
-			'sw'    => ['Kiswahili', 'Swahili', 'sw', 0],
+			'th'    => ['ไทย', 'Thai', 'th', 0],
+			'lo'    => ['ລາວ', 'Lao', 'lo', 0],
+			'my'    => ['မြန်မာ', 'Burmese', 'my', 0],
+			'km'    => ['ខ្មែរ', 'Khmer', 'km', 0],
+			'ko'    => ['한국어', 'Korean', 'ko', 0],
+			'ja'    => ['日本語', 'Japanese', 'ja', 0],
+			'zh'    => ['简体中文', 'Chinese (Simplified)', 'zh-Hans', 0],
+			'zh-tw' => ['繁體中文', 'Chinese (Traditional)', 'zh-Hant', 0],
 		];
 	}
 
@@ -137,7 +142,20 @@ class Y4APK_I18n {
 
 	/** Languages visitors are offered: English and those at least READY% translated. */
 	public static function ready() {
-		return array_merge(['en'], array_values(array_intersect(self::live()['ready'], self::enabled())));
+		$on = array_merge(['en'], array_intersect(self::live()['ready'], self::enabled()));
+		return array_values(array_intersect(self::menu_order(), $on)); // in the menu's order, not the order they were translated in
+	}
+
+	/**
+	 * The order of the visitors' language menu (2.56.1): the owner's, set on
+	 * Y4APK ▸ Languages, then any language not in it (one ticked since) at the
+	 * end, A–Z. Without one, A–Z by their own names. English is always first.
+	 */
+	public static function menu_order() {
+		$o = get_option(self::OPTION, null);
+		$mine = is_array($o) && isset($o['menu']) && is_array($o['menu']) ? $o['menu'] : [];
+		$all = array_keys(self::languages());
+		return array_values(array_unique(array_merge(['en'], array_intersect($mine, $all), $all)));
 	}
 
 	private static function live() {
@@ -1590,7 +1608,25 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 				$list[] = $c;
 			}
 		}
-		update_option(self::OPTION, ['langs' => $list]);
+		// The menu's order: as the owner arranged it ('az' = back to A–Z; nothing sent = as it was)
+		$was = get_option(self::OPTION, null);
+		$menu = is_array($was) && isset($was['menu']) && is_array($was['menu']) ? $was['menu'] : [];
+		$posted = isset($_POST['menu']) ? trim((string) wp_unslash($_POST['menu'])) : '';
+		if ($posted === 'az') {
+			$menu = [];
+		} elseif ($posted !== '') {
+			$menu = [];
+			foreach (array_map('sanitize_key', explode(',', $posted)) as $c) {
+				if ($c !== 'en' && isset($all[$c]) && !in_array($c, $menu, true)) {
+					$menu[] = $c;
+				}
+			}
+		}
+		$save = ['langs' => $list];
+		if ($menu) {
+			$save['menu'] = array_values(array_intersect($menu, array_keys($all)));
+		}
+		update_option(self::OPTION, $save);
 		if (!empty($_POST['rescan'])) {
 			self::scan();
 		}
@@ -1772,6 +1808,20 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		.y4i-en{display:inline-flex;align-items:center;gap:4px;margin-left:10px;font-size:12px;color:#50575e}
 		.y4i-texts tr.is-english textarea{opacity:.45}
 		.y4i-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+		.y4i-order-box{max-width:620px;margin:20px 0 24px;padding:16px 18px;border:1px solid #dcdcde;border-radius:10px;background:#fff}
+		.y4i-order-box h2{margin:0 0 4px;font-size:16px}
+		.y4i-order{margin:12px 0 0;padding:0;list-style:none;counter-reset:y4i}
+		.y4i-order li{display:flex;align-items:center;gap:10px;margin:0;padding:8px 10px;border:1px solid #e0e0e2;border-radius:8px;background:#fff;counter-increment:y4i}
+		.y4i-order li+li{margin-top:6px}
+		.y4i-order li::before{content:counter(y4i);min-width:18px;font-variant-numeric:tabular-nums;color:#8c8f94;text-align:right}
+		.y4i-order li.is-pinned{background:#f6f7f7}
+		.y4i-order li.is-drag{opacity:.5;border-style:dashed}
+		.y4i-order .y4i-grip{display:inline-grid;place-items:center;width:18px;color:#a7aaad;cursor:grab}
+		.y4i-order .y4i-name{flex:1;min-width:0}
+		.y4i-order .y4i-name small{display:block}
+		.y4i-move{display:inline-flex;gap:4px}
+		.y4i-order li:first-child+li [data-up],.y4i-order li:last-child [data-down]{visibility:hidden}
+		.y4i-order-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 0}
 		</style>
 		<?php
 	}
@@ -1819,6 +1869,73 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 			<input type="hidden" name="action" value="y4apk_i18n_save">
 			<input type="hidden" name="order" value="<?php echo esc_attr(implode(',', $on)); ?>">
 			<?php wp_nonce_field('y4apk-i18n-save'); ?>
+			<?php
+			// The order of the visitors' menu (2.56.1): English first, then the ticked ones as the owner puts them
+			$o = get_option(self::OPTION, null);
+			$custom = is_array($o) && !empty($o['menu']);
+			?>
+			<div class="y4i-order-box">
+				<h2><?php esc_html_e('Order in the language menu', 'y4apk'); ?></h2>
+				<p class="description"><?php esc_html_e('The order visitors see when they press the globe. Drag a language, or use the arrows. English always stays first. Languages you tick below join the end of the list once you save.', 'y4apk'); ?></p>
+				<input type="hidden" name="menu" value="" data-menu>
+				<ol class="y4i-order" data-order>
+					<li class="is-pinned"><span class="y4i-grip" aria-hidden="true"></span><span class="y4i-name"><b>English</b><small><?php esc_html_e('Always first', 'y4apk'); ?></small></span></li>
+					<?php foreach (self::menu_order() as $c) :
+						if ($c === 'en' || !in_array($c, $on, true)) { continue; }
+						$shown = in_array($c, $ready, true);
+						?>
+						<li draggable="true" data-code="<?php echo esc_attr($c); ?>">
+							<span class="y4i-grip" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-6 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg></span>
+							<span class="y4i-name"><b lang="<?php echo esc_attr($all[$c][2]); ?>"><?php echo esc_html($all[$c][0]); ?></b><small><?php echo esc_html($all[$c][1]); ?></small></span>
+							<span class="y4i-chip<?php echo $shown ? ' ok' : ''; ?>"><?php echo esc_html($shown ? __('In the menu', 'y4apk') : sprintf(__('Shown at %s%%', 'y4apk'), self::READY)); ?></span>
+							<span class="y4i-move">
+								<button type="button" class="button button-small" data-up aria-label="<?php echo esc_attr(sprintf(__('Move %s up', 'y4apk'), $all[$c][1])); ?>">↑</button>
+								<button type="button" class="button button-small" data-down aria-label="<?php echo esc_attr(sprintf(__('Move %s down', 'y4apk'), $all[$c][1])); ?>">↓</button>
+							</span>
+						</li>
+					<?php endforeach; ?>
+				</ol>
+				<p class="y4i-order-acts">
+					<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
+					<button type="button" class="button" data-az><?php esc_html_e('Sort A–Z', 'y4apk'); ?></button>
+					<span class="description" data-order-note><?php echo esc_html($custom ? __('Your own order.', 'y4apk') : __('A–Z by their own names (as YouTube lists them).', 'y4apk')); ?></span>
+				</p>
+			</div>
+			<script>
+			(function () {
+				var list = document.querySelector('.y4i [data-order]'), input = document.querySelector('.y4i [data-menu]'), note = document.querySelector('.y4i [data-order-note]');
+				if (!list) { return; }
+				var az = <?php echo wp_json_encode(array_values(array_diff(array_keys($all), ['en']))); ?>;
+				var items = function () { return [].slice.call(list.querySelectorAll('li[data-code]')); };
+				var changed = function (msg) {
+					input.value = items().map(function (li) { return li.getAttribute('data-code'); }).join(',');
+					note.textContent = msg || <?php echo wp_json_encode(__('Changed: press Save to keep it.', 'y4apk')); ?>;
+				};
+				list.addEventListener('click', function (e) {
+					var b = e.target.closest('[data-up],[data-down]');
+					if (!b) { return; }
+					var li = b.closest('li'), to = b.hasAttribute('data-up') ? li.previousElementSibling : li.nextElementSibling;
+					if (!to || !to.hasAttribute('data-code')) { return; }
+					list.insertBefore(li, b.hasAttribute('data-up') ? to : to.nextElementSibling);
+					b.focus(); changed();
+				});
+				var drag = null;
+				list.addEventListener('dragstart', function (e) { drag = e.target.closest('li[data-code]'); if (drag) { drag.classList.add('is-drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.getAttribute('data-code')); } });
+				list.addEventListener('dragover', function (e) {
+					var li = e.target.closest('li[data-code]');
+					if (!drag || !li || li === drag) { return; }
+					e.preventDefault();
+					var r = li.getBoundingClientRect();
+					list.insertBefore(drag, e.clientY > r.top + r.height / 2 ? li.nextElementSibling : li);
+				});
+				list.addEventListener('drop', function (e) { if (drag) { e.preventDefault(); } });
+				list.addEventListener('dragend', function () { if (drag) { drag.classList.remove('is-drag'); drag = null; changed(); } });
+				document.querySelector('.y4i [data-az]').addEventListener('click', function () {
+					items().sort(function (a, b) { return az.indexOf(a.getAttribute('data-code')) - az.indexOf(b.getAttribute('data-code')); }).forEach(function (li) { list.appendChild(li); });
+					changed(); input.value = 'az';
+				});
+			})();
+			</script>
 			<table class="widefat striped y4i-table">
 				<thead><tr><th style="width:44px"><?php esc_html_e('On', 'y4apk'); ?></th><th><?php esc_html_e('Language', 'y4apk'); ?></th><th><?php esc_html_e('Address', 'y4apk'); ?></th><th><?php esc_html_e('Translated', 'y4apk'); ?></th><th><?php esc_html_e('Visitors see it', 'y4apk'); ?></th><th></th></tr></thead>
 				<tbody>
