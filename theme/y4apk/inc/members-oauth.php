@@ -85,7 +85,9 @@ class Y4APK_OAuth {
 
 	/** The address the provider sends people back to (put it in the provider's app). */
 	public static function redirect_uri($p) {
-		return Y4APK_Members::url($p);
+		// The same in every language (2.66.1): on a Thai page every link gets /th/, and the provider
+		// takes only the one address registered with it, so this one is built from the bare home address.
+		return untrailingslashit((string) get_option('home')) . '/account/' . $p . '/';
 	}
 
 	/** A button's address: the sign-in, and where to go after (?next=). */

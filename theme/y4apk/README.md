@@ -708,6 +708,11 @@ with them are `/account/google/` and `/account/discord/`.
 - Kept: the provider's id and the email. Not kept: the name, the picture,
   tokens. The Privacy page says so.
 
+2.66.1 — on a page in another language (e.g. `/th/`), the address sent to
+Google and Discord had the language in it (`/th/account/google/`), which they
+refuse (*redirect_uri_mismatch*): it is now always `/account/google/` (and
+`/account/discord/`), whatever the language.
+
 ### Setting up Google
 
 1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent
