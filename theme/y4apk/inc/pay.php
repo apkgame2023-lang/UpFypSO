@@ -159,7 +159,8 @@ class Y4APK_Pay {
 
 	/** The coin the money goes out in (NOWPayments ▸ Payout wallets): what minimums are counted towards (2.63.3). */
 	public static function payouts() {
-		return ['usdttrc20' => 'USDT (TRC20)', 'usdtbsc' => 'USDT (BEP20)', 'usdterc20' => 'USDT (ERC20)', 'trx' => 'TRX', 'ltc' => 'LTC', 'btc' => 'BTC', 'eth' => 'ETH'];
+		return ['usdttrc20' => 'USDT (TRC20)', 'usdtbsc' => 'USDT (BEP20)', 'usdtsol' => 'USDT (Solana)', 'usdtmatic' => 'USDT (Polygon)', 'usdtton' => 'USDT (TON)',
+			'usdcbsc' => 'USDC (BEP20)', 'usdterc20' => 'USDT (ERC20)', 'trx' => 'TRX', 'ltc' => 'LTC', 'bnbbsc' => 'BNB (BSC)', 'sol' => 'SOL', 'btc' => 'BTC', 'eth' => 'ETH'];
 	}
 
 	/** Coins people use most, checked first. */
@@ -177,24 +178,21 @@ class Y4APK_Pay {
 			return is_array($c) ? $c : null;
 		}
 		$to = self::settings()['np_payout'];
-		$out = ['at' => time(), 'to' => $to, 'rows' => [], 'error' => ''];
+		$out = ['at' => time(), 'to' => $to, 'rows' => [], 'cmp' => [], 'error' => ''];
+		$t0 = microtime(true);
 		$sel = self::api('GET', '/merchant/coins');
 		$on = !is_wp_error($sel) && !empty($sel['selectedCurrencies']) ? array_map('strtolower', (array) $sel['selectedCurrencies']) : [];
 		$coins = $on ? array_intersect_key(self::POPULAR, array_flip($on)) : self::POPULAR;
 		foreach ($coins as $coin => $label) {
-			$m = self::api('GET', '/min-amount?' . http_build_query(['currency_from' => $coin, 'currency_to' => $to, 'fiat_equivalent' => 'usd']));
-			if (is_wp_error($m)) {
-				$out['rows'][$coin] = ['usd' => null, 'err' => $m->get_error_message()];
-				continue;
-			}
-			$usd = isset($m['fiat_equivalent']) && is_numeric($m['fiat_equivalent']) ? (float) $m['fiat_equivalent'] : null;
-			if ($usd === null && !empty($m['min_amount'])) {
-				$e = self::api('GET', '/estimate?' . http_build_query(['amount' => $m['min_amount'], 'currency_from' => $coin, 'currency_to' => 'usd']));
-				$usd = !is_wp_error($e) && isset($e['estimated_amount']) ? (float) $e['estimated_amount'] : null;
-			}
-			$out['rows'][$coin] = ['usd' => $usd, 'err' => ''];
+			$out['rows'][$coin] = self::min_usd($coin, $to, $t0);
 		}
-		uasort($out['rows'], function ($a, $b) { return ($a['usd'] ?? PHP_FLOAT_MAX) <=> ($b['usd'] ?? PHP_FLOAT_MAX); }); // cheapest coin first
+		// Which payout wallet makes paying cheapest (2.63.4): the payout network's fee sets most of the minimum.
+		foreach (self::payouts() as $p => $label) {
+			$out['cmp'][$p] = $p === $to && isset($out['rows']['usdttrc20']) ? $out['rows']['usdttrc20'] : self::min_usd('usdttrc20', $p, $t0);
+		}
+		$cheap = function ($a, $b) { return ($a['usd'] ?? PHP_FLOAT_MAX) <=> ($b['usd'] ?? PHP_FLOAT_MAX); };
+		uasort($out['rows'], $cheap); // cheapest coin first
+		uasort($out['cmp'], $cheap);
 		if (!$out['rows'] || count(array_filter(wp_list_pluck($out['rows'], 'usd'), 'is_float')) === 0) {
 			$out['error'] = is_wp_error($sel) ? $sel->get_error_message() : __('NOWPayments gave no minimums.', 'y4apk');
 		}
@@ -202,11 +200,36 @@ class Y4APK_Pay {
 		return $out;
 	}
 
+	/** One pair's smallest payment in USD: ['usd' => float|null, 'err' => '']. Gives up after 50 seconds in all. */
+	private static function min_usd($from, $to, $t0) {
+		if (microtime(true) - $t0 > 50) {
+			return ['usd' => null, 'err' => __('took too long', 'y4apk')];
+		}
+		$m = self::api('GET', '/min-amount?' . http_build_query(['currency_from' => $from, 'currency_to' => $to, 'fiat_equivalent' => 'usd']));
+		if (is_wp_error($m)) {
+			return ['usd' => null, 'err' => $m->get_error_message()];
+		}
+		$usd = isset($m['fiat_equivalent']) && is_numeric($m['fiat_equivalent']) ? (float) $m['fiat_equivalent'] : null;
+		if ($usd === null && !empty($m['min_amount'])) {
+			$e = self::api('GET', '/estimate?' . http_build_query(['amount' => $m['min_amount'], 'currency_from' => $from, 'currency_to' => 'usd']));
+			$usd = !is_wp_error($e) && isset($e['estimated_amount']) ? (float) $e['estimated_amount'] : null;
+		}
+		return ['usd' => $usd, 'err' => $usd === null ? __('no answer', 'y4apk') : ''];
+	}
+
 	public static function handle_mins() {
 		if (!current_user_can('manage_options')) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
 		}
 		check_admin_referer('y4apk_pay_mins');
+		$p = sanitize_key(wp_unslash($_POST['np_payout'] ?? ''));
+		if (isset(self::payouts()[$p])) {
+			$o = get_option(self::OPTION, []);
+			$o = is_array($o) ? $o : [];
+			$o['np_payout'] = $p;
+			update_option(self::OPTION, $o, false);
+		}
+		@set_time_limit(120);
 		self::mins(true);
 		wp_safe_redirect(add_query_arg(['page' => Y4APK_VIP::SLUG, 'tab' => 'payments'], admin_url('admin.php')) . '#mins');
 		exit;

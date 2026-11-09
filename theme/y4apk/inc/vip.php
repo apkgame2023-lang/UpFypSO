@@ -732,7 +732,12 @@ class Y4APK_VIP {
 				<div class="y4ui-card" id="mins">
 					<div class="y4ui-card-h">
 						<div><h2><?php esc_html_e('Which coins can pay each plan', 'y4apk'); ?></h2><p><?php esc_html_e('NOWPayments takes no payment below a minimum, different for each coin (its network fees): below it the payment page says “less than minimal”. Keep every plan above the minimum of the coins people use, USDT (TRC20) first.', 'y4apk'); ?></p></div>
-						<a class="button<?php echo $mins ? '' : ' button-primary'; ?>" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_pay_mins'), 'y4apk_pay_mins')); ?>"><?php echo esc_html($mins ? __('Check again', 'y4apk') : __('Check minimums', 'y4apk')); ?></a>
+						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4vip-minsform">
+							<input type="hidden" name="action" value="y4apk_pay_mins"><?php wp_nonce_field('y4apk_pay_mins'); ?>
+							<label for="mins-payout"><?php esc_html_e('Your payout wallet', 'y4apk'); ?></label>
+							<select id="mins-payout" name="np_payout"><?php foreach (Y4APK_Pay::payouts() as $k => $label) : ?><option value="<?php echo esc_attr($k); ?>" <?php selected(Y4APK_Pay::settings()['np_payout'], $k); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select>
+							<button type="submit" class="button<?php echo $mins ? '' : ' button-primary'; ?>"><?php echo esc_html($mins ? __('Check again', 'y4apk') : __('Check minimums', 'y4apk')); ?></button>
+						</form>
 					</div>
 					<?php if (!$mins) : ?>
 						<div class="y4ui-empty"><?php esc_html_e('Not checked yet: press “Check minimums”. It asks NOWPayments with your key (a few seconds).', 'y4apk'); ?></div>
@@ -754,6 +759,28 @@ class Y4APK_VIP {
 							</tbody>
 						</table></div>
 						<p class="y4ui-note" style="padding:0 20px 16px"><?php echo esc_html(sprintf(__('Checked %1$s, for payouts in %2$s. A ✓ leaves 3%% for the rate moving.', 'y4apk'), wp_date(get_option('date_format') . ' H:i', (int) $mins['at']), Y4APK_Pay::payouts()[$mins['to']] ?? $mins['to'])); ?></p>
+						<?php if (!empty($mins['cmp'])) : ?>
+						<div class="y4vip-cmp">
+							<h3><?php esc_html_e('Which payout wallet makes paying cheapest', 'y4apk'); ?></h3>
+							<p><?php esc_html_e('Most of the minimum is the fee for sending the money on to your payout wallet, so its network matters more than the buyer’s coin. The smallest payment by a buyer paying in USDT (TRC20), for each payout wallet:', 'y4apk'); ?></p>
+							<div class="y4ui-scroll"><table class="y4ui-table">
+								<thead><tr><th><?php esc_html_e('Payout wallet', 'y4apk'); ?></th><th><?php esc_html_e('Smallest payment', 'y4apk'); ?></th>
+								<?php foreach ($s['plans'] as $p) : ?><th><?php echo esc_html(self::plan_label($p['days']) . ' ' . self::money($p['price'])); ?></th><?php endforeach; ?></tr></thead>
+								<tbody>
+								<?php foreach ($mins['cmp'] as $coin => $r) : ?>
+									<tr>
+										<td><b><?php echo esc_html(Y4APK_Pay::payouts()[$coin] ?? strtoupper($coin)); ?></b><?php if ($coin === $mins['to']) : ?> <span class="y4ui-chip is-blue"><?php esc_html_e('checked above', 'y4apk'); ?></span><?php endif; ?></td>
+										<td><?php echo $r['usd'] !== null ? esc_html('$' . number_format_i18n($r['usd'], 2)) : '<span class="y4ui-chip">' . esc_html(__('not offered', 'y4apk')) . '</span>'; ?></td>
+										<?php foreach ($s['plans'] as $p) : $ok = $r['usd'] !== null && (float) $p['price'] >= $r['usd'] * 1.03; ?>
+											<td><?php echo $r['usd'] === null ? '—' : ($ok ? '<span class="y4ui-chip is-green">✓</span>' : '<span class="y4ui-chip is-red">✗</span>'); ?></td>
+										<?php endforeach; ?>
+									</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table></div>
+							<p class="y4ui-note"><?php esc_html_e('To switch: in NOWPayments ▸ Payout wallets add your wallet’s address on that network (in Binance: Deposit ▸ the coin ▸ the same network), make it the main one, then pick it above and press Check again.', 'y4apk'); ?></p>
+						</div>
+						<?php endif; ?>
 					<?php endif; ?>
 				</div>
 				<?php endif; ?>
@@ -845,7 +872,7 @@ class Y4APK_VIP {
 				</form>
 			<?php endif; ?>
 		</div>
-		<style>.y4vip-secret{width:100%;-webkit-text-security:disc;font-family:ui-monospace,Menlo,Consolas,monospace}.y4vip-secret:placeholder-shown{-webkit-text-security:none;font-family:inherit}</style>
+		<style>.y4vip-minsform{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:0 1 auto;min-width:0;max-width:100%}.y4vip-minsform label{font-weight:600;font-size:13px}.y4vip-cmp{border-top:1px solid #f0f0f1;padding-top:6px}.y4vip-cmp h3{margin:14px 20px 4px;font-size:14px}.y4vip-cmp>p{margin:0 20px 10px;color:#646970}.y4vip-cmp .y4ui-note{margin:0;padding:0 20px 18px}.y4vip-secret{width:100%;-webkit-text-security:disc;font-family:ui-monospace,Menlo,Consolas,monospace}.y4vip-secret:placeholder-shown{-webkit-text-security:none;font-family:inherit}</style>
 		<script>
 		document.querySelectorAll('[data-vip-days]').forEach(function (s) {
 			var other = s.parentNode.querySelector('[data-vip-other]');

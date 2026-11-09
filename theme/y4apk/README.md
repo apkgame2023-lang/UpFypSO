@@ -692,6 +692,15 @@ default) is the coin it is reckoned in. *Your purchases* now lists only paid
 orders and orders a payment was started for, and the VIP page tells buyers to
 pick USDT (TRC20) or a bigger plan when a coin says *less than minimal*.
 
+2.63.4 — most of the minimum is the fee for sending the money on to the payout
+wallet: with a USDT (TRC20) payout wallet every coin needed about $11. The check
+now also compares payout wallets (USDT on BEP20, Solana, Polygon, TON; USDC
+BEP20; TRX, LTC, BNB, SOL, BTC, ETH) for a buyer paying in USDT (TRC20), cheapest
+first, and the card has its own *Your payout wallet* picker. To switch: add
+the wallet's address on that network in NOWPayments ▸ Payout wallets (in Binance:
+Deposit ▸ the coin ▸ the same network), make it the main one, pick it on the
+card and press *Check again*.
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta
