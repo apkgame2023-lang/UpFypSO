@@ -1,0 +1,114 @@
+/* The wallet (2.64): /account/wallet/ — balance, top-ups, tips, creator earnings, withdrawals, history. */
+
+.wal { max-width: 46rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.wal h2 { font-size: 1.125rem; }
+.wal-small { margin: .6rem 0 0; color: var(--acc-mute); font-size: .8125rem; line-height: 1.55; }
+
+/* The money, on a dark card */
+.wal-hero { position: relative; display: grid; gap: 1.25rem; padding: 1.5rem; border-radius: 1.5rem; overflow: hidden; color: #fff;
+	background: radial-gradient(120% 140% at 100% 0%, rgba(31, 209, 178, .3), transparent 55%), radial-gradient(90% 120% at 0% 100%, rgba(41, 177, 216, .25), transparent 60%), linear-gradient(135deg, #1b2327, #2c3840);
+	box-shadow: 0 1.25rem 2.5rem -1.25rem rgba(27, 35, 39, .6); }
+.wal-hero-t small { display: block; font-size: .8125rem; opacity: .75; }
+.wal-total { display: block; margin-top: .2rem; font-size: 2.5rem; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.wal-split { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin-top: .6rem; font-size: .875rem; opacity: .9; }
+.wal-split span { display: inline-flex; align-items: center; gap: .45rem; }
+.wal-split i { width: .6rem; height: .6rem; border-radius: 50%; background: #29b1d8; }
+.wal-split i.is-earned { background: #3fc35a; }
+.wal-hero-acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.acc a.wal-hbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem; min-height: 4rem; padding: .6rem .4rem; border-radius: 1rem;
+	background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); color: #fff; font-size: .8125rem; font-weight: 700; text-align: center; text-decoration: none; transition: background-color .15s; }
+.acc a.wal-hbtn:hover { color: #fff; background: rgba(255, 255, 255, .18); }
+.acc a.wal-hbtn.is-main { background: linear-gradient(135deg, #1fd1b2, #18b8a0); color: #062b26; box-shadow: 0 .75rem 1.5rem -.75rem rgba(31, 209, 178, .8); }
+.acc a.wal-hbtn.is-main:hover { color: #062b26; }
+.wal-hbtn svg { flex: none; }
+
+/* Card heads */
+.wal-head { display: flex; align-items: flex-start; gap: .9rem; margin-bottom: 1rem; }
+.wal-head > div { min-width: 0; }
+.wal-head p { margin: .25rem 0 0; color: var(--acc-mute); font-size: .875rem; line-height: 1.5; }
+.wal-head .acc-av { flex: none; border-radius: 50%; }
+.wal-head-i { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: .9rem; background: rgba(41, 177, 216, .12); color: var(--acc-blue); }
+.wal-head-i.is-red { background: rgba(229, 72, 77, .12); color: var(--acc-red); }
+.wal-head-i.is-green { background: rgba(63, 195, 90, .14); color: #1f9a3a; }
+.wal-tip.is-open { box-shadow: 0 0 0 2px rgba(229, 72, 77, .35), 0 1rem 2rem -1.25rem rgba(229, 72, 77, .5); }
+
+/* Amounts */
+.wal-form { display: grid; gap: .9rem; }
+.wal-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .5rem; }
+.wal-chip { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 3.25rem; padding: .4rem; border-radius: .9rem; background: #fff;
+	box-shadow: 0 0 0 1.5px var(--acc-line); color: var(--acc-ink); font-weight: 800; font-size: 1.0625rem; cursor: pointer; transition: box-shadow .15s, transform .1s; }
+.wal-chip:hover { box-shadow: 0 0 0 1.5px rgba(41, 177, 216, .5); }
+.wal-chip:has(input[type=radio]:checked) { box-shadow: 0 0 0 2.5px #1fd1b2, 0 .75rem 1.5rem -1rem rgba(31, 209, 178, .7); background: #f2fdfa; }
+.wal-chip:active { transform: scale(.97); }
+.wal-chip input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+.wal-chip em { font-style: normal; font-size: .6875rem; font-weight: 700; color: #1f9a3a; }
+.wal-chip-other { flex-direction: row; gap: .2rem; padding: 0 .6rem; cursor: text; grid-column: span 2; }
+.wal-chip-other:focus-within { box-shadow: 0 0 0 2.5px var(--acc-blue); }
+.wal-cur { color: var(--acc-mute); font-weight: 700; }
+.wal-chip-other input { width: 100%; min-width: 0; height: 2.5rem; border: 0; outline: 0; background: none; font: inherit; color: var(--acc-ink); }
+.wal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.wal-row .acc-field { margin: 0; }
+.wal-form > .acc-field { margin: 0; }
+.wal-acts { display: grid; gap: .6rem; }
+.wal .wal-go { gap: .5rem; min-height: 3.25rem; border-radius: 999px; font-size: 1rem; }
+.wal .wal-go[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.wal .wal-go2 { width: 100%; min-height: 3rem; border-radius: 999px; }
+.wal-tip .wal-go { background: #e5484d; box-shadow: 0 .75rem 1.5rem -.75rem rgba(229, 72, 77, .7); }
+.wal-tip .wal-go:hover { background: #d93c42; }
+
+/* Supporters */
+.wal-fans { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--acc-line); }
+.wal-fans h3 { margin-bottom: .5rem; font-size: .9375rem; }
+.wal-fans ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .5rem; }
+.wal-fans li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .6rem; font-size: .875rem; }
+.wal-fans li b { color: var(--acc-ink); overflow-wrap: anywhere; }
+.wal-fans li span { color: #1f9a3a; font-weight: 700; }
+.wal-fans q { flex-basis: 100%; color: var(--acc-mute); font-style: italic; overflow-wrap: anywhere; }
+
+/* Creator */
+.wal-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .6rem; }
+.wal-stats > div { padding: .8rem 1rem; border-radius: 1rem; background: #f4f8f9; }
+.wal-stats small { display: block; color: var(--acc-mute); font-size: .75rem; font-weight: 600; }
+.wal-stats b { display: block; margin-top: .15rem; color: var(--acc-ink); font-size: 1.375rem; font-weight: 800; overflow-wrap: anywhere; }
+.wal-stats em { display: block; color: var(--acc-mute); font-size: .6875rem; font-style: normal; }
+.wal-goal p { margin: 0; font-size: .875rem; color: var(--acc-ink); }
+.wal-bar { display: block; height: .6rem; margin-top: .6rem; border-radius: 999px; background: #edf1f2; overflow: hidden; }
+.wal-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #29b1d8, #3fc35a); }
+.wal-sub { margin: 1.25rem 0 .75rem; padding-top: 1rem; border-top: 1px solid var(--acc-line); font-size: 1rem; }
+.wal-wait { display: flex; align-items: center; gap: .6rem; margin: 0; padding: .8rem 1rem; border-radius: 1rem; background: #fff8e8; color: #7a5200; font-size: .875rem; font-weight: 600; }
+
+/* Lists */
+.wal-log h2 { margin-bottom: .75rem; }
+.wal-list { margin: .75rem 0 0; padding: 0; list-style: none; }
+.wal-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .2rem .9rem; align-items: center; padding: .65rem 0; border-top: 1px solid var(--acc-line); font-size: .875rem; }
+.wal-list li:first-child { border-top: 0; }
+.wal-list li span { min-width: 0; overflow-wrap: anywhere; color: var(--acc-ink); }
+.wal-list li span small { display: block; color: var(--acc-mute); font-size: .75rem; }
+.wal-list li b { color: var(--acc-ink); white-space: nowrap; }
+.wal-list li b.is-plus { color: #1f9a3a; }
+.wal-list li b.is-minus { color: var(--acc-red); }
+.wal-list li time { color: var(--acc-mute); white-space: nowrap; font-size: .8125rem; }
+.wal-list li em { font-style: normal; font-size: .75rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px; background: #f0f2f3; color: var(--acc-mute); }
+.wal-list li em.is-paid { background: #e9f8ee; color: #1f9a3a; }
+.wal-list li em.is-requested { background: #fff4dc; color: #8a5a00; }
+.wal-list li em.is-rejected { background: #fdeeee; color: var(--acc-red); }
+.wal-earn .wal-list li { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+
+/* Back from the payment page */
+.wal-order { display: flex; gap: 1rem; align-items: flex-start; }
+.wal-order h2 { font-size: 1rem; }
+.wal-order p { margin: .3rem 0 0; }
+.wal-order-i { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; background: #e9f8ee; color: #1f9a3a; font-weight: 800; font-size: 1.25rem; }
+.wal-order.is-wait .wal-order-i { background: #fff4dc; }
+.wal-order.is-bad .wal-order-i { background: #fdeeee; color: var(--acc-red); }
+.wal-spin { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 2.5px solid rgba(240, 160, 32, .3); border-top-color: #f0a020; animation: wal-spin 1s linear infinite; flex: none; }
+@keyframes wal-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 34rem) {
+	.wal-total { font-size: 2rem; }
+	.wal-row { grid-template-columns: minmax(0, 1fr); }
+	.wal-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	.wal-chip-other { grid-column: span 3; }
+	.wal-list li, .wal-earn .wal-list li { grid-template-columns: minmax(0, 1fr) auto; }
+	.wal-list li time { grid-column: 1 / -1; }
+}

@@ -842,3 +842,7 @@
 	.acc-kind-t b { font-size: .875rem; }
 	.acc-kind-art { display: none; }
 }
+
+/* 2.64: tip a creator, from their profile */
+.prf-btn-tip, .acc a.prf-btn-tip { background: rgba(229, 72, 77, .9); box-shadow: 0 .75rem 1.5rem -.5rem rgba(229, 72, 77, .6); }
+.prf-btn-tip:hover, .acc a.prf-btn-tip:hover { background: #e5484d; }

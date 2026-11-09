@@ -30,7 +30,7 @@ defined('ABSPATH') || exit;
 class Y4APK_Pay {
 
 	const OPTION = 'y4apk_pay';
-	const DBV    = '1';
+	const DBV    = '2'; // 2.64: meta (a top-up's or a tip's details)
 	const ROUTE  = 'y4apk/v1';
 	const DONE   = ['finished'];
 	const WAIT   = ['new', 'waiting', 'confirming', 'confirmed', 'sending', 'partially_paid'];
@@ -71,6 +71,7 @@ class Y4APK_Pay {
 			paid varchar(60) NOT NULL DEFAULT '',
 			granted tinyint(1) unsigned NOT NULL DEFAULT 0,
 			code char(16) NOT NULL DEFAULT '',
+			meta text,
 			made int(10) unsigned NOT NULL DEFAULT 0,
 			updated int(10) unsigned NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
@@ -265,12 +266,25 @@ class Y4APK_Pay {
 	 * started for, and the last hour's. Opening the payment page and leaving
 	 * makes an order nobody pays: it is not listed, and ends as expired.
 	 */
-	public static function for_user($user_id, $limit = 10) {
+	public static function for_user($user_id, $limit = 10, $kinds = ['vip']) {
 		global $wpdb;
 		self::tidy();
+		$in = implode(',', array_map(function ($k) use ($wpdb) { return $wpdb->prepare('%s', $k); }, (array) $kinds));
 		// 2.63.3: an order shows once a payment was started for it (a coin chosen and sent for), or it is paid
-		return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE user_id = %d AND status NOT IN ('new', 'expired') AND (pay_id <> '' OR status = 'finished') ORDER BY id DESC LIMIT %d",
+		return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE user_id = %d AND kind IN ($in) AND status NOT IN ('new', 'expired') AND (pay_id <> '' OR status = 'finished') ORDER BY id DESC LIMIT %d",
 			(int) $user_id, (int) $limit));
+	}
+
+	/** Where the member comes back to from the payment page: the VIP page, or the wallet for a top-up or a tip. */
+	public static function back_url($o) {
+		$args = ['order' => (int) $o->id, 'k' => (string) $o->token];
+		return $o->kind !== 'vip' && class_exists('Y4APK_Wallet') ? Y4APK_Wallet::url($args) : Y4APK_VIP::url($args);
+	}
+
+	/** An order's details (2.64): what a top-up or a tip carries. */
+	public static function meta($o) {
+		$m = json_decode((string) ($o->meta ?? ''), true);
+		return is_array($m) ? $m : [];
 	}
 
 	/** Orders never paid: expired after 6 hours (no payment started) or 7 days (a payment started, never finished). */
@@ -287,6 +301,15 @@ class Y4APK_Pay {
 	 * The address to send them to, or a WP_Error.
 	 */
 	public static function start($user_id, $plan, $gift) {
+		return self::create($user_id, 'vip', (float) $plan['price'], ['days' => (int) $plan['days'], 'gift' => $gift ? 1 : 0], sprintf('VIP %d days', (int) $plan['days']));
+	}
+
+	/**
+	 * Any order (2.64): 'vip' (days, gift), 'topup' (the wallet) or 'tip'
+	 * (meta: to, name, msg). The order, then the company's payment page.
+	 * The address to send the member to, or a WP_Error.
+	 */
+	public static function create($user_id, $kind, $amount, $args, $desc) {
 		global $wpdb;
 		if (!self::ready()) {
 			return new WP_Error('y4apk_pay', __('Paying on the site is not open yet.', 'y4apk'));
@@ -297,21 +320,23 @@ class Y4APK_Pay {
 			return new WP_Error('y4apk_pay', __('Too many unpaid orders. Finish one, or try again in an hour.', 'y4apk'));
 		}
 		$cur = Y4APK_VIP::settings()['currency'];
+		$amount = round((float) $amount, 2);
 		$token = wp_generate_password(20, false, false);
 		$wpdb->insert(self::table(), [
-			'token' => $token, 'user_id' => (int) $user_id, 'kind' => 'vip', 'days' => (int) $plan['days'], 'gift' => $gift ? 1 : 0,
-			'amount' => round((float) $plan['price'], 2), 'currency' => $cur, 'provider' => 'nowpayments', 'status' => 'new', 'made' => time(), 'updated' => time(),
+			'token' => $token, 'user_id' => (int) $user_id, 'kind' => $kind, 'days' => (int) ($args['days'] ?? 0), 'gift' => !empty($args['gift']) ? 1 : 0,
+			'amount' => $amount, 'currency' => $cur, 'provider' => 'nowpayments', 'status' => 'new',
+			'meta' => !empty($args['meta']) ? wp_json_encode($args['meta']) : '', 'made' => time(), 'updated' => time(),
 		]);
 		$id = (int) $wpdb->insert_id;
 		if (!$id) {
 			return new WP_Error('y4apk_pay', __('The order could not be saved. Try again.', 'y4apk'));
 		}
-		$back = Y4APK_VIP::url(['order' => $id, 'k' => $token]);
+		$back = self::back_url((object) ['id' => $id, 'token' => $token, 'kind' => $kind]);
 		$r = self::api('POST', '/invoice', [
-			'price_amount'      => round((float) $plan['price'], 2),
+			'price_amount'      => $amount,
 			'price_currency'    => strtolower($cur),
 			'order_id'          => 'y4-' . $id,
-			'order_description' => sprintf('VIP %d days', (int) $plan['days']), // plain ASCII: the IPN signature is made over it
+			'order_description' => preg_replace('/[^\x20-\x7E]/', '', $desc), // plain ASCII: the IPN signature is made over it
 			'ipn_callback_url'  => self::ipn_url(),
 			'success_url'       => $back,
 			'cancel_url'        => add_query_arg('cancel', 1, $back),
@@ -426,6 +451,9 @@ class Y4APK_Pay {
 			return false;
 		}
 		$o = self::get($id);
+		if ($o->kind !== 'vip') { // 2.64: a top-up or a tip
+			return class_exists('Y4APK_Wallet') ? Y4APK_Wallet::order_paid($o) : false;
+		}
 		$user = get_userdata((int) $o->user_id);
 		$ref = sprintf(__('Order #%s', 'y4apk'), $o->id);
 		if ($o->gift) {
@@ -451,6 +479,12 @@ class Y4APK_Pay {
 	/** For the member: what an order's state means. */
 	public static function status_text($o) {
 		if (in_array($o->status, self::DONE, true)) {
+			if ($o->kind === 'topup') {
+				return __('Paid · added to your balance', 'y4apk');
+			}
+			if ($o->kind === 'tip') {
+				return __('Paid · tip sent', 'y4apk');
+			}
 			return $o->gift ? __('Paid · your code is ready', 'y4apk') : __('Paid · VIP added', 'y4apk');
 		}
 		return [

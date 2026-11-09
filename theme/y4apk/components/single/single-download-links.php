@@ -41,7 +41,12 @@ $y4dl_badge = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColo
 <div class="f-app-download" id="download-now">
     <?php if (class_exists('Y4APK_Scripts')) Y4APK_Scripts::render(get_the_ID()); // Script Code (2.31): what a script post offers, before any download ?>
     <?php if (class_exists('Y4APK_Share') && Y4APK_Share::is_share(get_the_ID()) && ($y4_by = Y4APK_Members::author(get_the_ID()))) : // a member's game or app (2.44) ?>
+    <div class="y4-shared-row">
     <a class="y4-shared" href="<?php echo esc_url(Y4APK_Members::profile_url($y4_by)); ?>"><?php echo Y4APK_Social::avatar($y4_by, 36); ?><span><small><?php esc_html_e('Shared by', 'y4apk'); ?></small><b><?php echo esc_html(Y4APK_Social::name($y4_by)); ?></b></span></a>
+    <?php if (class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() && Y4APK_Wallet::creator($y4_by->ID)['ok']) : // 2.64: tip the creator ?>
+    <a class="y4-tip" href="<?php echo esc_url(Y4APK_Wallet::tip_url($y4_by)); ?>" rel="nofollow"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg><span><?php esc_html_e('Tip', 'y4apk'); ?></span></a>
+    <?php endif; ?>
+    </div>
     <?php endif; ?>
     <div class="grid-list <?php echo $grid2_class; ?>">
 		<?php 

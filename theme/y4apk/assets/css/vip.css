@@ -124,3 +124,16 @@
 .vip-orders li span small.vip-st { display: block; margin-top: .15rem; color: var(--acc-mute); font-size: .75rem; }
 .vip-orders li span small.vip-st.is-done { color: #1f9a3a; font-weight: 700; }
 .vip-orders li span code { display: inline-block; margin-top: .3rem; padding: .15rem .45rem; border-radius: .4rem; background: #fff7e0; color: #6b3f00; font-size: .8125rem; }
+
+/* 2.64: from the balance, and Tip us */
+.vip-pay-bar { display: grid; gap: .6rem; }
+.vip-pay-bar .vip-pay-note { margin-top: 0; }
+.vip .vip-pay-wallet { background: linear-gradient(135deg, var(--vip-gold-l), var(--vip-gold)); color: #3b2300; box-shadow: 0 1rem 1.75rem -.75rem rgba(245, 165, 36, .7); }
+.vip .vip-pay-wallet:hover { color: #3b2300; background: linear-gradient(135deg, #ffe08a, #f7b03c); }
+.vip .vip-pay.acc-btn-ghost { background: #fff; color: var(--acc-ink); box-shadow: 0 0 0 2px var(--acc-line); min-height: 3.25rem; font-size: 1rem; }
+.vip .vip-pay.acc-btn-ghost:hover { color: var(--acc-ink); box-shadow: 0 0 0 2px #1fd1b2; }
+.acc a.vip-tipus { display: flex; align-items: center; gap: .9rem; color: var(--acc-ink); text-decoration: none; transition: box-shadow .15s; }
+.acc a.vip-tipus:hover { color: var(--acc-ink); box-shadow: 0 0 0 2px rgba(229, 72, 77, .35); }
+.vip-tipus .vip-perk-i { background: #fdeeee; color: var(--acc-red); }
+.vip-tipus .vip-perk-t { flex: 1; min-width: 0; }
+.vip-tipus-go { color: var(--acc-mute); font-size: 1.25rem; }

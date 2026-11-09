@@ -473,3 +473,9 @@
 	.f-app-download .btn.attachment-link { width: 100%; }
 	.f-app-download .block .attachment-name { font-size: .9375rem; }
 }
+
+/* 2.64: tip the member who shared the game or app */
+.y4-shared-row { display: flex; align-items: center; justify-content: center; gap: .5rem; flex-wrap: wrap; margin: 0 auto 1rem; }
+.y4-shared-row .y4-shared { margin: 0; }
+.y4-tip { display: inline-flex; align-items: center; gap: .4rem; height: 2.5rem; padding: 0 1rem; border-radius: 2rem; background: #fff1f1; color: #d93c42; font-size: .875rem; font-weight: 700; box-shadow: 0 0 0 1px rgba(229, 72, 77, .2); }
+.y4-tip:hover { color: #fff; background: #e5484d; }

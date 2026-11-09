@@ -683,6 +683,8 @@ if ($screen === 'login') {
 	include locate_template('template/share.php'); // a game or app (2.44)
 } elseif ($screen === 'vip') {
 	include locate_template('template/vip.php'); // VIP (2.62)
+} elseif ($screen === 'wallet') {
+	include locate_template('template/wallet.php'); // the wallet (2.64)
 } elseif ($screen === 'share_closed') {
 	$shell_open();
 	?>
@@ -1083,6 +1085,9 @@ if ($screen === 'login') {
 						<button type="button" class="prf-btn prf-btn-main<?php echo $c['i_follow'] ? ' is-on' : ''; ?>" data-follow="<?php echo (int) $u->ID; ?>" data-on="<?php echo $c['i_follow'] ? 1 : 0; ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('y4apk_follow')); ?>"><span><?php echo esc_html($c['i_follow'] ? __('Following', 'y4apk') : __('Follow', 'y4apk')); ?></span></button>
 					<?php elseif (!$c['user']) : ?>
 						<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('register')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Follow', 'y4apk'); ?></span></a>
+					<?php endif; ?>
+					<?php if (!$c['own'] && class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() && Y4APK_Wallet::creator($u->ID)['ok']) : // 2.64 ?>
+						<a class="prf-btn prf-btn-tip" href="<?php echo esc_url($c['user'] ? Y4APK_Wallet::tip_url($u) : $M::url('login')); ?>"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg><span><?php esc_html_e('Tip', 'y4apk'); ?></span></a>
 					<?php endif; ?>
 					<button type="button" class="prf-btn" data-open="prf-share"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 				</div>

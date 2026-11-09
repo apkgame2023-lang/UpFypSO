@@ -88,6 +88,12 @@ class Y4APK_Help_Texts {
 			['id' => 'copyright', 't' => __('Copyright complaints', 'y4apk'), 'p' => [
 				__('We respond to notices of copyright infringement as our <a href="{dmca}">DMCA Policy</a> describes. Owners can send a notice through the <a href="{copyright}">copyright form</a>. Accounts that infringe again and again are closed.', 'y4apk'),
 			]],
+			['id' => 'wallet', 't' => __('VIP, your balance, tips and creator earnings', 'y4apk'), 'p' => [
+				__('<b>Paying:</b> VIP and top-ups are paid through a payment company on its own page; its terms apply to the payment. Digital purchases are used at once, so they are not refunded, except where the law says otherwise or a payment went wrong.', 'y4apk'),
+				__('<b>Your balance</b> is credit to spend on the Service (VIP, tips). It is not a bank account, earns no interest, cannot be withdrawn or moved to another account, and ends if your account is closed for breaking these Terms.', 'y4apk'),
+				__('<b>Tips</b> are gifts: they are not refunded and buy nothing. The site keeps the share shown before you tip.', 'y4apk'),
+				__('<b>Creator earnings</b> (from tips and counted downloads) are open to the creators we choose (for example by followers) and may change or stop at any time for future earnings. Downloads are counted by our own rules, once a day per device. Earnings made by fraud — fake downloads or accounts, tipping yourself, or anything that breaks these Terms — can be held or cancelled. Withdrawals are paid by hand, usually within a few days, by the ways offered; you give correct details and are responsible for any taxes on what you earn.', 'y4apk'),
+			]],
 			['id' => 'ads', 't' => __('Ads and other websites', 'y4apk'), 'p' => [
 				__('The Service shows ads and links to other websites, and some links open them in a new tab. We don’t control those websites and aren’t responsible for them: their own terms and policies apply.', 'y4apk'),
 			]],
@@ -126,10 +132,12 @@ class Y4APK_Help_Texts {
 				__('<b>Your profile:</b> the name, picture, banner, bio and links you add, and a Roblox username if you link one.', 'y4apk'),
 				__('<b>What you share:</b> scripts, files, versions, descriptions, comments and reports, with the time you shared them.', 'y4apk'),
 				__('<b>Messages to us:</b> what you send through the Contact, Feedback and copyright forms, with the name and email you give.', 'y4apk'),
+				__('<b>Payments and your wallet:</b> when you pay, the payment company handles it on its own page; we keep the order (what, how much, its state and the payment’s reference), never card details or wallet keys. We keep your balance and its history, and the tips you send with the name and message you choose (tips to the site may be shown under “Thanks to”). If you ask to withdraw creator earnings, we keep the way and the details you give (such as a wallet address or phone number), encrypted, to pay you.', 'y4apk'),
 			]],
 			['id' => 'auto', 't' => __('Information collected automatically', 'y4apk'), 'li' => [
 				__('<b>When you make an account:</b> your country (from your network, or guessed from your browser’s language), the kind of device, its system and browser (not the full browser string), the website that sent you (its name only) and the first page of your visit. This tells us how people find Y4APK.', 'y4apk'),
 				__('<b>Statistics:</b> views, downloads and clicks are counted per page as daily totals. They are not linked to you and don’t include your IP address.', 'y4apk'),
+				__('<b>Downloads that pay creators:</b> so a device counts once a day, we keep a one-way code made from your network address and browser with a key that changes every day and is then thrown away. It cannot be turned back into your address, we don’t store the address itself, and the codes are deleted after two days.', 'y4apk'),
 				__('<b>To deliver the site and stop abuse:</b> our hosting and security providers process your IP address and similar network information, and keep standard server logs for a short time. We use it briefly to limit repeated attempts (such as many sign-ins or messages).', 'y4apk'),
 			]],
 			['id' => 'cookies', 't' => __('Cookies and similar technologies', 'y4apk'), 'p' => [
@@ -175,6 +183,7 @@ class Y4APK_Help_Texts {
 				__('What you share: until you or we remove it.', 'y4apk'),
 				__('Messages to us: as long as needed to answer them, and up to two years.', 'y4apk'),
 				__('Statistics: as totals, which say nothing about you.', 'y4apk'),
+				__('Orders, your wallet’s history and withdrawals: as long as your account is open and then as long as tax and accounting laws require.', 'y4apk'),
 			]],
 			['id' => 'security', 't' => __('Security', 'y4apk'), 'p' => [
 				__('We protect information with encryption in transit (HTTPS), scrambled passwords, limited access and checks against abuse. No method is perfect, so please use a strong password that you don’t use anywhere else.', 'y4apk'),

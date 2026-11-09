@@ -313,7 +313,7 @@ class Y4APK_VIP {
 			}
 		}
 		// 2.63: Pay — the order, then the payment company's page
-		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do']) && $_POST['y4_do'] === 'vip_buy' && class_exists('Y4APK_Pay')) {
+		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do']) && $_POST['y4_do'] === 'vip_buy' && (class_exists('Y4APK_Pay') || class_exists('Y4APK_Wallet'))) {
 			if (!$uid) {
 				wp_safe_redirect(Y4APK_Members::url('login'));
 				exit;
@@ -329,6 +329,17 @@ class Y4APK_VIP {
 				$ctx['errors'][] = __('The page was open too long. Try again.', 'y4apk');
 			} elseif (!$plan) {
 				$ctx['errors'][] = __('Choose a plan.', 'y4apk');
+			} elseif (($_POST['pay_with'] ?? '') === 'wallet' && class_exists('Y4APK_Wallet')) { // 2.64: from the balance, at once
+				$r = Y4APK_Wallet::buy_vip($uid, $plan, !empty($_POST['gift']));
+				if (!$r['ok']) {
+					$ctx['errors'][] = $r['why'];
+				} else {
+					if ($r['code'] !== '') {
+						set_transient('y4apk_vipgift_' . $uid, $r['code'], HOUR_IN_SECONDS); // shown on the next page, not put in its address
+					}
+					wp_safe_redirect(self::url($r['code'] !== '' ? ['ok' => 'vipgift'] : ['ok' => 'vip', 'd' => (int) $plan['days']]));
+					exit;
+				}
 			} else {
 				$go = Y4APK_Pay::start($uid, $plan, !empty($_POST['gift']));
 				if (is_wp_error($go)) {
@@ -355,6 +366,9 @@ class Y4APK_VIP {
 			'log'   => $uid ? array_reverse(self::log($uid)) : [],
 			'set'   => self::settings(),
 			'added' => isset($_GET['ok'], $_GET['d']) && $_GET['ok'] === 'vip' ? absint($_GET['d']) : 0,
+			// 2.64: the balance pays too; a gift code bought with it is shown once, here
+			'wallet' => $uid && class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() ? Y4APK_Wallet::balance($uid) : null,
+			'gift_code' => isset($_GET['ok']) && $_GET['ok'] === 'vipgift' && $uid ? (string) get_transient('y4apk_vipgift_' . $uid) : '',
 		];
 		add_action('wp_enqueue_scripts', function () {
 			wp_enqueue_style('y4apk-vip', get_template_directory_uri() . '/assets/css/vip.css', ['y4apk-account'], Y4APK_THEME_VERSION);
@@ -821,7 +835,7 @@ class Y4APK_VIP {
 							<tr>
 								<td><b><?php echo (int) $o->id; ?></b></td>
 								<td><?php echo $u ? '<a href="' . esc_url(Y4APK_Members::profile_url($u)) . '" target="_blank">@' . esc_html($u->user_login) . '</a>' : '—'; ?></td>
-								<td><?php echo esc_html(self::plan_label($o->days)); ?><?php if ($o->gift) : ?> <span class="y4ui-chip is-amber"><?php esc_html_e('gift', 'y4apk'); ?></span><?php if ($o->code !== '') : ?><br><span class="y4ui-chip is-code"><?php echo esc_html(self::pretty($o->code)); ?></span><?php endif; endif; ?></td>
+								<td><?php if ($o->kind !== 'vip') : // 2.64: a top-up or a tip ?><span class="y4ui-chip is-green"><?php echo esc_html($o->kind === 'tip' ? __('Tip', 'y4apk') : __('Top-up', 'y4apk')); ?></span><?php else : ?><?php echo esc_html(self::plan_label($o->days)); ?><?php endif; ?><?php if ($o->gift) : ?> <span class="y4ui-chip is-amber"><?php esc_html_e('gift', 'y4apk'); ?></span><?php if ($o->code !== '') : ?><br><span class="y4ui-chip is-code"><?php echo esc_html(self::pretty($o->code)); ?></span><?php endif; endif; ?></td>
 								<td><?php echo esc_html((self::currencies()[$o->currency] ?? '') . number_format_i18n((float) $o->amount, 2)); ?></td>
 								<td><span class="y4ui-chip <?php echo $done ? 'is-green' : ($bad ? 'is-red' : 'is-blue'); ?>"><?php echo esc_html(class_exists('Y4APK_Pay') ? Y4APK_Pay::status_text($o) : $o->status); ?></span></td>
 								<td><?php echo esc_html($o->paid !== '' ? $o->paid : '—'); ?><?php if ($o->pay_id !== '') : ?><br><span class="y4ui-kpi-s">ID <?php echo esc_html($o->pay_id); ?></span><?php endif; ?></td>

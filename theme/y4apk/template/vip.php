@@ -32,6 +32,8 @@ $perks = [
 		'<path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/>'],
 ];
 $added = (int) $vp['added'];
+$wal = $vp['wallet'] ?? null; // 2.64: the member's balance, when the wallet is on
+$form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
 ?>
 <div class="vip">
 	<section class="vip-hero<?php echo $on ? ' is-on' : ''; ?>">
@@ -57,6 +59,16 @@ $added = (int) $vp['added'];
 
 	<?php if ($added) : ?>
 		<div class="acc-note acc-note-ok" role="status"><?php echo esc_html(sprintf(_n('VIP added: %s day. Enjoy!', 'VIP added: %s days. Enjoy!', $added, 'y4apk'), number_format_i18n($added))); ?></div>
+	<?php endif; ?>
+	<?php if (!empty($vp['gift_code'])) : // 2.64: a gift code bought from the balance ?>
+		<section class="acc-card vip-order is-done" id="order">
+			<span class="vip-order-i" aria-hidden="true"><?php echo $check; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+			<div class="vip-order-t">
+				<h2><?php esc_html_e('Your VIP gift code', 'y4apk'); ?></h2>
+				<div class="vip-giftcode"><code><?php echo esc_html(Y4APK_VIP::pretty($vp['gift_code'])); ?></code><button type="button" class="acc-btn acc-btn-ghost" data-vip-copy="<?php echo esc_attr(Y4APK_VIP::pretty($vp['gift_code'])); ?>"><?php esc_html_e('Copy', 'y4apk'); ?></button></div>
+				<p class="vip-small"><?php esc_html_e('Copy it now: it is shown for an hour. Whoever types it on this page gets the days. It works once.', 'y4apk'); ?></p>
+			</div>
+		</section>
 	<?php endif; ?>
 	<?php $messages(); ?>
 
@@ -97,7 +109,7 @@ $added = (int) $vp['added'];
 	<?php if ($plans) : ?>
 	<section class="vip-plans-box" aria-label="<?php esc_attr_e('Plans', 'y4apk'); ?>">
 		<h2><?php esc_html_e('Choose a plan', 'y4apk'); ?></h2>
-		<?php if ($vp['pay']) : // 2.63: paid on the site, VIP at once ?>
+		<?php if ($form) : // 2.63: paid on the site, VIP at once (2.64: or from the balance) ?>
 		<form method="post" action="<?php echo esc_url(Y4APK_VIP::url()); ?>" class="vip-buy">
 			<input type="hidden" name="y4_do" value="vip_buy">
 			<?php echo $M::nonce('vip'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
@@ -113,19 +125,30 @@ $added = (int) $vp['added'];
 				</label>
 			<?php endforeach; ?>
 		</div>
-		<?php if ($vp['pay']) : ?>
+		<?php if ($form) : ?>
 			<label class="vip-gift"><input type="checkbox" name="gift" value="1"><span><b><?php esc_html_e('Buy as a gift', 'y4apk'); ?></b><small><?php esc_html_e('You get a code to give to a friend; nothing is added to your account.', 'y4apk'); ?></small></span></label>
 			<div class="vip-pay-bar">
 				<?php if ($me) : ?>
-				<button class="acc-btn acc-btn-primary vip-pay" type="submit">
+				<?php if ($wal !== null && $wal['total'] > 0) : // 2.64: at once, from the balance ?>
+				<button class="acc-btn acc-btn-primary vip-pay vip-pay-wallet" type="submit" name="pay_with" value="wallet" data-vip-wallet="<?php echo esc_attr(Y4APK_Wallet::plain($wal['total'])); ?>">
+					<span><?php esc_html_e('Pay from your balance', 'y4apk'); ?></span>
+					<small><?php echo esc_html(sprintf(__('You have %s', 'y4apk'), Y4APK_Wallet::fmt($wal['total']))); ?></small>
+				</button>
+				<?php endif; ?>
+				<?php if ($vp['pay']) : ?>
+				<button class="acc-btn acc-btn-primary vip-pay<?php echo $wal !== null && $wal['total'] > 0 ? ' acc-btn-ghost' : ''; ?>" type="submit" name="pay_with" value="crypto">
 					<span><?php esc_html_e('Pay now', 'y4apk'); ?></span>
 					<small data-vip-price><?php echo esc_html(isset($plans[$pick]) ? Y4APK_VIP::money($plans[$pick]['price']) . ' / ' . Y4APK_VIP::plan_label($plans[$pick]['days']) : ''); ?></small>
 				</button>
+				<?php endif; ?>
+				<?php if ($wal !== null && $vp['pay']) : ?><p class="vip-pay-note"><a href="<?php echo esc_url(Y4APK_Wallet::url()); ?>#topup"><?php echo esc_html($wal['total'] > 0 ? __('Top up your balance', 'y4apk') : __('Or top up your balance once and pay any plan from it', 'y4apk')); ?></a></p><?php endif; ?>
 				<?php else : ?>
 				<a class="acc-btn acc-btn-primary vip-pay" href="<?php echo esc_url($M::url('login')); ?>"><span><?php esc_html_e('Sign in to pay', 'y4apk'); ?></span><small><?php esc_html_e('VIP is kept with your account', 'y4apk'); ?></small></a>
 				<?php endif; ?>
+				<?php if ($vp['pay']) : ?>
 				<p class="vip-pay-note"><?php esc_html_e('Crypto: USDT, BTC, ETH and 300 more, on a secure payment page. VIP is added the moment the payment is confirmed.', 'y4apk'); ?></p>
 				<p class="vip-pay-note"><?php esc_html_e('If a coin says “less than minimal”, choose USDT (TRC20) or a bigger plan: each coin has its own smallest payment.', 'y4apk'); ?></p>
+				<?php endif; ?>
 				<?php if ($buy !== '') : ?><p class="vip-pay-note"><a href="<?php echo esc_url($buy); ?>" target="_blank" rel="noopener nofollow"><?php esc_html_e('Other ways to pay', 'y4apk'); ?></a></p><?php endif; ?>
 			</div>
 		</form>
@@ -189,6 +212,14 @@ $added = (int) $vp['added'];
 			<?php endforeach; ?>
 		</ul>
 	</section>
+	<?php endif; ?>
+
+	<?php if (class_exists('Y4APK_Wallet') && Y4APK_Wallet::on()) : // 2.64 ?>
+	<a class="acc-card vip-tipus" href="<?php echo esc_url($me ? Y4APK_Wallet::tip_url() : $M::url('login')); ?>">
+		<span class="vip-perk-i" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg></span>
+		<span class="vip-perk-t"><b><?php esc_html_e('Tip us', 'y4apk'); ?></b><small><?php esc_html_e('Not after VIP? A tip of any size keeps the files coming.', 'y4apk'); ?></small></span>
+		<span class="vip-tipus-go" aria-hidden="true">→</span>
+	</a>
 	<?php endif; ?>
 
 	<section class="vip-faq">

@@ -223,6 +223,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'out'    => '<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.6 4.4-1.4 1.4 2.2 2.2H9v2h8.4l-2.2 2.2 1.4 1.4L21.2 12l-4.6-4.6Z"/>',
                 'down'   => '<path d="m7 10 5 5 5-5H7Z"/>',
                 'crown'  => '<path d="M3 7.5 7.5 11 12 4l4.5 7L21 7.5 19.2 18H4.8L3 7.5ZM5 19.5h14V21H5v-1.5Z"/>',
+                'wallet' => '<path d="M21 7.28V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2.28A2 2 0 0 0 22 15V9a2 2 0 0 0-1-1.72ZM20 9v6h-7V9h7ZM5 19V5h14v2h-6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h6v2H5Zm11-5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/>',
                 'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
                 'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
                 'next'   => '<path d="m9.4 6-1.4 1.4 4.6 4.6-4.6 4.6L9.4 18l6-6-6-6Z"/>',
@@ -253,6 +254,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'feedback'  => class_exists('Y4APK_Help') ? Y4APK_Help::url('feedback') : '',
                 'profile'   => home_url('/@'),
                 'vip'       => class_exists('Y4APK_VIP') ? Y4APK_VIP::url() : '',
+                'wallet'    => class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() ? Y4APK_Wallet::url() : '', // 2.64
                 'ajax'      => admin_url('admin-ajax.php'),
             )); ?>;
             var T = <?php echo wp_json_encode(array(
@@ -263,6 +265,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'following' => __('Following', 'y4apk'),
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
+                'wallet'    => __('Wallet and earnings', 'y4apk'),
                 'out'       => __('Sign out', 'y4apk'),
                 'help'      => __('Help and contact', 'y4apk'),
                 'feedback'  => __('Send feedback', 'y4apk'),
@@ -313,7 +316,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 vt.appendChild(vs); menu.appendChild(va);
             }
             var list = '<nav class="h-acct-list">';
-            [['home', 'home'], ['submit', 'upload'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
+            [['home', 'home'], ['submit', 'upload'], ['wallet', 'wallet'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
                 if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
             });
             list += '</nav>' + (T.lang ? '<button type="button" class="h-acct-lang" data-y4l-open>' + svg('globe') + '<span></span>' + svg('next', 16) + '</button>' : '')

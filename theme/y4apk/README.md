@@ -638,6 +638,62 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## The wallet, tips and the creator program (2.64)
+
+`inc/wallet.php` (the member's page: `template/wallet.php`, `assets/css/wallet.css`;
+Y4APK ▸ Wallet: `inc/wallet-admin.php`). A member's money on the site comes in
+two kinds:
+
+- **Balance** — topped up with crypto (the same NOWPayments page as VIP; order
+  kind `topup`) or given by the owner. Spent on the site: VIP (*Pay from your
+  balance* on the VIP page, gift codes too) and tips. Never paid out.
+- **Earnings** — a creator's: tips from members (less the site's share, 20% by
+  default) and downloads of the games and apps they shared (a rate per 1,000).
+  Spendable like a balance, or withdrawn.
+
+Small amounts work: a 50¢ tip or a $2.99 VIP comes out of the balance, so the
+payment company's smallest payment only applies to topping up (from $10 by
+default; a bonus % from a set amount is optional). A tip big enough can also be
+paid straight away with crypto (order kind `tip`).
+
+**Tips.** *Tip us* (to the site: on the wallet page, linked from the VIP page
+and the hero) with a name and message; they show under *Thanks to* (the owner
+can hide any in Y4APK ▸ Wallet ▸ Tips). A **Tip** button on a creator's profile
+and next to *Shared by* on the games and apps they share opens
+`/account/wallet/?to=name`. The creator gets an email for each tip.
+
+**Creators** are members with 300 followers or more (Settings), or members the
+owner lets in (Creators ▸ *Let in*); *kept out* stops one.
+
+**Downloads that earn.** With a rate set (Settings ▸ *Paid per 1,000
+downloads*, 0 = off), a tap on a creator's download button (the /download/N/
+page's, or a VIP's straight-to-file button on the post) is sent to
+`POST /wp-json/y4apk/v1/dl` and counted **once a day per device**: the device is
+told apart by a one-way fingerprint (HMAC of the network address and browser,
+with a key that changes daily and is thrown away), no IP address is stored, and
+the fingerprints are deleted after two days. Bots and empty browsers are not
+counted, and one device counts at most 40 downloads a day. Each day's count is
+added to the creators' earnings the day after (daily job, or the next visit to
+the wallet pages), once.
+
+**Withdrawals.** From $10 (Settings), by the ways the owner ticks (USDT TRC20 /
+BEP20, Binance Pay, PayPal, TrueMoney, PromptPay, Google Play gift card). The
+amount leaves the creator's earnings at once; the details are kept encrypted
+(`Y4APK_Mail::hide`). The owner gets an email, pays by hand from their own
+account (the creator only ever sees the site's name), then presses **Paid**
+(with a transaction ID if they like) or **Turn down** (the money goes back,
+with the reason). The creator gets an email either way.
+
+**Y4APK ▸ Wallet**: Overview (money owed, balances, tips, latest moves),
+Withdrawals, Creators, Tips, History (any member's, with **Add or take money**:
+for a payment taken by hand — TrueMoney, a transfer — a refund or a correction),
+Settings.
+
+Money is kept in millionths of the VIP page's currency (BIGINT), so a download
+worth $0.0005 adds up exactly; spending happens in a database transaction with
+the row locked and a `WHERE … >= amount` guard, so a balance can never go below
+zero, even with many taps at once. Terms and Privacy have a section on it.
+
 ## Paying for VIP on the site (2.63)
 
 `inc/pay.php`: VIP bought on the VIP page and given at once, through a payment
