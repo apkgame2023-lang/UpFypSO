@@ -224,13 +224,13 @@ class Y4APK_Stats {
 		$base = admin_url('admin.php?page=' . self::SLUG);
 		$fmt = get_option('date_format');
 		$tiles = [
-			[__('Web app installs', 'y4apk'), self::sum($totals, 'pwa_installed'), $D::delta(self::sum($totals, 'pwa_installed'), self::sum($prev, 'pwa_installed'), $per), $series['pwa_installed']],
-			[__('APK downloads', 'y4apk'), $apk, $D::delta($apk, $apk_prev, $per), $series['banner_tap']],
+			[__('Web app installs', 'y4apk'), self::sum($totals, 'pwa_installed'), $D::delta(self::sum($totals, 'pwa_installed'), self::sum($prev, 'pwa_installed'), '', $days), $series['pwa_installed']],
+			[__('APK downloads', 'y4apk'), $apk, $D::delta($apk, $apk_prev, '', $days), $series['banner_tap']],
 			[__('App users per day', 'y4apk'), $users_avg < 10 ? round($users_avg, 1) : (int) round($users_avg), '<span class="y4d-delta">' . esc_html(sprintf(__('average · today %s', 'y4apk'), number_format_i18n($series['app_daily'][$to] ?? 0))) . '</span>', $series['app_daily']],
-			[__('New app users', 'y4apk'), self::sum($totals, 'app_new'), $D::delta(self::sum($totals, 'app_new'), self::sum($prev, 'app_new'), $per), $series['app_new']],
-			[__('File downloads', 'y4apk'), $files, $D::delta($files, $prev_files, $per), $series['file_download']],
-			[__('Ad opens', 'y4apk'), self::sum($totals, 'direct_link'), $D::delta(self::sum($totals, 'direct_link'), self::sum($prev, 'direct_link'), $per), $series['direct_link']],
-			[__('Executor downloads', 'y4apk'), self::sum($totals, 'executor_dl'), $D::delta(self::sum($totals, 'executor_dl'), self::sum($prev, 'executor_dl'), $per), $series['executor_dl']],
+			[__('New app users', 'y4apk'), self::sum($totals, 'app_new'), $D::delta(self::sum($totals, 'app_new'), self::sum($prev, 'app_new'), '', $days), $series['app_new']],
+			[__('File downloads', 'y4apk'), $files, $D::delta($files, $prev_files, '', $days), $series['file_download']],
+			[__('Ad opens', 'y4apk'), self::sum($totals, 'direct_link'), $D::delta(self::sum($totals, 'direct_link'), self::sum($prev, 'direct_link'), '', $days), $series['direct_link']],
+			[__('Executor downloads', 'y4apk'), self::sum($totals, 'executor_dl'), $D::delta(self::sum($totals, 'executor_dl'), self::sum($prev, 'executor_dl'), '', $days), $series['executor_dl']],
 		];
 		$modes = [
 			'prompt' => __('Install (Chrome / Samsung Internet)', 'y4apk'),
@@ -391,7 +391,7 @@ class Y4APK_Stats {
 				<?php foreach ((require get_template_directory() . '/inc/stats-events.php') as $ev => $label) :
 					$now = $ev === 'file_download' ? $files : self::sum($totals, $ev);
 					$was = $ev === 'file_download' ? $prev_files : self::sum($prev, $ev); ?>
-					<tr><td><?php echo esc_html($label); ?> <code class="y4s-ev"><?php echo esc_html($ev); ?></code></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($now)); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($was)); ?></td><td class="y4d-num"><?php echo wp_kses($D::delta($now, $was, ''), ['span' => ['class' => []]]); ?></td></tr>
+					<tr><td><?php echo esc_html($label); ?> <code class="y4s-ev"><?php echo esc_html($ev); ?></code></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($now)); ?></td><td class="y4d-num"><?php echo esc_html(number_format_i18n($was)); ?></td><td class="y4d-num"><?php echo wp_kses($D::delta($now, $was, '', $days), ['span' => ['class' => []]]); ?></td></tr>
 				<?php endforeach; ?>
 				</tbody></table>
 			</div></div>

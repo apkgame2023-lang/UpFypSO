@@ -170,8 +170,53 @@ class Y4APK_Dashboard {
 		$usage = get_option(Y4APK_Writer::USAGE, []);
 		$d['ai'] = ['queue' => count(Y4APK_Writer::queue()), 'posts' => is_array($usage) && isset($usage['posts']) ? (int) $usage['posts'] : 0, 'tokens' => is_array($usage) ? (int) ($usage['in'] ?? 0) + (int) ($usage['out'] ?? 0) : 0,
 			'wait' => Y4APK_Writer::waiting(), 'paused' => Y4APK_Writer::settings()['paused'] !== ''];
+		$d['money'] = self::money($days);
 		set_transient(self::CACHE . $days, $d, 5 * MINUTE_IN_SECONDS);
 		return $d;
+	}
+
+	/**
+	 * Money (2.65.1): what was paid on the site (VIP, top-ups, tips) per day,
+	 * VIP members, balances, what creators are owed, withdrawals waiting.
+	 * Null when the theme's payments are not there.
+	 */
+	private static function money($days) {
+		if (!class_exists('Y4APK_Pay') || !class_exists('Y4APK_VIP')) {
+			return null;
+		}
+		global $wpdb;
+		$now = time();
+		$from = $now - $days * DAY_IN_SECONDS;
+		$m = ['by_day' => self::fill([], $days), 'sum' => 0.0, 'n' => 0, 'prev' => 0.0, 'kinds' => ['vip' => 0.0, 'topup' => 0.0, 'tip' => 0.0]];
+		$rows = $wpdb->get_results($wpdb->prepare('SELECT kind, amount, updated FROM ' . Y4APK_Pay::table() . " WHERE status = 'finished' AND updated > %d", $now - 2 * $days * DAY_IN_SECONDS));
+		foreach ($rows as $r) {
+			$a = (float) $r->amount;
+			if ((int) $r->updated <= $from) {
+				$m['prev'] += $a;
+				continue;
+			}
+			$day = wp_date('Y-m-d', (int) $r->updated);
+			if (isset($m['by_day'][$day])) {
+				$m['by_day'][$day] += $a;
+			}
+			$m['sum'] += $a;
+			$m['n']++;
+			$m['kinds'][isset($m['kinds'][$r->kind]) ? $r->kind : 'vip'] += $a;
+		}
+		$m['vip_now'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key = %s AND CAST(meta_value AS UNSIGNED) > %d", Y4APK_VIP::UNTIL, $now));
+		$m['vip_soon'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key = %s AND CAST(meta_value AS UNSIGNED) BETWEEN %d AND %d", Y4APK_VIP::UNTIL, $now, $now + 7 * DAY_IN_SECONDS));
+		$m['wallet'] = class_exists('Y4APK_Wallet');
+		if ($m['wallet']) {
+			$W = 'Y4APK_Wallet';
+			$m['credit'] = (int) $wpdb->get_var('SELECT SUM(credit) FROM ' . $W::t('wallets'));
+			$m['earned'] = (int) $wpdb->get_var('SELECT SUM(earned) FROM ' . $W::t('wallets'));
+			$w = $wpdb->get_row("SELECT COUNT(*) AS n, SUM(amount) AS a FROM " . $W::t('payouts') . " WHERE status = 'requested'");
+			$m['payouts_n'] = (int) $w->n;
+			$m['payouts_a'] = (int) $w->a;
+			$m['tips'] = (int) $wpdb->get_var($wpdb->prepare('SELECT SUM(amount) FROM ' . $W::t('tips') . ' WHERE made > %d', $from));
+			$m['creators'] = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $W::t('wallets') . ' WHERE earned > 0');
+		}
+		return $m;
 	}
 
 	/**
@@ -311,16 +356,28 @@ class Y4APK_Dashboard {
 		return $whole > 0 ? round(100 * $part / $whole) : 0;
 	}
 
-	/** A signed change vs the period before, coloured by direction (up is good for everything here). */
-	public static function delta($now, $before, $label) {
+	/**
+	 * A signed change vs the period before, coloured by direction (up is good
+	 * for everything here). $what: what happened ("91 new"), or ''. From
+	 * nothing, or from a small number, it says "up from N" instead of a
+	 * percentage that means little (2.65.1: no more "▲ new 91 new", "4000%").
+	 */
+	public static function delta($now, $before, $what = '', $days = 0) {
+		$days = $days ?: self::$days;
+		$now = (int) $now;
+		$before = (int) $before;
+		$prev = sprintf(_n('the day before', 'the %d days before', $days, 'y4apk'), $days);
+		$lead = $what !== '' ? $what . ' · ' : '';
 		if ($now === 0 && $before === 0) {
-			return '<span class="y4d-delta">' . esc_html__('no change', 'y4apk') . '</span>';
+			return '<span class="y4d-delta">' . esc_html($lead . __('none yet', 'y4apk')) . '</span>';
 		}
-		if ($before === 0) {
-			return '<span class="y4d-delta y4d-delta-up">▲ ' . esc_html__('new', 'y4apk') . '</span> <span class="y4d-delta">' . esc_html($label) . '</span>';
+		$up = $now >= $before;
+		$arrow = '<span class="y4d-delta y4d-delta-' . ($up ? 'up">▲' : 'down">▼');
+		if ($before < 10 || abs($now - $before) > 5 * $before) {
+			return $arrow . '</span> <span class="y4d-delta">' . esc_html($lead . sprintf($up ? __('up from %1$s %2$s', 'y4apk') : __('down from %1$s %2$s', 'y4apk'), number_format_i18n($before), $prev)) . '</span>';
 		}
-		$pct = (int) round(100 * ($now - $before) / $before);
-		return '<span class="y4d-delta y4d-delta-' . ($pct >= 0 ? 'up">▲ ' : 'down">▼ ') . esc_html(abs($pct) . '%') . '</span> <span class="y4d-delta">' . esc_html($label) . '</span>';
+		$pct = (int) round(100 * abs($now - $before) / $before);
+		return $arrow . ' ' . esc_html($pct . '%') . '</span> <span class="y4d-delta">' . esc_html($lead . sprintf(__('vs %s', 'y4apk'), $prev)) . '</span>';
 	}
 
 	/** The days of a period put into up to 12 buckets, for a stat tile's trend. */
@@ -367,7 +424,7 @@ class Y4APK_Dashboard {
 	}
 
 	/** Columns per day: ≤24px bars, 4px rounded tops, hairline grid, clean ticks, a tooltip on each day. */
-	public static function columns($series, $noun) {
+	public static function columns($series, $noun, $fmt = null) {
 		$w = 720; $h = 190; $left = 34; $bottom = 22; $top = 8;
 		$n = max(1, count($series));
 		list($step, $ymax) = self::nice(max($series ?: [0]));
@@ -385,7 +442,7 @@ class Y4APK_Dashboard {
 		foreach ($series as $day => $v) {
 			$x = $left + $i * $slot;
 			$bh = $v > 0 ? max(3, $ph * $v / $ymax) : 0;
-			$tip = wp_date('D j M', strtotime($day)) . ' · ' . number_format_i18n($v) . ' ' . $noun;
+			$tip = wp_date('D j M', strtotime($day)) . ' · ' . ($fmt ? $fmt($v) : number_format_i18n($v) . ' ' . $noun);
 			$out .= '<g class="y4d-hit" data-tip="' . esc_attr($tip) . '"><rect x="' . round($x, 1) . '" y="' . $top . '" width="' . round($slot, 1) . '" height="' . $ph . '" fill="transparent"/>';
 			if ($bh > 0) {
 				$bx = round($x + ($slot - $bw) / 2, 1); $by = round($top + $ph - $bh, 1); $r = min(4, $bw / 2, $bh);
@@ -443,7 +500,6 @@ class Y4APK_Dashboard {
 		$s = Y4APK_Members::settings();
 		$members_link = admin_url('admin.php?page=y4apk-members');
 		$review_link = admin_url('admin.php?page=y4apk-review');
-		$per = sprintf(_n('vs the day before', 'vs the %d days before', $days, 'y4apk'), $days);
 		$new_members = array_sum($d['members_by_day']);
 		self::styles();
 		?>
@@ -463,13 +519,15 @@ class Y4APK_Dashboard {
 			</header>
 
 			<nav class="y4d-jump">
-				<?php foreach (['overview' => __('Overview', 'y4apk'), 'members' => __('Members', 'y4apk'), 'content' => __('What people read', 'y4apk'), 'roblox' => __('Roblox', 'y4apk'), 'app' => __('App & ads', 'y4apk'), 'health' => __('Health', 'y4apk')] as $k => $label) : ?>
+				<?php foreach (array_merge(['overview' => __('Overview', 'y4apk')], !empty($d['money']) ? ['money' => __('Money', 'y4apk')] : [], ['members' => __('Members', 'y4apk'), 'content' => __('What people read', 'y4apk'), 'roblox' => __('Roblox', 'y4apk'), 'app' => __('App & ads', 'y4apk'), 'health' => __('Health', 'y4apk')]) as $k => $label) : ?>
 					<a href="#y4d-<?php echo esc_attr($k); ?>"><?php echo esc_html($label); ?></a>
 				<?php endforeach; ?>
 			</nav>
 
-			<?php if ($d['waiting'] || $d['reported'] || $d['unsorted'] || $d['pictures_new']) : ?>
+			<?php $payouts_n = !empty($d['money']['payouts_n']) ? (int) $d['money']['payouts_n'] : 0; ?>
+			<?php if ($d['waiting'] || $d['reported'] || $d['unsorted'] || $d['pictures_new'] || $payouts_n) : ?>
 			<div class="y4d-todo">
+				<?php if ($payouts_n) : // 2.65.1 ?><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=payouts')); ?>"><b><?php echo esc_html(number_format_i18n($payouts_n)); ?></b> <?php echo esc_html(sprintf(_n('withdrawal to pay (%s)', 'withdrawals to pay (%s)', $payouts_n, 'y4apk'), Y4APK_Wallet::fmt($d['money']['payouts_a']))); ?> →</a><?php endif; ?>
 				<?php if ($d['waiting']) : ?><a href="<?php echo esc_url($review_link); ?>"><b><?php echo esc_html(number_format_i18n($d['waiting'])); ?></b> <?php echo esc_html(_n('script waiting for review', 'scripts waiting for review', $d['waiting'], 'y4apk')); ?> →</a><?php endif; ?>
 				<?php if ($d['reported']) : ?><a href="<?php echo esc_url($review_link); ?>"><b><?php echo esc_html(number_format_i18n($d['reported'])); ?></b> <?php echo esc_html(_n('reported script', 'reported scripts', $d['reported'], 'y4apk')); ?> →</a><?php endif; ?>
 				<?php if ($d['pictures_new']) : ?><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-pictures')); ?>"><b><?php echo esc_html(number_format_i18n($d['pictures_new'])); ?></b> <?php echo esc_html(_n('new member picture to look at', 'new member pictures to look at', $d['pictures_new'], 'y4apk')); ?> →</a><?php endif; ?>
@@ -481,14 +539,18 @@ class Y4APK_Dashboard {
 			<section id="y4d-overview" class="y4d-kpis">
 				<?php
 				$tiles = [
-					[__('Members', 'y4apk'), self::n($m['total']), self::delta($new_members, $d['members_prev'], sprintf(__('%1$s new · %2$s', 'y4apk'), number_format_i18n($new_members), $per)), self::buckets($d['members_by_day']), '#y4d-members'],
+					[__('Members', 'y4apk'), self::n($m['total']), self::delta($new_members, $d['members_prev'], sprintf(__('%s new', 'y4apk'), number_format_i18n($new_members))), self::buckets($d['members_by_day']), '#y4d-members'],
 					[__('Active members', 'y4apk'), self::n($m['active_7']), '<span class="y4d-delta">' . esc_html(sprintf(__('seen in 7 days · %s online now', 'y4apk'), number_format_i18n($m['online']))) . '</span>', null, '#y4d-members'],
-					[__('Published posts', 'y4apk'), self::n($d['posts']), self::delta(array_sum($d['posts_by_day']), $d['posts_prev'], sprintf(__('%1$s new · %2$s', 'y4apk'), number_format_i18n(array_sum($d['posts_by_day'])), $per)), self::buckets($d['posts_by_day']), admin_url('edit.php')],
+					[__('Published posts', 'y4apk'), self::n($d['posts']), self::delta(array_sum($d['posts_by_day']), $d['posts_prev'], sprintf(__('%s new', 'y4apk'), number_format_i18n(array_sum($d['posts_by_day'])))), self::buckets($d['posts_by_day']), admin_url('edit.php')],
 					[__('Total views', 'y4apk'), self::short($d['views']), '<span class="y4d-delta">' . esc_html__('counted by browsers, page cache too', 'y4apk') . '</span>', null, '#y4d-content'],
-					[__('Scripts from members', 'y4apk'), self::n($d['member_scripts']), self::delta(array_sum($d['submitted_by_day']), $d['submitted_prev'], sprintf(__('%1$s sent · %2$s', 'y4apk'), number_format_i18n(array_sum($d['submitted_by_day'])), $per)), self::buckets($d['submitted_by_day']), $review_link],
-					[__('Ad opens', 'y4apk'), self::n($d['ev']['direct_link']), self::delta($d['ev']['direct_link'], $d['ev_prev']['direct_link'], $per), self::buckets($d['ads_by_day']), '#y4d-app'],
-					[__('File downloads', 'y4apk'), self::n($d['ev']['file_download']), self::delta($d['ev']['file_download'], $d['ev_prev']['file_download'], $per), self::buckets($d['dl_by_day']), '#y4d-app'],
+					[__('Scripts from members', 'y4apk'), self::n($d['member_scripts']), self::delta(array_sum($d['submitted_by_day']), $d['submitted_prev'], sprintf(__('%s sent', 'y4apk'), number_format_i18n(array_sum($d['submitted_by_day'])))), self::buckets($d['submitted_by_day']), $review_link],
+					[__('Ad opens', 'y4apk'), self::n($d['ev']['direct_link']), self::delta($d['ev']['direct_link'], $d['ev_prev']['direct_link']), self::buckets($d['ads_by_day']), '#y4d-app'],
+					[__('File downloads', 'y4apk'), self::n($d['ev']['file_download']), self::delta($d['ev']['file_download'], $d['ev_prev']['file_download']), self::buckets($d['dl_by_day']), '#y4d-app'],
 				];
+				if (!empty($d['money'])) { // 2.65.1: what was paid on the site, in the period
+					$mo = $d['money'];
+					$tiles[] = [__('Paid on the site', 'y4apk'), Y4APK_VIP::money($mo['sum']), self::delta((int) round($mo['sum']), (int) round($mo['prev']), sprintf(_n('%s payment', '%s payments', $mo['n'], 'y4apk'), number_format_i18n($mo['n']))), self::buckets($mo['by_day']), '#y4d-money'];
+				}
 				foreach ($tiles as $t) : ?>
 					<a class="y4d-kpi" href="<?php echo esc_url($t[4]); ?>">
 						<span class="y4d-kpi-l"><?php echo esc_html($t[0]); ?></span>
@@ -500,6 +562,31 @@ class Y4APK_Dashboard {
 			</section>
 
 			<!-- ================================================= members -->
+			<?php if (!empty($d['money'])) : $mo = $d['money']; // 2.65.1 ?>
+			<!-- ================================================= money -->
+			<h2 id="y4d-money" class="y4d-h"><?php esc_html_e('Money', 'y4apk'); ?> <a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-vip&tab=payments')); ?>"><?php esc_html_e('Payments', 'y4apk'); ?> →</a></h2>
+			<div class="y4d-row">
+				<div class="y4d-card y4d-span-7">
+					<h3><?php esc_html_e('Paid on the site', 'y4apk'); ?> <small><?php echo esc_html(sprintf(__('per day, last %d days', 'y4apk'), $days)); ?></small></h3>
+					<?php echo self::columns($mo['by_day'], __('paid', 'y4apk'), function ($v) { return Y4APK_VIP::money($v) . ' ' . __('paid', 'y4apk'); }); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					<p class="y4d-foot"><?php echo esc_html(sprintf(__('%1$s in %2$s payments · VIP %3$s · top-ups %4$s · tips %5$s', 'y4apk'), Y4APK_VIP::money($mo['sum']), number_format_i18n($mo['n']), Y4APK_VIP::money($mo['kinds']['vip']), Y4APK_VIP::money($mo['kinds']['topup']), Y4APK_VIP::money($mo['kinds']['tip']))); ?></p>
+				</div>
+				<div class="y4d-card y4d-span-5">
+					<h3><?php esc_html_e('Right now', 'y4apk'); ?></h3>
+					<ul class="y4d-list">
+						<li><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-vip')); ?>"><?php esc_html_e('VIP members', 'y4apk'); ?></a><b><?php echo esc_html(number_format_i18n($mo['vip_now'])); ?></b></li>
+						<li><span><?php esc_html_e('VIP ending within 7 days', 'y4apk'); ?></span><b><?php echo esc_html(number_format_i18n($mo['vip_soon'])); ?></b></li>
+						<?php if ($mo['wallet']) : ?>
+						<li><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=history')); ?>"><?php esc_html_e('Members’ balances', 'y4apk'); ?></a><b><?php echo esc_html(Y4APK_Wallet::fmt($mo['credit'])); ?></b></li>
+						<li><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=creators')); ?>"><?php echo esc_html(sprintf(_n('Owed to %s creator', 'Owed to %s creators', $mo['creators'], 'y4apk'), number_format_i18n($mo['creators']))); ?></a><b><?php echo esc_html(Y4APK_Wallet::fmt($mo['earned'])); ?></b></li>
+						<li class="<?php echo $mo['payouts_n'] ? 'is-warn' : ''; ?>"><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=payouts')); ?>"><?php esc_html_e('Withdrawals waiting', 'y4apk'); ?></a><b><?php echo esc_html($mo['payouts_n'] ? number_format_i18n($mo['payouts_n']) . ' · ' . Y4APK_Wallet::fmt($mo['payouts_a']) : '0'); ?></b></li>
+						<li><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=tips')); ?>"><?php echo esc_html(sprintf(__('Tips, last %d days', 'y4apk'), $days)); ?></a><b><?php echo esc_html(Y4APK_Wallet::fmt($mo['tips'])); ?></b></li>
+						<?php endif; ?>
+					</ul>
+				</div>
+			</div>
+			<?php endif; ?>
+
 			<h2 id="y4d-members" class="y4d-h"><?php esc_html_e('Members', 'y4apk'); ?> <a href="<?php echo esc_url($members_link); ?>"><?php esc_html_e('Settings', 'y4apk'); ?> →</a></h2>
 			<?php self::members_part($d, $m); ?>
 
@@ -755,7 +842,7 @@ class Y4APK_Dashboard {
 				<?php if (!$m['newest']) : ?><p class="y4d-empty"><?php esc_html_e('No members yet.', 'y4apk'); ?></p><?php else : ?>
 				<table class="y4d-table"><thead><tr><th><?php esc_html_e('Member', 'y4apk'); ?></th><th><?php esc_html_e('Country', 'y4apk'); ?></th><th><?php esc_html_e('Device', 'y4apk'); ?></th><th><?php esc_html_e('Came from', 'y4apk'); ?></th><th><?php esc_html_e('First page', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Scripts', 'y4apk'); ?></th><th class="y4d-num"><?php esc_html_e('Joined', 'y4apk'); ?></th></tr></thead><tbody>
 					<?php foreach ($m['newest'] as $r) : $o = $r['o']; ?>
-					<tr><td><a href="<?php echo esc_url(get_edit_user_link($r['id'])); ?>">@<?php echo esc_html($r['login']); ?></a><?php if ($r['banned']) : ?><span class="y4d-chip y4d-chip-bad"><?php esc_html_e('banned', 'y4apk'); ?></span><?php elseif (!$r['verified']) : ?><span class="y4d-chip y4d-chip-warn"><?php esc_html_e('unconfirmed', 'y4apk'); ?></span><?php endif; ?></td>
+					<tr><td><a href="<?php echo esc_url(get_edit_user_link($r['id'])); ?>">@<?php echo esc_html($r['login']); ?></a><?php if ($r['banned']) : ?><span class="y4d-chip y4d-chip-bad"><?php esc_html_e('banned', 'y4apk'); ?></span><?php elseif (!$r['verified']) : ?><span class="y4d-chip y4d-chip-warn"><?php esc_html_e('unconfirmed', 'y4apk'); ?></span><?php else : ?><span class="y4d-chip y4d-chip-ok"><?php esc_html_e('confirmed', 'y4apk'); ?></span><?php endif; ?></td>
 						<td><?php echo self::cc_badge($o['cc']); ?><?php echo esc_html($o['cc'] !== '' ? Y4APK_Insights::country_name($o['cc']) : '—'); ?></td>
 						<td><?php echo $o['device'] !== '' ? self::device_icon($o['device']) . esc_html(trim($o['os'] . ' · ' . $o['browser'], ' ·')) . ($o['app'] !== '' ? '<span class="y4d-chip">' . esc_html($o['app'] === 'apk' ? __('Y4APK app', 'y4apk') : __('web app', 'y4apk')) . '</span>' : '') : '<span class="y4d-muted">—</span>'; ?></td>
 						<td><?php echo esc_html($o['source'] !== '' ? ($names[$o['source']] ?? $o['source']) . ($o['ref'] !== '' && !in_array($o['source'], ['google', 'youtube', 'tiktok', 'facebook'], true) ? ' (' . $o['ref'] . ')' : '') : '—'); ?></td>
@@ -874,7 +961,7 @@ class Y4APK_Dashboard {
 .y4d-rk-n{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}.y4d-rk-n small{font-weight:400;color:var(--mute)}
 .y4d-cc{display:inline-grid;place-items:center;flex:none;min-width:24px;height:16px;padding:0 3px;margin-right:4px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.03em;color:#3c434a;background:#eef0f2;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 .y4d-ico{flex:none;vertical-align:-2px;margin-right:4px;color:var(--ink2)}
-.y4d-chip{margin-left:6px;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;background:#e8f1fb;color:#184f95;white-space:nowrap}.y4d-chip-warn{background:#fff4de;color:#7a4d00}.y4d-chip-bad{background:#fdeeee;color:#8f1d22}
+.y4d-chip{margin-left:6px;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;background:#e8f1fb;color:#184f95;white-space:nowrap}.y4d-list{margin:4px 0 0;padding:0;list-style:none}.y4d-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13px}.y4d-list li:first-child{border-top:0}.y4d-list li b{font-size:15px;white-space:nowrap}.y4d-list li a{text-decoration:none}.y4d-list li.is-warn b{color:#b32d2e}.y4d-chip-warn{background:#fff4de;color:#7a4d00}.y4d-chip-ok{background:#e6f6ea;color:#1a6b30}.y4d-chip-bad{background:#fdeeee;color:#8f1d22}
 .y4d-table{width:100%;border-collapse:collapse}.y4d-table th{padding:0 8px 6px 0;text-align:left;font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;white-space:nowrap}.y4d-table td{padding:7px 8px 7px 0;border-top:1px solid var(--line);vertical-align:middle}.y4d-table tbody tr:first-child td{border-top:0}
 .y4d-num,.y4d-table th.y4d-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.y4d-path code{font-size:11px;background:none;padding:0;overflow-wrap:anywhere}
 .y4d-game{display:inline-flex;align-items:center;gap:8px}.y4d-game img{border-radius:6px;object-fit:cover}

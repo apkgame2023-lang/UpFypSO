@@ -668,6 +668,16 @@ An order's payment ends when NOWPayments says (about 20 minutes; the
 *Your purchases*. VIP ▸ Plans and settings ▸ *Payment page on Y4APK* (on by
 default) turns it off: back to NOWPayments' own page.
 
+2.65.1 — the Dashboard: a **Money** section (what was paid on the site per
+day, split VIP / top-ups / tips; VIP members and those ending within 7 days;
+members' balances, what creators are owed, withdrawals waiting, tips) and a
+*Paid on the site* tile; withdrawals waiting also show in the to-do strip at the
+top. The tiles' change line reads plainly: "▲ 79 new · up from 10 the 30 days
+before" instead of "▲ new 79 new", and no percentage from a small number (no
+more "4000%"); the Analytics page uses the same. *Newest members* marks
+confirmed accounts in green. Members ▸ Accounts: the envelope in *Remind N
+members to confirm* sits on the text's line.
+
 ## The wallet, tips and the creator program (2.64)
 
 `inc/wallet.php` (the member's page: `template/wallet.php`, `assets/css/wallet.css`;

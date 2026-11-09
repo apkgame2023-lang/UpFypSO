@@ -129,7 +129,7 @@ class Y4APK_Members_List {
 				<?php if ($c['pending']) : ?>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm(<?php echo esc_attr(wp_json_encode(sprintf(__('Send the confirmation email again to up to %d members who have not confirmed (the ones not sent one today)?', 'y4apk'), self::ROUND))); ?>)">
 					<input type="hidden" name="action" value="y4apk_accounts"><input type="hidden" name="do" value="send_all"><input type="hidden" name="back" value="<?php echo esc_attr($here); ?>"><?php wp_nonce_field('y4apk_accounts'); ?>
-					<button class="button button-primary y4m-big"><span class="dashicons dashicons-email-alt"></span> <?php echo esc_html(sprintf(_n('Remind %s member to confirm', 'Remind %s members to confirm', min(self::ROUND, $c['pending']), 'y4apk'), number_format_i18n(min(self::ROUND, $c['pending'])))); ?></button>
+					<button class="button button-primary y4m-big"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/></svg> <?php echo esc_html(sprintf(_n('Remind %s member to confirm', 'Remind %s members to confirm', min(self::ROUND, $c['pending']), 'y4apk'), number_format_i18n(min(self::ROUND, $c['pending'])))); ?></button>
 				</form>
 				<?php endif; ?>
 			</div>
@@ -241,7 +241,7 @@ class Y4APK_Members_List {
 		#wpcontent{padding-left:0}.y4m-tabs,.y4m{margin-left:20px!important;margin-right:20px!important}
 		.y4m{--ink:#1d2327;--mute:#646970;--line:#e2e4e7;max-width:none}
 		.y4m-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;margin:14px 0 16px}.y4m-head h1{margin:0;padding:0;font-size:26px;font-weight:700}.y4m-head p{margin:4px 0 0;color:var(--mute);max-width:720px}
-		.y4m-big{display:inline-flex!important;align-items:center;gap:6px;height:38px!important;padding:0 16px!important;font-weight:600!important;border-radius:8px!important}
+		.y4m-big svg{flex:none;display:block}.y4m-big{display:inline-flex!important;align-items:center;gap:8px;line-height:1!important;height:38px!important;padding:0 16px!important;font-weight:600!important;border-radius:8px!important}
 		.y4m-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 		.y4m-tile{position:relative;display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-radius:14px;background:#fff;border:1px solid #dcdcde;text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}
 		.y4m-tile:hover{border-color:#2271b1;color:inherit}.y4m-tile.is-on{border-color:#2271b1;box-shadow:0 0 0 2px #2271b1}
