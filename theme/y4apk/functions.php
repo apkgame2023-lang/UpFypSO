@@ -46,6 +46,7 @@ require $theme_dir . '/inc/discover.php';
 require $theme_dir . '/inc/members.php';
 require $theme_dir . '/inc/members-social.php';
 require $theme_dir . '/inc/members-oauth.php'; // sign in with Google or Discord (2.66)
+require $theme_dir . '/inc/dm.php'; // messages between members (2.67)
 require $theme_dir . '/inc/members-cover.php'; // a post's own cover (2.55)
 require $theme_dir . '/inc/members-insights.php';
 require $theme_dir . '/inc/members-pictures.php';

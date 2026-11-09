@@ -26,6 +26,7 @@ $notices = [
 	'welcome_social' => __('Welcome! Your account is ready. Add a picture and a few words in Edit profile.', 'y4apk'),
 	'linked'      => __('Connected. You can sign in with it from now on.', 'y4apk'),
 	'unlinked'    => __('Disconnected.', 'y4apk'),
+	'saved'       => __('Saved.', 'y4apk'),
 ];
 $ok = isset($notices[$c['ok']]) ? $notices[$c['ok']] : '';
 $old = $c['old'];
@@ -136,6 +137,7 @@ $si = function ($name) {
 		'eye'    => '<path d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5Zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Zm0-2.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>',
 		'star'   => '<path d="m12 2 3 6.6 7.2.7-5.4 4.8 1.6 7.1L12 17.5l-6.4 3.7 1.6-7.1L1.8 9.3 9 8.6 12 2Z"/>',
 		'users'  => '<path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-7 1.7-7 4v2h14v-2c0-2.3-3.7-4-7-4Zm7.5-2a3.5 3.5 0 1 0-1.3-6.7 6 6 0 0 1 0 6.4c.4.2.8.3 1.3.3Zm1.6 2.1c1.2.9 1.9 2.1 1.9 3.9v2h3v-2c0-2-2.4-3.4-4.9-3.9Z"/>',
+		'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
 		'gear'   => '<path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/>',
 		'camera' => '<path d="M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8-3h-2.8l-1.7-2H8.5L6.8 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Z"/>',
 		'image'  => '<path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14Zm-5.1-7.1-3 3.9-2.1-2.6L6 17h12l-4.1-5.1Z"/>',
@@ -153,6 +155,9 @@ $si = function ($name) {
 /** The signed-in member's tabs: under their page's head, like on their public page. */
 $tabs = function ($on) use ($si) {
 	$items = ['home' => [__('My uploads', 'y4apk'), 'code'],'following' => [__('Following', 'y4apk'), 'users'], 'customize' => [__('Edit profile', 'y4apk'), 'edit'], 'settings' => [__('Settings', 'y4apk'), 'gear']];
+	if (class_exists('Y4APK_DM') && Y4APK_DM::on()) { // 2.67
+		$items = array_slice($items, 0, 2, true) + ['messages' => [__('Messages', 'y4apk'), 'chat']] + array_slice($items, 2, null, true);
+	}
 	echo '<nav class="prf-tabs acc-nav">';
 	foreach ($items as $k => $t) {
 		echo '<a' . ($k === $on ? ' class="is-on" aria-current="page"' : '') . ' href="' . esc_url(Y4APK_Members::url($k === 'home' ? '' : $k)) . '">' . $si($t[1]) . esc_html($t[0]) . '</a>';
@@ -749,6 +754,19 @@ if ($screen === 'login') {
 		<?php echo Y4APK_OAuth::script(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 	</div>
 	<?php endif; ?>
+	<?php if (class_exists('Y4APK_DM') && Y4APK_DM::on()) : $dm_who = (string) get_user_meta($u->ID, Y4APK_DM::WHO, true) ?: 'all'; // 2.67 ?>
+	<div class="acc-card acc-methods" id="messages">
+		<h2><?php esc_html_e('Messages', 'y4apk'); ?></h2>
+		<?php $form_open('dmprefs'); ?>
+			<p class="acc-hint"><?php esc_html_e('Who can send you messages', 'y4apk'); ?></p>
+			<?php foreach (['all' => __('Every member', 'y4apk'), 'follow' => __('Only people I follow', 'y4apk'), 'none' => __('Nobody new (only people I already wrote to)', 'y4apk')] as $k => $label) : ?>
+				<label class="acc-check"><input type="radio" name="dm_who" value="<?php echo esc_attr($k); ?>" <?php checked($dm_who, $k); ?>> <span><?php echo esc_html($label); ?></span></label>
+			<?php endforeach; ?>
+			<label class="acc-check" style="margin-top:.5rem"><input type="checkbox" name="dm_mail" value="1" <?php checked(get_user_meta($u->ID, Y4APK_DM::MAIL, true) !== '0'); ?>> <span><?php esc_html_e('Email me when I get a message while I am away (at most every 6 hours, without what it says)', 'y4apk'); ?></span></label>
+			<button class="acc-btn acc-btn-small" type="submit"><?php esc_html_e('Save', 'y4apk'); ?></button>
+		</form>
+	</div>
+	<?php endif; ?>
 	<?php
 
 /* ======================================================= share / edit a script: /upload/, four steps */
@@ -760,6 +778,8 @@ if ($screen === 'login') {
 	include locate_template('template/wallet.php'); // the wallet (2.64)
 } elseif ($screen === 'pay') {
 	include locate_template('template/pay.php'); // the payment page (2.65)
+} elseif ($screen === 'messages') {
+	include locate_template('template/messages.php'); // messages between members (2.67)
 } elseif ($screen === 'share_closed') {
 	$shell_open();
 	?>
@@ -1160,6 +1180,9 @@ if ($screen === 'login') {
 						<button type="button" class="prf-btn prf-btn-main<?php echo $c['i_follow'] ? ' is-on' : ''; ?>" data-follow="<?php echo (int) $u->ID; ?>" data-on="<?php echo $c['i_follow'] ? 1 : 0; ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('y4apk_follow')); ?>"><span><?php echo esc_html($c['i_follow'] ? __('Following', 'y4apk') : __('Follow', 'y4apk')); ?></span></button>
 					<?php elseif (!$c['user']) : ?>
 						<a class="prf-btn prf-btn-main" href="<?php echo esc_url($M::url('register')); ?>"><?php echo $si('plus'); ?><span><?php esc_html_e('Follow', 'y4apk'); ?></span></a>
+					<?php endif; ?>
+					<?php if (!$c['own'] && class_exists('Y4APK_DM') && Y4APK_DM::on() && (!$c['user'] || $c['member'])) : // 2.67 ?>
+						<a class="prf-btn prf-btn-msg" href="<?php echo esc_url($c['user'] ? Y4APK_DM::url(['to' => $u->user_login]) : $M::url('login')); ?>" rel="nofollow"><?php echo $si('chat'); ?><span><?php esc_html_e('Message', 'y4apk'); ?></span></a>
 					<?php endif; ?>
 					<?php if (!$c['own'] && class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() && Y4APK_Wallet::creator($u->ID)['ok']) : // 2.64 ?>
 						<a class="prf-btn prf-btn-tip" href="<?php echo esc_url($c['user'] ? Y4APK_Wallet::tip_url($u) : $M::url('login')); ?>"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg><span><?php esc_html_e('Tip', 'y4apk'); ?></span></a>

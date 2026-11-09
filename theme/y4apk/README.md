@@ -638,6 +638,46 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Messages between members (2.67)
+
+`inc/dm.php` (page: `template/messages.php`, `assets/js/messages.js`,
+`assets/css/messages.css`; Y4APK ▸ Messages: `inc/dm-admin.php`).
+
+- **Writing:** *Message* on a member's profile opens
+  `/account/messages/?to=name`. The page lists the member's conversations
+  (newest first, unread in bold with a dot, who is online) beside the open one;
+  on a phone, the list, then the conversation with a back arrow. Messages in
+  bubbles grouped by sender and time, day separators, links clickable (never
+  followed by search engines), *Seen* / *Sent* under the last one sent, earlier
+  messages on demand. Enter sends on a computer (Shift+Enter: a new line); on a
+  phone, the send button.
+- **Live:** the open conversation asks for new messages every 3 seconds while
+  the tab is in view (every 20 when not), the list every 15; nothing to install
+  and no long-running connection, so it works on shared hosting. The header's
+  account menu has *Messages* with the unread count (admin-ajax
+  `y4apk_dm_count`, at most once a minute), and a red dot on the avatar.
+- **Each member decides:** who may write to them (every member, only people
+  they follow, or nobody new: only people they already wrote to), and whether
+  they get an email when someone writes while they are away (at most one every
+  6 hours, never what it says): Account settings ▸ *Messages*.
+- **Safety:** members with a confirmed email only; banned members cannot send.
+  *Unsend* removes a message for both; *Block* stops both ways until unblocked;
+  *Report* (spam, scam, abuse, other, optionally blocking too) keeps an
+  encrypted copy for the owner. *Delete conversation* takes it off one's own
+  list until the other writes again. Limits: 20 messages a minute, 400 a day,
+  15 new conversations a day (3 for an account less than a day old), all in
+  Y4APK ▸ Messages ▸ Settings.
+- **Privacy:** messages are kept encrypted (`Y4APK_Mail::hide`, the site's
+  key). The owner sees only reported messages, with the three before them, in
+  Y4APK ▸ Messages (*Remove the message*, *Ban the member*, *Dismiss*); the
+  count shows on the menu and the Dashboard. A closed account's conversations
+  are deleted. The Privacy page says so.
+- Tables: `y4apk_dm_threads` (one row per pair of members: the last message,
+  what each has read, left and blocked), `y4apk_dm_msgs`, `y4apk_dm_reports`.
+  REST (`/wp-json/y4apk/v1/dm/`, signed-in members, the REST nonce): `inbox`,
+  `thread` (`t`, or `to`; `after` / `before`), `send`, `unsend`, `block`,
+  `report`, `leave`.
+
 ## Confirming the email, broken links, Google and Discord (2.66)
 
 **Signing in before the email is confirmed.** A new member is signed in as soon

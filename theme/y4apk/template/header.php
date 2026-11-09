@@ -256,6 +256,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'profile'   => home_url('/@'),
                 'vip'       => class_exists('Y4APK_VIP') ? Y4APK_VIP::url() : '',
                 'wallet'    => class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() ? Y4APK_Wallet::url() : '', // 2.64
+                'messages'  => class_exists('Y4APK_DM') && Y4APK_DM::on() ? Y4APK_DM::url() : '', // 2.67
                 'ajax'      => admin_url('admin-ajax.php'),
             )); ?>;
             var T = <?php echo wp_json_encode(array(
@@ -267,6 +268,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
                 'wallet'    => __('Wallet and earnings', 'y4apk'),
+                'messages'  => __('Messages', 'y4apk'),
                 'confirm'   => __('Confirm your email', 'y4apk'),
                 'confirmWhy'=> __('Open the link we sent you', 'y4apk'),
                 'out'       => __('Sign out', 'y4apk'),
@@ -328,8 +330,8 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 vt.appendChild(vs); menu.appendChild(va);
             }
             var list = '<nav class="h-acct-list">';
-            [['home', 'home'], ['submit', 'upload'], ['wallet', 'wallet'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
-                if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }
+            [['home', 'home'], ['messages', 'chat'], ['submit', 'upload'], ['wallet', 'wallet'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
+                if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span>' + (x[0] === 'messages' ? '<b class="h-acct-n" data-dm-count hidden></b>' : '') + '</a>'; }
             });
             list += '</nav>' + (T.lang ? '<button type="button" class="h-acct-lang" data-y4l-open>' + svg('globe') + '<span></span>' + svg('next', 16) + '</button>' : '')
                 + (U.help ? '<nav class="h-acct-list"><a href="' + U.help + '">' + svg('help') + '<span>' + T.help + '</span></a><a href="' + U.feedback + '">' + svg('chat') + '<span>' + T.feedback + '</span></a></nav>' : '')
@@ -337,6 +339,12 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
             menu.insertAdjacentHTML('beforeend', list);
             if (T.lang) { menu.querySelector('.h-acct-lang span').textContent = T.lang; }
             box.innerHTML = ''; box.appendChild(btn); box.appendChild(menu); box.classList.add('is-in');
+            if (U.messages) { // 2.67: unread messages, asked at most once a minute
+                var dmPut = function (n) { menu.querySelectorAll('[data-dm-count]').forEach(function (x) { x.textContent = n > 99 ? '99+' : n; x.hidden = !n; }); btn.classList.toggle('has-msg', n > 0); };
+                var dmC = null; try { dmC = JSON.parse(sessionStorage.getItem('y4apk_dm_n') || 'null'); } catch (e) {}
+                if (dmC && Date.now() - dmC.t < 60000) { dmPut(+dmC.n || 0); }
+                else if (window.fetch) { fetch(U.ajax + '?action=y4apk_dm_count', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.success) { dmPut(+j.data.n || 0); try { sessionStorage.setItem('y4apk_dm_n', JSON.stringify({ n: +j.data.n || 0, t: Date.now() })); } catch (e) {} } }).catch(function () {}); }
+            }
             var open = function (on) { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); box.classList.toggle('open', on); };
             btn.addEventListener('click', function (e) { e.stopPropagation(); open(menu.hidden); });
             document.addEventListener('click', function (e) { if (!menu.hidden && !box.contains(e.target)) { open(false); } });

@@ -47,7 +47,7 @@ class Y4APK_Members {
 	const RISKY = '/\b(?:syn\.request|http_request|http\.request|fluxus\.request|request)\s*\(|\b(?:writefile|appendfile|delfile|makefolder|delfolder|setclipboard|toclipboard|queue_on_teleport|queueonteleport)\b|MarketplaceService|Prompt(?:Product|GamePass)?Purchase|\brequire\s*\(\s*\d|\\\\x[0-9a-f]{2}|\\\\\d{2,3}\\\\\d{2,3}|\bstring\.char\s*\(|\b(?:getfenv|setfenv|getrenv)\b|[A-Za-z0-9+\/=]{180,}/i';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'unlink' => 'settings', 'customize' => 'customize', 'share' => 'share'];
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'unlink' => 'settings', 'dmprefs' => 'settings', 'customize' => 'customize', 'share' => 'share'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -711,7 +711,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay', 'google', 'discord'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay', 'google', 'discord', 'messages'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -766,7 +766,7 @@ class Y4APK_Members {
 			}
 		}
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
-		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay'];
+		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay', 'messages'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
 			wp_safe_redirect(self::url());
 			exit;
@@ -820,6 +820,10 @@ class Y4APK_Members {
 		}
 		if ($view === 'pay' && class_exists('Y4APK_Pay')) { // 2.65: the payment page, on the site
 			Y4APK_Pay::route($ctx);
+			return;
+		}
+		if ($view === 'messages' && class_exists('Y4APK_DM')) { // 2.67: messages between members
+			Y4APK_DM::route($ctx);
 			return;
 		}
 		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
@@ -1189,6 +1193,21 @@ class Y4APK_Members {
 		delete_user_meta($user->ID, 'y4apk_nopass');
 		wp_set_auth_cookie($user->ID, true, is_ssl()); // wp_set_password signs everyone out, this device included
 		wp_safe_redirect(self::url('settings', ['ok' => 'pw']));
+		exit;
+	}
+
+	/** Settings ▸ Messages (2.67): who may write, and the emails. */
+	private static function do_dmprefs(&$ctx) {
+		$ctx['screen'] = 'settings';
+		$g = self::guard('dmprefs', false);
+		if ($g !== true) {
+			$ctx['errors'][] = $g;
+			return;
+		}
+		if (class_exists('Y4APK_DM')) {
+			Y4APK_DM::save_prefs($ctx['user'], wp_unslash($_POST));
+		}
+		wp_safe_redirect(self::url('settings', ['ok' => 'saved']) . '#messages');
 		exit;
 	}
 
