@@ -230,7 +230,7 @@ class Y4APK_Mail {
 				<?php if ($m['why'] !== '') : ?><?php echo $e($m['why']); ?><br><?php endif; ?>
 				<a href="<?php echo esc_url($home); ?>" style="color:<?php echo $mute; ?>;text-decoration:underline;"><?php echo $e(preg_replace('~^https?://~', '', untrailingslashit($home))); ?></a>
 				<?php
-				// 2.65.2: the site's three parts, as in its menu: Games · Apps · Roblox
+				// 2.65.2: the site's three parts: Games · Apps · Scripts (2.65.3: "Scripts" says what the Roblox hub holds)
 				$parts = [];
 				$roots = class_exists('Y4APK_Share') ? Y4APK_Share::roots() : [];
 				foreach (['game' => __('Games', 'y4apk'), 'app' => __('Apps', 'y4apk')] as $k => $label) {
@@ -242,7 +242,7 @@ class Y4APK_Mail {
 					}
 				}
 				if (class_exists('Y4APK_Roblox') && Y4APK_Roblox::hub_url()) {
-					$parts[] = [Y4APK_Roblox::hub_url(), __('Roblox', 'y4apk')];
+					$parts[] = [Y4APK_Roblox::hub_url(), __('Scripts', 'y4apk')];
 				}
 				foreach ($parts as $pt) : ?> · <a href="<?php echo esc_url($pt[0]); ?>" style="color:<?php echo $mute; ?>;text-decoration:underline;"><?php echo $e($pt[1]); ?></a><?php endforeach; ?>
 				<br>© <?php echo esc_html(wp_date('Y')); ?> <?php echo $e($site); ?>
