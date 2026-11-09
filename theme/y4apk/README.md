@@ -681,6 +681,14 @@ and updates). Hostinger's `x-turbo-charged-by` and LiteSpeed's
 (Rules ▸ Transform Rules ▸ Response Header ▸ Remove) takes them off. After
 installing, Purge All once so cached pages are made again without them.
 
+2.61.2 — **iOS files (IPA) upload in App updates.** An IPA download (it starts
+unticked) kept its *Upload* button grey after being ticked, and R2 uploads took
+no `.ipa`: now ticking the line wakes its button, the file picker offers
+`.ipa`, R2 keeps it as `….ipa` (named for its type and version like the
+others, e.g. `Delta-Executor-IPA-v2.746-Y4APK.COM-IDv123456.ipa`), and Save
+points the line's download folder at it. An IPA is not read for an Android
+version. *Add a file* also offers IPA, for a post that has no iOS file yet.
+
 ## Your own rows on the home page (2.60)
 
 2.60.2 — a member's **banner** may be from **480 × 160** pixels (it was 600 ×

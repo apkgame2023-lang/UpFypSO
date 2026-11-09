@@ -26,6 +26,9 @@ class Y4APK_Apk_Check {
 	public static function inspect($key, $size, $name) {
 		$ext = strtolower(pathinfo((string) $name, PATHINFO_EXTENSION));
 		$out = ['package' => '', 'version' => '', 'kind' => $ext, 'why' => ''];
+		if ($ext === 'ipa') {
+			return $out; // an iOS app (2.61.2): no Android manifest to read
+		}
 		if ($ext === 'obb') {
 			if (preg_match('/^(?:main|patch)\.\d+\.([A-Za-z]\w*(?:\.\w+)+)\.obb$/i', basename((string) $name), $m)) {
 				$out['package'] = $m[1];

@@ -34,7 +34,7 @@ class Y4APK_R2 {
 	const OPTION    = 'y4apk_r2';
 	const MIN_PART  = 16777216; // 16 MiB; R2 wants every part but the last the same size
 	const MAX_PARTS = 9000;     // S3 allows 10,000
-	const TYPES     = ['apk', 'xapk', 'apks', 'apkm', 'zip', 'obb'];
+	const TYPES     = ['apk', 'xapk', 'apks', 'apkm', 'zip', 'obb', 'ipa']; // 2.61.2: iOS files (IPA) too
 
 	/** The download page new folders start with, until Settings has another. */
 	const PAGE = <<<'HTML'
@@ -862,7 +862,7 @@ HTML;
 		?>
 		<span class="au-up" data-row="<?php echo esc_attr($row); ?>">
 			<input type="hidden" class="au-up-key" name="<?php echo esc_attr($name); ?>" value="">
-			<label class="button au-up-btn<?php echo $disabled ? ' disabled' : ''; ?>"><input type="file" accept=".apk,.xapk,.apks,.apkm,.zip,.obb" hidden <?php disabled($disabled); ?>>⬆ <?php esc_html_e('Upload', 'y4apk'); ?></label>
+			<label class="button au-up-btn<?php echo $disabled ? ' disabled' : ''; ?>"><input type="file" accept=".apk,.xapk,.apks,.apkm,.zip,.obb,.ipa" hidden <?php disabled($disabled); ?>>⬆ <?php esc_html_e('Upload', 'y4apk'); ?></label>
 		</span>
 		<span class="au-up-status" hidden></span>
 		<?php

@@ -48,7 +48,7 @@ class Y4APK_App_Updates {
 	const ICON_BATCH   = 8;   // icons copied from Google Play to R2 per step (two pictures each)
 	const FOLLOW_BATCH = 40;  // posts brought up to Google Play's version per step from what is already known (no requests)
 	const ICON_SRC     = '_y4apk_icon_src';   // the Google Play icon the featured image is (as Write with AI keeps it)
-	const NEW_TYPES    = ['MOD', 'APK', 'XAPK', 'APKS', 'OBB']; // a first download's type (2.50.1)
+	const NEW_TYPES    = ['MOD', 'APK', 'XAPK', 'APKS', 'OBB', 'IPA']; // a first download's type (2.50.1); IPA: an iOS file (2.61.2)
 	const OUTSIDE      = '_y4apk_outside_links'; // 2.50.4: downloads on other sites taken off the post: [['at' => index, 'row' => row], …] (to put back)
 	const FOLLOWED     = '_y4apk_followed';   // 2.57: the last version put in by itself: {"from","to","at"}
 	const GSC          = 'y4apk_gsc';
@@ -2452,7 +2452,7 @@ class Y4APK_App_Updates {
 						<?php $out_i = self::outside_link($o); ?>
 						<div class="au-line<?php echo $out_i ? ' is-del is-out' : ''; ?>" data-row="<?php echo esc_attr($i); ?>">
 							<label class="au-type" title="<?php esc_attr_e('Update this download too', 'y4apk'); ?>"><input type="checkbox" name="rows[<?php echo esc_attr($i); ?>][on]" value="1" <?php checked($on); ?>
-								onchange="this.closest('.au-line').querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !this.checked; }, this)"> <?php echo esc_html($o['download_name']); ?></label>
+								onchange="var on = this.checked, l = this.closest('.au-line'); l.querySelectorAll('input:not([type=checkbox])').forEach(function (e) { e.disabled = !on; }); l.querySelectorAll('.au-up-btn').forEach(function (b) { b.classList.toggle('disabled', !on); });"> <?php echo esc_html($o['download_name']); ?></label>
 							<input type="text" name="rows[<?php echo esc_attr($i); ?>][version]" value="<?php echo esc_attr(self::with_number(isset($o['download_version']) ? $o['download_version'] : '', $new_n)); ?>" aria-label="<?php esc_attr_e('Version', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 							<input type="text" name="rows[<?php echo esc_attr($i); ?>][size]" value="<?php echo esc_attr(isset($o['download_size']) ? $o['download_size'] : ''); ?>" placeholder="<?php esc_attr_e('Size', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Size', 'y4apk'); ?>" <?php disabled(!$on); ?>>
 							<input type="url" name="rows[<?php echo esc_attr($i); ?>][url]" value="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" data-orig="<?php echo esc_attr(isset($o['download_url']) ? $o['download_url'] : ''); ?>" placeholder="<?php esc_attr_e('Link to the new file', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Download link', 'y4apk'); ?>" <?php disabled(!$on); ?>>
@@ -3458,11 +3458,11 @@ class Y4APK_App_Updates {
 				});
 			});
 			// 2.50.3: the type — "v5.9.1.apk" becomes "v5.9.1.xapk" for XAPK; an .xapk, .apks, .obb or .zip file picks its type
-			var exts = { MOD: 'apk', APK: 'apk', XAPK: 'xapk', APKS: 'apks', OBB: 'zip' };
+			var exts = { MOD: 'apk', APK: 'apk', XAPK: 'xapk', APKS: 'apks', OBB: 'zip', IPA: 'ipa' };
 			function ending(sel) {
 				var v = sel.closest('.au-line').querySelector('input[name="version"], input[name$="[version]"]');
 				if (v && exts[sel.value]) {
-					v.value = v.value.replace(/\.(apk|xapk|apks|apkm|zip|obb)$/i, '.' + exts[sel.value]);
+					v.value = v.value.replace(/\.(apk|xapk|apks|apkm|zip|obb|ipa)$/i, '.' + exts[sel.value]);
 				}
 			}
 			document.addEventListener('change', function (e) {
@@ -3484,7 +3484,7 @@ class Y4APK_App_Updates {
 				}
 				var sel = line.querySelector('select.au-type');
 				var ext = (f.files[0].name.split('.').pop() || '').toLowerCase();
-				var to = { xapk: 'XAPK', apks: 'APKS', obb: 'OBB', zip: 'OBB' }[ext];
+				var to = { xapk: 'XAPK', apks: 'APKS', obb: 'OBB', zip: 'OBB', ipa: 'IPA' }[ext];
 				if (sel && to && sel.value !== to && [].some.call(sel.options, function (o) { return o.value === to; })) {
 					sel.value = to;
 					ending(sel);
