@@ -1,6 +1,7 @@
 /* The payment page (2.65): /account/pay/ — choose a coin, send it, done. */
 
-.pay { max-width: 40rem; margin: 0 auto; display: grid; gap: 1rem; }
+.pay { max-width: 40rem; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.pay > *, .pay-card > * { min-width: 0; }
 .acc a.pay-back { justify-self: start; color: var(--acc-mute); font-size: .875rem; font-weight: 700; text-decoration: none; }
 .acc a.pay-back:hover { color: var(--acc-ink); }
 .pay-card { display: grid; gap: 1.25rem; padding: 1.5rem; border-radius: 1.5rem; background: #fff; box-shadow: 0 1.25rem 2.5rem -1.5rem rgba(23, 32, 33, .25), 0 0 0 1px rgba(23, 32, 33, .05); }

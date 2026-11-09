@@ -741,11 +741,12 @@ if ($screen === 'login') {
 				<?php elseif ($linked) : ?>
 					<span class="acc-hint"><?php esc_html_e('Set a password first to disconnect', 'y4apk'); ?></span>
 				<?php else : ?>
-					<a class="acc-btn acc-btn-small" href="<?php echo esc_url(Y4APK_OAuth::start_url($p)); ?>"><?php esc_html_e('Connect', 'y4apk'); ?></a>
+					<a class="acc-btn acc-btn-small" href="<?php echo esc_url(Y4APK_OAuth::start_url($p)); ?>" data-y4-popup><?php esc_html_e('Connect', 'y4apk'); ?></a>
 				<?php endif; ?>
 			</li>
 		<?php endforeach; ?>
 		</ul>
+		<?php echo Y4APK_OAuth::script(); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 	</div>
 	<?php endif; ?>
 	<?php

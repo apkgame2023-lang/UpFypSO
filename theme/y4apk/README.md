@@ -713,6 +713,31 @@ Google and Discord had the language in it (`/th/account/google/`), which they
 refuse (*redirect_uri_mismatch*): it is now always `/account/google/` (and
 `/account/discord/`), whatever the language.
 
+2.66.2 — **signing in without leaving Y4APK.** Google's and Discord's own
+pages cannot be shown inside another site (they forbid it, so no site can fake
+them), so:
+
+- **Google** uses Google's own button and One Tap on the sign-in and sign-up
+  pages (Google Identity Services, `accounts.google.com/gsi/client`, loaded on
+  those two pages only): the account list opens over the page, in the page's
+  language. Google's answer is a signed token, checked on the site: Google's
+  signature (its public keys, kept as long as Google says), for this site's
+  client ID, not expired, a confirmed email, and a one-time value tied to this
+  browser (an HttpOnly cookie), so a token from another browser is refused.
+  Needs the site's address (`https://y4apk.com`) in the Google client's
+  *Authorized JavaScript origins*. Members ▸ Settings ▸ Google ▸ *Sign in on
+  the page* turns it off (back to the link).
+- **Discord** (and the Google link, when Google's button is off) opens in a
+  small window; when it is done the window closes and the page goes on
+  (signed in, the username step, or what went wrong). Where windows are
+  blocked, the link opens as before. Account settings ▸ *Connect* works the
+  same way.
+
+Also: the wallet, payment, VIP and settings pages could be wider than a phone in
+Thai (a long word, or a long button label, has no space to wrap at, and stretched
+the page's one column); the columns now stay within the screen and full-width
+buttons wrap.
+
 ### Setting up Google
 
 1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent
@@ -720,7 +745,8 @@ refuse (*redirect_uri_mismatch*): it is now always `/account/google/` (and
    `y4apk.com`, links to the Privacy and Terms pages; scopes `openid`, `email`,
    `profile`; then *Publish app*.
 2. *Credentials* ▸ *Create credentials* ▸ *OAuth client ID* ▸ *Web
-   application*; *Authorised redirect URIs*: `https://y4apk.com/account/google/`.
+   application*; *Authorised JavaScript origins*: `https://y4apk.com`;
+   *Authorised redirect URIs*: `https://y4apk.com/account/google/`.
 3. Copy the Client ID and Client secret into Members ▸ Settings.
 
 ### Setting up Discord

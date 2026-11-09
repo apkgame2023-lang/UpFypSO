@@ -1,6 +1,7 @@
 /* VIP (2.62): /account/vip/ — the member's VIP, what it gives, the plans, the code box. */
 
-.vip { --vip-gold: #f5a524; --vip-gold-l: #ffd76a; --vip-dark: #1f262a; --vip-dark2: #323d45; max-width: 46rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.vip { --vip-gold: #f5a524; --vip-gold-l: #ffd76a; --vip-dark: #1f262a; --vip-dark2: #323d45; max-width: 46rem; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.vip > * { min-width: 0; }
 .vip .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* The member, on a dark card that turns gold while VIP */

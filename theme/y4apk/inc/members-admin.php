@@ -752,6 +752,10 @@ class Y4APK_Members_Admin {
 								<p><label><?php esc_html_e('Client ID', 'y4apk'); ?><br><input type="text" class="regular-text code" name="oauth_<?php echo esc_attr($p); ?>_id" value="<?php echo esc_attr($const ? '' : $os[$p . '_id']); ?>" <?php disabled($const); ?> autocomplete="off"></label></p>
 								<p><label><?php esc_html_e('Client secret', 'y4apk'); ?><br><input type="password" class="regular-text code" name="oauth_<?php echo esc_attr($p); ?>_secret" value="" placeholder="<?php echo esc_attr(!$const && $os[$p . '_secret'] !== '' ? '•••••••••• ' . __('(saved: leave empty to keep)', 'y4apk') : ''); ?>" <?php disabled($const); ?> autocomplete="new-password"></label>
 									<?php if (!$const && $os[$p . '_secret'] !== '') : ?><label style="margin-left:1rem"><input type="checkbox" name="oauth_<?php echo esc_attr($p); ?>_forget" value="1"> <?php esc_html_e('Remove it', 'y4apk'); ?></label><?php endif; ?></p>
+								<?php if ($p === 'google') : // 2.66.2 ?>
+								<p><input type="hidden" name="oauth_google_gis_set" value="1"><label><input type="checkbox" name="oauth_google_gis" value="1" <?php checked(!empty($os['google_gis'])); ?>> <?php esc_html_e('Sign in on the page: Google’s own button and One Tap (no leaving Y4APK)', 'y4apk'); ?></label><br>
+									<span class="description"><?php esc_html_e('Needs this site’s address in the client’s Authorized JavaScript origins:', 'y4apk'); ?> <code><?php echo esc_html(untrailingslashit((string) get_option('home'))); ?></code></span></p>
+								<?php endif; ?>
 								<p class="description"><?php echo esc_html($info[1]); ?>. <?php esc_html_e('Redirect address to add there:', 'y4apk'); ?> <code><?php echo esc_html(Y4APK_OAuth::redirect_uri($p)); ?></code>
 									<?php if ($const) : ?><br><?php esc_html_e('Set in wp-config.php.', 'y4apk'); ?><?php endif; ?></p>
 							</div>

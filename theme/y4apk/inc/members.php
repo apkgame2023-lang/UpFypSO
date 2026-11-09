@@ -757,6 +757,14 @@ class Y4APK_Members {
 			Y4APK_OAuth::route($ctx);
 			return;
 		}
+		if (class_exists('Y4APK_OAuth')) {
+			if (!$ctx['user'] && ($view === 'login' || $view === 'register')) {
+				Y4APK_OAuth::prepare(); // 2.66.2: Google's own button on the page
+			}
+			if (isset($_GET['oauth_err'])) { // a sign-in window that ended in a problem
+				$ctx['errors'][] = Y4APK_OAuth::message(sanitize_key(wp_unslash($_GET['oauth_err'])), sanitize_key(wp_unslash($_GET['via'] ?? '')));
+			}
+		}
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
 		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {

@@ -1,6 +1,7 @@
 /* The wallet (2.64): /account/wallet/ — balance, top-ups, tips, creator earnings, withdrawals, history. */
 
-.wal { max-width: 46rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.wal { max-width: 46rem; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; } /* 2.66.2: a long word (Thai has no spaces) no longer widens every card past the screen */
+.wal > *, .wal-hero > *, .wal-hbtn span { min-width: 0; overflow-wrap: anywhere; }
 .wal h2 { font-size: 1.125rem; }
 .wal-small { margin: .6rem 0 0; color: var(--acc-mute); font-size: .8125rem; line-height: 1.55; }
 
@@ -33,7 +34,8 @@
 .wal-tip.is-open { box-shadow: 0 0 0 2px rgba(229, 72, 77, .35), 0 1rem 2rem -1.25rem rgba(229, 72, 77, .5); }
 
 /* Amounts */
-.wal-form { display: grid; gap: .9rem; }
+.wal-form, .wal-acts { display: grid; grid-template-columns: minmax(0, 1fr); gap: .9rem; }
+.wal-form > * { min-width: 0; }
 .wal-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .5rem; }
 .wal-chip { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 3.25rem; padding: .4rem; border-radius: .9rem; background: #fff;
 	box-shadow: 0 0 0 1.5px var(--acc-line); color: var(--acc-ink); font-weight: 800; font-size: 1.0625rem; cursor: pointer; transition: box-shadow .15s, transform .1s; }
@@ -49,7 +51,7 @@
 .wal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .wal-row .acc-field { margin: 0; }
 .wal-form > .acc-field { margin: 0; }
-.wal-acts { display: grid; gap: .6rem; }
+.wal-acts { gap: .6rem; }
 .wal .wal-go { gap: .5rem; min-height: 3.25rem; border-radius: 999px; font-size: 1rem; }
 .wal .wal-go[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .wal .wal-go2 { width: 100%; min-height: 3rem; border-radius: 999px; }
