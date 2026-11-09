@@ -49,9 +49,9 @@
 	color: #fff; font-size: .75rem; font-weight: 800; white-space: nowrap; box-shadow: 0 .4rem .9rem -.35rem rgba(255, 94, 58, .8); }
 
 .vip-pay-bar { margin-top: 1rem; }
-.vip a.vip-pay { flex-direction: column; gap: .2rem; height: auto; min-height: 3.75rem; padding: .7rem 1.25rem; border-radius: 999px; background: linear-gradient(135deg, #1fd1b2, #18b8a0); color: #062b26;
+.vip .vip-pay { flex-direction: column; gap: .2rem; height: auto; min-height: 3.75rem; padding: .7rem 1.25rem; border-radius: 999px; background: linear-gradient(135deg, #1fd1b2, #18b8a0); color: #062b26;
 	box-shadow: 0 1rem 1.75rem -.75rem rgba(24, 184, 160, .7); font-size: 1.125rem; }
-.vip a.vip-pay:hover { color: #062b26; background: linear-gradient(135deg, #22dcbb, #19c2a8); }
+.vip .vip-pay:hover { color: #062b26; background: linear-gradient(135deg, #22dcbb, #19c2a8); }
 .vip-pay small { font-size: .8125rem; font-weight: 600; opacity: .75; }
 .vip-pay-note, .vip-small { margin: .6rem 0 0; color: var(--acc-mute); font-size: .8125rem; text-align: center; }
 .vip-small { text-align: left; }
@@ -99,3 +99,28 @@
 	.vip-log li { grid-template-columns: minmax(0, 1fr) auto; }
 	.vip-log li time { grid-column: 1 / -1; }
 }
+
+/* 2.63: paying on the site */
+.vip-buy { display: grid; gap: 0; }
+.vip-gift { display: flex; align-items: flex-start; gap: .7rem; margin-top: .9rem; padding: .85rem 1rem; border-radius: 1rem; background: #fff; box-shadow: 0 0 0 1px var(--acc-line); cursor: pointer; }
+.vip-gift:has(input:checked) { box-shadow: 0 0 0 2px #1fd1b2; }
+.vip-gift input { flex: none; width: 1.15rem; height: 1.15rem; margin: .15rem 0 0; accent-color: #18b8a0; }
+.vip-gift b { display: block; color: var(--acc-ink); }
+.vip-gift small { display: block; margin-top: .15rem; color: var(--acc-mute); font-size: .8125rem; }
+.vip-pay-note a { font-weight: 700; }
+.vip-order { display: flex; gap: 1rem; align-items: flex-start; }
+.vip-order-i { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; background: rgba(41, 177, 216, .12); color: var(--acc-blue); font-weight: 800; font-size: 1.25rem; }
+.vip-order.is-done .vip-order-i { background: rgba(63, 195, 90, .15); color: #1f9a3a; }
+.vip-order.is-bad .vip-order-i { background: rgba(229, 72, 77, .12); color: var(--acc-red); }
+.vip-order-t { flex: 1; min-width: 0; }
+.vip-order-t h2 { margin: 0 0 .3rem; font-size: 1.0625rem; }
+.vip-order-t p { margin: 0; }
+.vip-order-t p + p { margin-top: .4rem; }
+.vip-spin { width: 1.3rem; height: 1.3rem; border-radius: 50%; border: 3px solid rgba(41, 177, 216, .25); border-top-color: var(--acc-blue); animation: vip-spin .9s linear infinite; }
+@keyframes vip-spin { to { transform: rotate(360deg); } }
+.vip-giftcode { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-top: .75rem; }
+.vip-giftcode code { flex: 1; min-width: 0; padding: .7rem .9rem; border-radius: .8rem; background: #fff7e0; color: #6b3f00; font: 700 1.125rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .06em; text-align: center; overflow-wrap: anywhere; }
+.vip-giftcode .acc-btn { width: auto; }
+.vip-orders li span small.vip-st { display: block; margin-top: .15rem; color: var(--acc-mute); font-size: .75rem; }
+.vip-orders li span small.vip-st.is-done { color: #1f9a3a; font-weight: 700; }
+.vip-orders li span code { display: inline-block; margin-top: .3rem; padding: .15rem .45rem; border-radius: .4rem; background: #fff7e0; color: #6b3f00; font-size: .8125rem; }

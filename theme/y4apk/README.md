@@ -638,6 +638,37 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Paying for VIP on the site (2.63)
+
+`inc/pay.php`: VIP bought on the VIP page and given at once, through a payment
+company. The first is **NOWPayments** (crypto from anywhere: USDT, BTC, ETH and
+a few hundred more; cards as well once NOWPayments has checked the business).
+Buyers see the site's name only.
+
+1. A signed-in member picks a plan, for themself or **as a gift**, and taps
+   *Pay now*: an order is written (`{prefix}y4apk_orders`), NOWPayments makes
+   an invoice for it, and the member goes to its payment page.
+2. NOWPayments reports the payment to `/wp-json/y4apk/v1/pay/nowpayments`
+   (IPN). The notice must carry a good HMAC-SHA512 signature (IPN secret), and
+   is then asked again of NOWPayments' API with the site's key: what the API
+   says counts, so a forged notice gives nothing. The price and currency must
+   be the order's, or the order stops at "Amount did not match".
+3. Paid (`finished`): days added to the member's VIP, or — a gift — a new
+   random code made for them, once per order (`UPDATE … WHERE granted = 0`),
+   and an email says so (the gift code in it).
+4. Back on the VIP page the order shows waiting / confirming (the page looks
+   again every 10 seconds) / done, with the gift code and *Copy*; *Your
+   purchases* lists the member's orders.
+
+Y4APK ▸ VIP ▸ **Payments**: money in over 30 days, orders being paid, orders
+that need a look (paid less, wrong amount, failed) and the list of orders.
+▸ **Plans and settings** ▸ *Pay on the site*: the API key and IPN secret (kept
+encrypted, or `Y4APK_NOWPAYMENTS_KEY` / `Y4APK_NOWPAYMENTS_IPN` in
+wp-config.php), the IPN address to paste into NOWPayments, a sandbox switch
+and *Test the connection*. Without keys, the page keeps the code box and the
+*Get VIP* link as in 2.62 (shown as *Other ways to pay* when both are there).
+More companies plug into the same orders.
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta

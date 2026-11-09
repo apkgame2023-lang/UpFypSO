@@ -60,6 +60,25 @@ $added = (int) $vp['added'];
 	<?php endif; ?>
 	<?php $messages(); ?>
 
+	<?php if (!empty($vp['order'])) : // 2.63: back from the payment page
+		$o = $vp['order'];
+		$o_done = in_array($o->status, Y4APK_Pay::DONE, true);
+		$o_wait = Y4APK_Pay::waiting($o) && !($vp['cancel'] && $o->status === 'waiting');
+		?>
+		<section class="acc-card vip-order is-<?php echo $o_done ? 'done' : ($o_wait ? 'wait' : 'bad'); ?>" id="order"<?php echo $o_wait ? ' data-vip-wait' : ''; ?>>
+			<span class="vip-order-i" aria-hidden="true"><?php echo $o_done ? $check : ($o_wait ? '<span class="vip-spin"></span>' : '!'); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+			<div class="vip-order-t">
+				<h2><?php echo esc_html(sprintf(__('Order #%1$s · %2$s', 'y4apk'), $o->id, Y4APK_VIP::plan_label($o->days)) . ($o->gift ? ' · ' . __('gift', 'y4apk') : '')); ?></h2>
+				<p><b><?php echo esc_html($vp['cancel'] && !$o_done && $o->status === 'waiting' ? __('You left the payment page: nothing was paid. Pick a plan to try again.', 'y4apk') : Y4APK_Pay::status_text($o)); ?></b></p>
+				<?php if ($o_wait) : ?><p class="vip-small"><?php esc_html_e('Crypto takes a few minutes to confirm. This page checks by itself; you can also close it, we email you when it is done.', 'y4apk'); ?></p><?php endif; ?>
+				<?php if ($o_done && $o->gift && $o->code !== '') : ?>
+					<div class="vip-giftcode"><code><?php echo esc_html(Y4APK_VIP::pretty($o->code)); ?></code><button type="button" class="acc-btn acc-btn-ghost" data-vip-copy="<?php echo esc_attr(Y4APK_VIP::pretty($o->code)); ?>"><?php esc_html_e('Copy', 'y4apk'); ?></button></div>
+					<p class="vip-small"><?php esc_html_e('Give this code to anyone: they type it on this page and get the days. It works once.', 'y4apk'); ?></p>
+				<?php endif; ?>
+			</div>
+		</section>
+	<?php endif; ?>
+
 	<div class="vip-intro">
 		<h1><?php echo esc_html($on ? __('You are VIP', 'y4apk') : __('Go VIP', 'y4apk')); ?></h1>
 		<p><?php echo esc_html($on ? __('Add more days any time: they go on the end of the ones you have.', 'y4apk') : __('No ads and no waiting, on every game, app and script.', 'y4apk')); ?></p>
@@ -78,6 +97,11 @@ $added = (int) $vp['added'];
 	<?php if ($plans) : ?>
 	<section class="vip-plans-box" aria-label="<?php esc_attr_e('Plans', 'y4apk'); ?>">
 		<h2><?php esc_html_e('Choose a plan', 'y4apk'); ?></h2>
+		<?php if ($vp['pay']) : // 2.63: paid on the site, VIP at once ?>
+		<form method="post" action="<?php echo esc_url(Y4APK_VIP::url()); ?>" class="vip-buy">
+			<input type="hidden" name="y4_do" value="vip_buy">
+			<?php echo $M::nonce('vip'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php endif; ?>
 		<div class="vip-plans">
 			<?php foreach ($plans as $i => $p) : $save = Y4APK_VIP::saving($p); ?>
 				<label class="vip-plan">
@@ -89,7 +113,22 @@ $added = (int) $vp['added'];
 				</label>
 			<?php endforeach; ?>
 		</div>
-		<?php if ($buy !== '') : ?>
+		<?php if ($vp['pay']) : ?>
+			<label class="vip-gift"><input type="checkbox" name="gift" value="1"><span><b><?php esc_html_e('Buy as a gift', 'y4apk'); ?></b><small><?php esc_html_e('You get a code to give to a friend; nothing is added to your account.', 'y4apk'); ?></small></span></label>
+			<div class="vip-pay-bar">
+				<?php if ($me) : ?>
+				<button class="acc-btn acc-btn-primary vip-pay" type="submit">
+					<span><?php esc_html_e('Pay now', 'y4apk'); ?></span>
+					<small data-vip-price><?php echo esc_html(isset($plans[$pick]) ? Y4APK_VIP::money($plans[$pick]['price']) . ' / ' . Y4APK_VIP::plan_label($plans[$pick]['days']) : ''); ?></small>
+				</button>
+				<?php else : ?>
+				<a class="acc-btn acc-btn-primary vip-pay" href="<?php echo esc_url($M::url('login')); ?>"><span><?php esc_html_e('Sign in to pay', 'y4apk'); ?></span><small><?php esc_html_e('VIP is kept with your account', 'y4apk'); ?></small></a>
+				<?php endif; ?>
+				<p class="vip-pay-note"><?php esc_html_e('Crypto: USDT, BTC, ETH and 300 more, on a secure payment page. VIP is added the moment the payment is confirmed.', 'y4apk'); ?></p>
+				<?php if ($buy !== '') : ?><p class="vip-pay-note"><a href="<?php echo esc_url($buy); ?>" target="_blank" rel="noopener nofollow"><?php esc_html_e('Other ways to pay', 'y4apk'); ?></a></p><?php endif; ?>
+			</div>
+		</form>
+		<?php elseif ($buy !== '') : ?>
 			<div class="vip-pay-bar">
 				<a class="acc-btn acc-btn-primary vip-pay" href="<?php echo esc_url($buy); ?>" target="_blank" rel="noopener nofollow">
 					<span><?php echo esc_html($set['buy_label'] !== '' ? $set['buy_label'] : __('Get VIP', 'y4apk')); ?></span>
@@ -136,6 +175,21 @@ $added = (int) $vp['added'];
 	</section>
 	<?php endif; ?>
 
+	<?php if ($me && !empty($vp['orders'])) : // 2.63 ?>
+	<section class="acc-card vip-log vip-orders">
+		<h2><?php esc_html_e('Your purchases', 'y4apk'); ?></h2>
+		<ul>
+			<?php foreach ($vp['orders'] as $o) : $o_done = in_array($o->status, Y4APK_Pay::DONE, true); ?>
+				<li>
+					<span><?php echo esc_html(sprintf(__('#%1$s · %2$s', 'y4apk'), $o->id, Y4APK_VIP::plan_label($o->days)) . ($o->gift ? ' · ' . __('gift', 'y4apk') : '')); ?><small class="vip-st<?php echo $o_done ? ' is-done' : ''; ?>"><?php echo esc_html(Y4APK_Pay::status_text($o)); ?></small><?php if ($o_done && $o->gift && $o->code !== '') : ?><code><?php echo esc_html(Y4APK_VIP::pretty($o->code)); ?></code><?php endif; ?></span>
+					<b><?php echo esc_html(Y4APK_VIP::money($o->amount)); ?></b>
+					<time><?php echo esc_html(wp_date(get_option('date_format'), (int) $o->made)); ?></time>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+	</section>
+	<?php endif; ?>
+
 	<section class="vip-faq">
 		<details><summary><?php esc_html_e('Does VIP renew by itself?', 'y4apk'); ?></summary><p><?php esc_html_e('No. It ends on its date and nothing is charged again. Add days whenever you like.', 'y4apk'); ?></p></details>
 		<details><summary><?php esc_html_e('I still see an ad', 'y4apk'); ?></summary><p><?php esc_html_e('Make sure you are signed in on this browser. VIP works on every device you sign in on.', 'y4apk'); ?></p></details>
@@ -148,6 +202,20 @@ $added = (int) $vp['added'];
 	document.querySelectorAll('.vip-plan input').forEach(function (r) {
 		r.addEventListener('change', function () { if (price && r.checked) { price.textContent = r.getAttribute('data-label'); } });
 	});
+	document.querySelectorAll('[data-vip-copy]').forEach(function (b) {
+		b.addEventListener('click', function () {
+			var t = b.getAttribute('data-vip-copy'), label = b.textContent;
+			(navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.textContent = '✓'; setTimeout(function () { b.textContent = label; }, 1500); }, function () { window.prompt('', t); });
+		});
+	});
+	// Waiting for the payment to be confirmed: look again every 10 seconds, for 20 minutes at most
+	if (document.querySelector('[data-vip-wait]')) {
+		var n = 0;
+		try { n = +sessionStorage.getItem('y4apk_vip_wait') || 0; sessionStorage.setItem('y4apk_vip_wait', n + 1); } catch (e) {}
+		if (n < 120) { setTimeout(function () { location.reload(); }, 10000); }
+	} else {
+		try { sessionStorage.removeItem('y4apk_vip_wait'); } catch (e) {}
+	}
 	var code = document.getElementById('vip-code');
 	if (code) {
 		code.addEventListener('input', function () {

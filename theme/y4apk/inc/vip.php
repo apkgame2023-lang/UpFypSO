@@ -226,23 +226,29 @@ class Y4APK_VIP {
 
 	/** $count new codes worth $days each: how many were made. */
 	public static function make($count, $days, $batch) {
-		global $wpdb;
 		$count = max(1, min(1000, (int) $count));
-		$days = max(1, min(3650, (int) $days));
-		$batch = substr(sanitize_text_field((string) $batch), 0, 60);
 		$made = 0;
+		for ($tries = 0; $made < $count && $tries < $count * 3; $tries++) {
+			$made += self::make_one($days, $batch) !== '' ? 1 : 0;
+		}
+		return $made;
+	}
+
+	/** One new random code worth $days (2.63: a paid gift is one): the code, or '' (it already existed, very rarely). */
+	public static function make_one($days, $batch) {
+		global $wpdb;
 		$max = strlen(self::ABC) - 1;
-		for ($i = 0, $tries = 0; $i < $count && $tries < $count * 3; $tries++) {
+		for ($try = 0; $try < 3; $try++) {
 			$code = '';
 			for ($j = 0; $j < 16; $j++) {
 				$code .= self::ABC[random_int(0, $max)];
 			}
-			if ($wpdb->query($wpdb->prepare('INSERT IGNORE INTO ' . self::table() . ' (code, days, batch, made) VALUES (%s, %d, %s, %d)', $code, $days, $batch, time()))) {
-				$made++;
-				$i++;
+			if ($wpdb->query($wpdb->prepare('INSERT IGNORE INTO ' . self::table() . ' (code, days, batch, made) VALUES (%s, %d, %s, %d)',
+				$code, max(1, min(3650, (int) $days)), substr(sanitize_text_field((string) $batch), 0, 60), time()))) {
+				return $code;
 			}
 		}
-		return $made;
+		return '';
 	}
 
 	/**
@@ -306,7 +312,45 @@ class Y4APK_VIP {
 				$ctx['old']['code'] = isset($_POST['code']) ? sanitize_text_field(wp_unslash($_POST['code'])) : '';
 			}
 		}
+		// 2.63: Pay — the order, then the payment company's page
+		if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do']) && $_POST['y4_do'] === 'vip_buy' && class_exists('Y4APK_Pay')) {
+			if (!$uid) {
+				wp_safe_redirect(Y4APK_Members::url('login'));
+				exit;
+			}
+			$days = absint($_POST['vip_plan'] ?? 0);
+			$plan = null;
+			foreach (self::settings()['plans'] as $p) {
+				if ((int) $p['days'] === $days) {
+					$plan = $p;
+				}
+			}
+			if (!wp_verify_nonce(isset($_POST['_y4n']) ? sanitize_text_field(wp_unslash($_POST['_y4n'])) : '', 'y4apk_acct_vip')) {
+				$ctx['errors'][] = __('The page was open too long. Try again.', 'y4apk');
+			} elseif (!$plan) {
+				$ctx['errors'][] = __('Choose a plan.', 'y4apk');
+			} else {
+				$go = Y4APK_Pay::start($uid, $plan, !empty($_POST['gift']));
+				if (is_wp_error($go)) {
+					$ctx['errors'][] = $go->get_error_message();
+				} else {
+					wp_redirect($go); // the payment company's page, on its own site
+					exit;
+				}
+			}
+		}
+		$order = null;
+		if ($uid && class_exists('Y4APK_Pay') && isset($_GET['order'], $_GET['k'])) {
+			$o = Y4APK_Pay::get(absint($_GET['order']));
+			if ($o && (int) $o->user_id === $uid && hash_equals((string) $o->token, (string) wp_unslash($_GET['k']))) {
+				$order = $o;
+			}
+		}
 		$ctx['vip'] = [
+			'order'  => $order,
+			'cancel' => !empty($_GET['cancel']),
+			'orders' => $uid && class_exists('Y4APK_Pay') ? Y4APK_Pay::for_user($uid) : [],
+			'pay'    => class_exists('Y4APK_Pay') && Y4APK_Pay::ready(),
 			'until' => $uid ? self::until($uid) : 0,
 			'log'   => $uid ? array_reverse(self::log($uid)) : [],
 			'set'   => self::settings(),
@@ -470,6 +514,9 @@ class Y4APK_VIP {
 				'buy_label' => substr(sanitize_text_field((string) ($in['buy_label'] ?? '')), 0, 40),
 			], false);
 			self::$settings = null;
+			if (class_exists('Y4APK_Pay')) {
+				Y4APK_Pay::save_settings($in); // 2.63
+			}
 			if (function_exists('y4apk_purge_pages')) {
 				y4apk_purge_pages();
 			}
@@ -504,7 +551,7 @@ class Y4APK_VIP {
 
 	public static function render() {
 		global $wpdb;
-		$tab = isset($_GET['tab']) && in_array($_GET['tab'], ['members', 'codes', 'settings'], true) ? $_GET['tab'] : 'members';
+		$tab = isset($_GET['tab']) && in_array($_GET['tab'], ['members', 'codes', 'payments', 'settings'], true) ? $_GET['tab'] : 'members';
 		$s = self::settings();
 		$now = time();
 		$t = self::table();
@@ -520,6 +567,9 @@ class Y4APK_VIP {
 			'made'    => sprintf(__('%1$s codes made in “%2$s”. Download them below.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0)), sanitize_text_field(wp_unslash($_GET['batch'] ?? ''))),
 			'dropped' => sprintf(__('%s unused codes deleted.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0))),
 			'saved'   => __('Saved.', 'y4apk') . (function_exists('y4apk_cache_note') ? ' ' . y4apk_cache_note() : ''),
+			'paytestok'  => __('NOWPayments answers and accepts the API key. People can pay on the VIP page.', 'y4apk'),
+			'paytestbad' => __('NOWPayments did not answer. Try again in a minute.', 'y4apk'),
+			'paykeybad'  => __('NOWPayments answers, but the API key is not accepted. Copy it again from NOWPayments ▸ Store settings ▸ API keys.', 'y4apk'),
 		];
 		$note = isset($_GET['note']) ? sanitize_key($_GET['note']) : '';
 		$days_select = function ($name = 'days') use ($s) {
@@ -544,7 +594,7 @@ class Y4APK_VIP {
 				'actions' => '<a class="button button-large" href="' . esc_url(Y4APK_Members::url('vip')) . '" target="_blank">' . esc_html__('View the VIP page', 'y4apk') . '</a>',
 			]); ?>
 			<?php if ($note && isset($notes[$note])) : ?>
-				<div class="notice <?php echo in_array($note, ['nouser', 'nodays'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
+				<div class="notice <?php echo in_array($note, ['nouser', 'nodays', 'paytestbad', 'paykeybad'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
 			<?php endif; ?>
 
 			<div class="y4ui-kpis">
@@ -556,7 +606,7 @@ class Y4APK_VIP {
 
 			<div class="y4ui-bar-row">
 				<nav class="y4ui-tabs">
-					<?php foreach (['members' => __('Members', 'y4apk'), 'codes' => __('Codes', 'y4apk'), 'settings' => __('Plans and settings', 'y4apk')] as $k => $label) : ?>
+					<?php foreach (['members' => __('Members', 'y4apk'), 'codes' => __('Codes', 'y4apk'), 'payments' => __('Payments', 'y4apk'), 'settings' => __('Plans and settings', 'y4apk')] as $k => $label) : ?>
 						<a href="<?php echo esc_url(self::admin_url(['tab' => $k])); ?>" class="<?php echo $tab === $k ? 'is-on' : ''; ?>"><?php echo esc_html($label); ?></a>
 					<?php endforeach; ?>
 				</nav>
@@ -654,6 +704,51 @@ class Y4APK_VIP {
 					</div>
 				</div>
 
+			<?php elseif ($tab === 'payments') :
+				$ot = class_exists('Y4APK_Pay') ? Y4APK_Pay::table() : '';
+				$since = $now - 30 * DAY_IN_SECONDS;
+				$sums = $ot ? $wpdb->get_results($wpdb->prepare("SELECT currency, SUM(amount) AS s, COUNT(*) AS n FROM $ot WHERE status = 'finished' AND made > %d GROUP BY currency", $since)) : [];
+				$waiting = $ot ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $ot WHERE status IN ('waiting', 'confirming', 'confirmed', 'sending')") : 0;
+				$trouble = $ot ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $ot WHERE status IN ('partially_paid', 'mismatch', 'failed')") : 0;
+				$show = isset($_GET['st']) ? sanitize_key($_GET['st']) : '';
+				$where = ['paid' => "status = 'finished'", 'wait' => "status IN ('waiting', 'confirming', 'confirmed', 'sending')", 'trouble' => "status IN ('partially_paid', 'mismatch', 'failed')"][$show] ?? "status <> 'new'";
+				$orders = $ot ? $wpdb->get_results("SELECT * FROM $ot WHERE $where ORDER BY id DESC LIMIT 100") : [];
+				$money = function ($rows) {
+					return $rows ? implode(' + ', array_map(function ($r) { $sym = self::currencies()[$r->currency] ?? ''; return $sym . number_format_i18n((float) $r->s, 2); }, $rows)) : '0';
+				};
+				?>
+				<?php if (!class_exists('Y4APK_Pay') || !Y4APK_Pay::ready()) : ?>
+					<div class="notice notice-warning inline"><p><?php esc_html_e('Paying on the site is off: add the NOWPayments keys in Plans and settings.', 'y4apk'); ?> <a href="<?php echo esc_url(self::admin_url(['tab' => 'settings'])); ?>"><?php esc_html_e('Open the settings', 'y4apk'); ?></a></p></div>
+				<?php endif; ?>
+				<div class="y4ui-kpis">
+					<a class="y4ui-kpi is-green" href="<?php echo esc_url(self::admin_url(['tab' => 'payments', 'st' => 'paid'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Paid, 30 days', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html($money($sums)); ?></span><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(_n('%s order', '%s orders', array_sum(wp_list_pluck($sums, 'n')), 'y4apk'), number_format_i18n(array_sum(wp_list_pluck($sums, 'n'))))); ?></span></a>
+					<a class="y4ui-kpi" href="<?php echo esc_url(self::admin_url(['tab' => 'payments', 'st' => 'wait'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Being paid', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($waiting)); ?></span><span class="y4ui-kpi-s"><?php esc_html_e('on the payment page or confirming', 'y4apk'); ?></span></a>
+					<a class="y4ui-kpi<?php echo $trouble ? ' is-red' : ''; ?>" href="<?php echo esc_url(self::admin_url(['tab' => 'payments', 'st' => 'trouble'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Need a look', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($trouble)); ?></span><span class="y4ui-kpi-s"><?php esc_html_e('paid less, wrong amount, failed', 'y4apk'); ?></span></a>
+				</div>
+				<div class="y4ui-card">
+					<div class="y4ui-card-h"><div><h2><?php esc_html_e('Orders', 'y4apk'); ?></h2><p><?php esc_html_e('Paid ones are given by themselves: VIP on the account, or a gift code. “Paid less” is not given: settle it in NOWPayments, then give the days on Members.', 'y4apk'); ?></p></div></div>
+					<?php if (!$orders) : ?>
+						<div class="y4ui-empty"><?php esc_html_e('No orders yet.', 'y4apk'); ?></div>
+					<?php else : ?>
+					<div class="y4ui-scroll"><table class="y4ui-table">
+						<thead><tr><th>#</th><th><?php esc_html_e('Member', 'y4apk'); ?></th><th><?php esc_html_e('Plan', 'y4apk'); ?></th><th><?php esc_html_e('Price', 'y4apk'); ?></th><th><?php esc_html_e('State', 'y4apk'); ?></th><th><?php esc_html_e('Paid with', 'y4apk'); ?></th><th><?php esc_html_e('When', 'y4apk'); ?></th></tr></thead>
+						<tbody>
+						<?php foreach ($orders as $o) : $u = get_userdata((int) $o->user_id); $done = $o->status === 'finished'; $bad = in_array($o->status, ['partially_paid', 'mismatch', 'failed'], true); ?>
+							<tr>
+								<td><b><?php echo (int) $o->id; ?></b></td>
+								<td><?php echo $u ? '<a href="' . esc_url(Y4APK_Members::profile_url($u)) . '" target="_blank">@' . esc_html($u->user_login) . '</a>' : '—'; ?></td>
+								<td><?php echo esc_html(self::plan_label($o->days)); ?><?php if ($o->gift) : ?> <span class="y4ui-chip is-amber"><?php esc_html_e('gift', 'y4apk'); ?></span><?php if ($o->code !== '') : ?><br><span class="y4ui-chip is-code"><?php echo esc_html(self::pretty($o->code)); ?></span><?php endif; endif; ?></td>
+								<td><?php echo esc_html((self::currencies()[$o->currency] ?? '') . number_format_i18n((float) $o->amount, 2)); ?></td>
+								<td><span class="y4ui-chip <?php echo $done ? 'is-green' : ($bad ? 'is-red' : 'is-blue'); ?>"><?php echo esc_html(class_exists('Y4APK_Pay') ? Y4APK_Pay::status_text($o) : $o->status); ?></span></td>
+								<td><?php echo esc_html($o->paid !== '' ? $o->paid : '—'); ?><?php if ($o->pay_id !== '') : ?><br><span class="y4ui-kpi-s">ID <?php echo esc_html($o->pay_id); ?></span><?php endif; ?></td>
+								<td><?php echo esc_html(wp_date(get_option('date_format') . ' H:i', (int) $o->made)); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table></div>
+					<?php endif; ?>
+				</div>
+
 			<?php else : ?>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="vip-settings">
 					<?php $form('settings', 'settings'); ?>
@@ -684,6 +779,27 @@ class Y4APK_VIP {
 									<div class="y4ui-field"><label for="vip-buy-l"><?php esc_html_e('Button text (optional)', 'y4apk'); ?></label><input type="text" id="vip-buy-l" name="buy_label" value="<?php echo esc_attr($s['buy_label']); ?>" maxlength="40" placeholder="<?php esc_attr_e('Get VIP', 'y4apk'); ?>"></div>
 								</div>
 							</div>
+							<?php if (class_exists('Y4APK_Pay')) : $ps = Y4APK_Pay::settings(); $pay_on = Y4APK_Pay::ready(); ?>
+							<div class="y4ui-card">
+								<div class="y4ui-card-h"><div><h2><?php esc_html_e('Pay on the site: NOWPayments', 'y4apk'); ?> <span class="y4ui-chip <?php echo $pay_on ? 'is-green' : ''; ?>"><?php echo esc_html($pay_on ? __('On', 'y4apk') : __('Off', 'y4apk')); ?></span></h2><p><?php esc_html_e('Crypto from anywhere (USDT, BTC, ETH and 300 more), cards too once NOWPayments has checked your business. Paid orders give VIP or a gift code by themselves. Buyers see the site’s name, never yours.', 'y4apk'); ?></p></div></div>
+								<div class="y4ui-card-b y4ui-fields">
+									<ol style="margin:0 0 0 18px;line-height:1.7">
+										<li><?php esc_html_e('Sign up at nowpayments.io and add the wallet your money goes to (e.g. USDT).', 'y4apk'); ?></li>
+										<li><?php esc_html_e('Store settings ▸ API keys: make a key, paste it below.', 'y4apk'); ?></li>
+										<li><?php esc_html_e('Store settings ▸ Instant payment notifications: make the IPN secret, paste it below, and put this address as the IPN callback URL:', 'y4apk'); ?><br><code style="word-break:break-all"><?php echo esc_html(Y4APK_Pay::ipn_url()); ?></code></li>
+									</ol>
+									<?php if (Y4APK_Pay::in_config()) : ?>
+										<p class="description"><?php esc_html_e('The keys come from wp-config.php (Y4APK_NOWPAYMENTS_KEY, Y4APK_NOWPAYMENTS_IPN).', 'y4apk'); ?></p>
+									<?php else : ?>
+									<div class="y4ui-field"><label for="np-key"><?php esc_html_e('API key', 'y4apk'); ?></label><input type="password" id="np-key" name="np_key" value="" autocomplete="off" placeholder="<?php echo esc_attr($ps['np_key'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : ''); ?>"></div>
+									<div class="y4ui-field"><label for="np-ipn"><?php esc_html_e('IPN secret', 'y4apk'); ?></label><input type="password" id="np-ipn" name="np_ipn" value="" autocomplete="off" placeholder="<?php echo esc_attr($ps['np_ipn'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : ''); ?>"></div>
+									<p class="description"><?php esc_html_e('Kept encrypted. Or put them in wp-config.php as Y4APK_NOWPAYMENTS_KEY and Y4APK_NOWPAYMENTS_IPN.', 'y4apk'); ?></p>
+									<?php endif; ?>
+									<label class="y4ui-opt"><input type="checkbox" name="np_sandbox" value="1" <?php checked(!empty($ps['np_sandbox'])); ?>><span><b><?php esc_html_e('Sandbox (test payments)', 'y4apk'); ?></b><small><?php esc_html_e('With keys from NOWPayments’ sandbox account: no real money moves.', 'y4apk'); ?></small></span></label>
+									<?php if ($pay_on) : ?><p><a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_pay_test'), 'y4apk_pay_test')); ?>"><?php esc_html_e('Test the connection', 'y4apk'); ?></a></p><?php endif; ?>
+								</div>
+							</div>
+							<?php endif; ?>
 							<div class="y4ui-card">
 								<div class="y4ui-card-h"><div><h2><?php esc_html_e('Ads from plugins', 'y4apk'); ?></h2></div></div>
 								<div class="y4ui-card-b"><p><?php esc_html_e('The theme’s ad boxes and Direct Link skip VIPs by themselves. For ad code you put in with a plugin (WPCode, Ad Inserter…), add the condition “User role is not VIP” to each snippet: a VIP account has the role VIP while it lasts.', 'y4apk'); ?></p></div>

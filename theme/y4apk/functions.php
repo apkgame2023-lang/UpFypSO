@@ -57,6 +57,7 @@ require $theme_dir . '/inc/mail.php';
 require $theme_dir . '/inc/members-admin.php';
 require $theme_dir . '/inc/help.php'; // Terms, Privacy, DMCA, Copyright, Contact, Feedback, Y4APK ▸ Support (2.52)
 require $theme_dir . '/inc/vip.php'; // VIP: no ads, no countdown, redeem codes (2.62)
+require $theme_dir . '/inc/pay.php'; // paying on the site: VIP or a gift code at once (2.63)
 require $theme_dir . '/inc/dashboard.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';
