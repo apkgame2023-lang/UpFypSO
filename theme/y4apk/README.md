@@ -682,6 +682,12 @@ members to confirm* sits on the text's line.
 · Apps · Scripts* (it said only "Roblox scripts"; 2.65.3: *Scripts*, not
 *Roblox*, for the scripts hub).
 
+2.65.4 — Members ▸ Accounts printed its styles after the table, so a long list
+showed unstyled for a moment while it loaded; they now come first. The email
+cells (and Wallet ▸ Withdrawals' payout details) are wrapped in
+`<!--email_off-->`, so Cloudflare's Email Address Obfuscation leaves them as
+they are instead of showing "[email protected]" until its script runs.
+
 ## The wallet, tips and the creator program (2.64)
 
 `inc/wallet.php` (the member's page: `template/wallet.php`, `assets/css/wallet.css`;

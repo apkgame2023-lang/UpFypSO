@@ -123,6 +123,36 @@ class Y4APK_Members_List {
 		};
 		$pct = function ($a, $b) { return $b ? round($a / $b * 100) . '%' : '0%'; };
 		?>
+		<?php // 2.65.4: the styles before the table, so a long list never shows unstyled while it loads ?>
+		<style>
+		#wpcontent{padding-left:0}.y4m-tabs,.y4m{margin-left:20px!important;margin-right:20px!important}
+		.y4m{--ink:#1d2327;--mute:#646970;--line:#e2e4e7;max-width:none}
+		.y4m-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;margin:14px 0 16px}.y4m-head h1{margin:0;padding:0;font-size:26px;font-weight:700}.y4m-head p{margin:4px 0 0;color:var(--mute);max-width:720px}
+		.y4m-big svg{flex:none;display:block}.y4m-big{display:inline-flex!important;align-items:center;gap:8px;line-height:1!important;height:38px!important;padding:0 16px!important;font-weight:600!important;border-radius:8px!important}
+		.y4m-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+		.y4m-tile{position:relative;display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-radius:14px;background:#fff;border:1px solid #dcdcde;text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}
+		.y4m-tile:hover{border-color:#2271b1;color:inherit}.y4m-tile.is-on{border-color:#2271b1;box-shadow:0 0 0 2px #2271b1}
+		.y4m-tile span{font-size:12px;font-weight:600;color:#3c434a}.y4m-tile b{font-size:28px;line-height:1.15;color:var(--ink)}.y4m-tile small{font-size:12px;color:var(--mute)}
+		.y4m-tile::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:#c3c4c7}
+		.y4m-tile.is-good::before{background:#0ca30c}.y4m-tile.is-warn::before{background:#fab219}.y4m-tile.is-bad::before{background:#d03b3b}.y4m-tile.is-blue::before{background:#2a78d6}
+		.y4m-bar-confirm{height:8px;margin:12px 0 18px;border-radius:8px;background:#fdecc8;overflow:hidden}.y4m-bar-confirm i{display:block;height:100%;border-radius:8px;background:#0ca30c}
+		.y4m-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}.y4m-filters input[type=search]{min-width:220px}.y4m-total{margin-left:auto;color:var(--mute);font-weight:600}
+		.y4m-bulk{position:sticky;top:32px;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;margin-bottom:10px;background:#fff;border:1px solid #dcdcde;border-radius:12px}.y4m-bulk label{font-weight:600;margin-right:4px}[data-picked]{color:var(--mute);margin-right:auto}
+		.y4m-danger{color:#b32d2e!important;border-color:#e8a6a6!important}
+		.y4m-table-wrap{overflow-x:auto;background:#fff;border:1px solid #dcdcde;border-radius:14px}
+		.y4m-table{width:100%;border-collapse:collapse;min-width:900px}.y4m-table th{position:sticky;top:0;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);background:#f6f7f7;border-bottom:1px solid var(--line)}
+		.y4m-table td{padding:10px 12px;border-bottom:1px solid #f0f0f1;vertical-align:middle}.y4m-table tr:last-child td{border-bottom:0}.y4m-table tbody tr:hover td{background:#fafbfc}.y4m-table tr.is-banned td{background:#fcf0f1}
+		.y4m-cb{width:28px}.y4m-num{text-align:right;font-variant-numeric:tabular-nums}
+		.y4m-who{display:flex;align-items:center;gap:10px;min-width:180px}.y4m-who .acc-av{flex:none;display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:700;object-fit:cover}.y4m-who span{display:flex;flex-direction:column;min-width:0}.y4m-who b{color:var(--ink)}.y4m-who a{font-size:12px;text-decoration:none}
+		.y4m-mail{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.y4m-mail span{overflow-wrap:anywhere}.y4m-mail small,.y4m-table td small{display:block;font-size:11px;color:var(--mute)}
+		.y4m-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-style:normal;font-weight:700}.y4m-chip.is-good{color:#0a6b0a;background:#e3f5e3}.y4m-chip.is-warn{color:#7a4d00;background:#fff4de}.y4m-chip.is-bad{color:#a3262c;background:#fde5e6}
+		.y4m-online{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#0a6b0a}.y4m-online i{position:relative;width:8px;height:8px;border-radius:50%;background:#0ca30c;box-shadow:0 0 0 3px rgba(12,163,12,.2)}.y4m-online i::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:y4pulse 1.8s ease-out infinite}@keyframes y4pulse{0%{transform:scale(1);opacity:.75}80%,100%{transform:scale(2.8);opacity:0}}@media (prefers-reduced-motion:reduce){.y4m-online i::after{animation:none;opacity:0}}
+		.y4m-cc{display:inline-block;margin-right:6px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700;color:#3c434a;background:#f0f0f1}.y4m-mute{color:#a7aaad}
+		.y4m-acts{white-space:nowrap;text-align:right}.y4m-acts .button{padding:0 6px!important;min-height:28px}.y4m-acts .dashicons{font-size:16px;width:16px;height:16px;vertical-align:text-bottom}
+		.y4m-more td{background:#f9fafb}.y4m-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 18px;margin:4px 0 10px}.y4m-facts .is-wide{grid-column:1/-1}.y4m-facts dt{font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase}.y4m-facts dd{margin:2px 0 0;overflow-wrap:anywhere}
+		.y4m-more-acts{display:flex;flex-wrap:wrap;gap:6px;margin:0}.y4m-empty{padding:30px!important;text-align:center;color:var(--mute)}
+		@media (max-width:782px){.y4m-tabs,.y4m{margin-left:10px!important;margin-right:10px!important}.y4m-bulk{top:46px}.y4m-total{margin-left:0}.y4m-filters input[type=search]{min-width:0;flex:1}}
+		</style>
 		<div class="wrap y4m">
 			<div class="y4m-head">
 				<div><h1><?php esc_html_e('Members', 'y4apk'); ?></h1><p><?php esc_html_e('Every account on the site: who confirmed their email, when they joined and were last seen, where they came from, what they shared.', 'y4apk'); ?></p></div>
@@ -196,7 +226,7 @@ class Y4APK_Members_List {
 						<tr class="<?php echo $banned ? 'is-banned' : ''; ?>">
 							<td class="y4m-cb"><input type="checkbox" name="users[]" value="<?php echo esc_attr($u->ID); ?>"></td>
 							<td><div class="y4m-who"><?php echo Y4APK_Social::avatar($u, 36); ?><span><b><?php echo esc_html(Y4APK_Social::name($u)); ?></b><a href="<?php echo esc_url(Y4APK_Members::profile_url($u)); ?>" target="_blank" rel="noopener">@<?php echo esc_html($u->user_login); ?></a></span><?php if ($banned) : ?><em class="y4m-chip is-bad"><?php esc_html_e('Banned', 'y4apk'); ?></em><?php endif; ?></div></td>
-							<td><div class="y4m-mail"><span><?php echo esc_html($u->user_email); ?></span>
+							<td><div class="y4m-mail"><span><!--email_off--><?php echo esc_html($u->user_email); ?><!--/email_off--></span>
 								<?php if ($pending) : ?><em class="y4m-chip is-warn"><?php esc_html_e('Not confirmed', 'y4apk'); ?></em><?php if ($sent) : ?><small><?php echo esc_html(sprintf(__('reminded %s', 'y4apk'), Y4APK_Roblox::ago($sent))); ?></small><?php endif; ?>
 								<?php else : ?><em class="y4m-chip is-good"><?php esc_html_e('Confirmed', 'y4apk'); ?></em><?php endif; ?></div></td>
 							<td><span class="y4m-when" title="<?php echo esc_attr(get_date_from_gmt($u->user_registered, 'Y-m-d H:i')); ?>"><?php echo esc_html(mysql2date('j M Y', get_date_from_gmt($u->user_registered))); ?></span><small><?php echo esc_html(Y4APK_Roblox::ago(strtotime($u->user_registered . ' UTC'))); ?></small></td>
@@ -213,7 +243,7 @@ class Y4APK_Members_List {
 							<dl class="y4m-facts">
 								<div><dt><?php esc_html_e('Public name', 'y4apk'); ?></dt><dd><?php echo esc_html(Y4APK_Social::name($u)); ?></dd></div>
 								<div><dt><?php esc_html_e('Sign-in name', 'y4apk'); ?></dt><dd>@<?php echo esc_html($u->user_login); ?></dd></div>
-								<div><dt><?php esc_html_e('Email', 'y4apk'); ?></dt><dd><?php echo esc_html($u->user_email); ?></dd></div>
+								<div><dt><?php esc_html_e('Email', 'y4apk'); ?></dt><dd><!--email_off--><?php echo esc_html($u->user_email); ?><!--/email_off--></dd></div>
 								<div><dt><?php esc_html_e('Joined', 'y4apk'); ?></dt><dd><?php echo esc_html(get_date_from_gmt($u->user_registered, 'j M Y, H:i')); ?></dd></div>
 								<div><dt><?php esc_html_e('Followers / following', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n(Y4APK_Social::followers_count($u->ID)) . ' / ' . number_format_i18n(Y4APK_Social::following_count($u->ID))); ?></dd></div>
 								<div><dt><?php esc_html_e('Live posts', 'y4apk'); ?></dt><dd><?php echo esc_html(number_format_i18n($shared)); ?></dd></div>
@@ -237,35 +267,6 @@ class Y4APK_Members_List {
 			<div class="tablenav"><div class="tablenav-pages"><?php echo paginate_links(['base' => add_query_arg('paged', '%#%', remove_query_arg('paged', $here)), 'format' => '', 'current' => $paged, 'total' => $pages]); ?></div></div>
 			<?php endif; ?>
 		</div>
-		<style>
-		#wpcontent{padding-left:0}.y4m-tabs,.y4m{margin-left:20px!important;margin-right:20px!important}
-		.y4m{--ink:#1d2327;--mute:#646970;--line:#e2e4e7;max-width:none}
-		.y4m-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;margin:14px 0 16px}.y4m-head h1{margin:0;padding:0;font-size:26px;font-weight:700}.y4m-head p{margin:4px 0 0;color:var(--mute);max-width:720px}
-		.y4m-big svg{flex:none;display:block}.y4m-big{display:inline-flex!important;align-items:center;gap:8px;line-height:1!important;height:38px!important;padding:0 16px!important;font-weight:600!important;border-radius:8px!important}
-		.y4m-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
-		.y4m-tile{position:relative;display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-radius:14px;background:#fff;border:1px solid #dcdcde;text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}
-		.y4m-tile:hover{border-color:#2271b1;color:inherit}.y4m-tile.is-on{border-color:#2271b1;box-shadow:0 0 0 2px #2271b1}
-		.y4m-tile span{font-size:12px;font-weight:600;color:#3c434a}.y4m-tile b{font-size:28px;line-height:1.15;color:var(--ink)}.y4m-tile small{font-size:12px;color:var(--mute)}
-		.y4m-tile::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:#c3c4c7}
-		.y4m-tile.is-good::before{background:#0ca30c}.y4m-tile.is-warn::before{background:#fab219}.y4m-tile.is-bad::before{background:#d03b3b}.y4m-tile.is-blue::before{background:#2a78d6}
-		.y4m-bar-confirm{height:8px;margin:12px 0 18px;border-radius:8px;background:#fdecc8;overflow:hidden}.y4m-bar-confirm i{display:block;height:100%;border-radius:8px;background:#0ca30c}
-		.y4m-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}.y4m-filters input[type=search]{min-width:220px}.y4m-total{margin-left:auto;color:var(--mute);font-weight:600}
-		.y4m-bulk{position:sticky;top:32px;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;margin-bottom:10px;background:#fff;border:1px solid #dcdcde;border-radius:12px}.y4m-bulk label{font-weight:600;margin-right:4px}[data-picked]{color:var(--mute);margin-right:auto}
-		.y4m-danger{color:#b32d2e!important;border-color:#e8a6a6!important}
-		.y4m-table-wrap{overflow-x:auto;background:#fff;border:1px solid #dcdcde;border-radius:14px}
-		.y4m-table{width:100%;border-collapse:collapse;min-width:900px}.y4m-table th{position:sticky;top:0;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);background:#f6f7f7;border-bottom:1px solid var(--line)}
-		.y4m-table td{padding:10px 12px;border-bottom:1px solid #f0f0f1;vertical-align:middle}.y4m-table tr:last-child td{border-bottom:0}.y4m-table tbody tr:hover td{background:#fafbfc}.y4m-table tr.is-banned td{background:#fcf0f1}
-		.y4m-cb{width:28px}.y4m-num{text-align:right;font-variant-numeric:tabular-nums}
-		.y4m-who{display:flex;align-items:center;gap:10px;min-width:180px}.y4m-who .acc-av{flex:none;display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:700;object-fit:cover}.y4m-who span{display:flex;flex-direction:column;min-width:0}.y4m-who b{color:var(--ink)}.y4m-who a{font-size:12px;text-decoration:none}
-		.y4m-mail{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.y4m-mail span{overflow-wrap:anywhere}.y4m-mail small,.y4m-table td small{display:block;font-size:11px;color:var(--mute)}
-		.y4m-chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-style:normal;font-weight:700}.y4m-chip.is-good{color:#0a6b0a;background:#e3f5e3}.y4m-chip.is-warn{color:#7a4d00;background:#fff4de}.y4m-chip.is-bad{color:#a3262c;background:#fde5e6}
-		.y4m-online{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#0a6b0a}.y4m-online i{position:relative;width:8px;height:8px;border-radius:50%;background:#0ca30c;box-shadow:0 0 0 3px rgba(12,163,12,.2)}.y4m-online i::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:y4pulse 1.8s ease-out infinite}@keyframes y4pulse{0%{transform:scale(1);opacity:.75}80%,100%{transform:scale(2.8);opacity:0}}@media (prefers-reduced-motion:reduce){.y4m-online i::after{animation:none;opacity:0}}
-		.y4m-cc{display:inline-block;margin-right:6px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700;color:#3c434a;background:#f0f0f1}.y4m-mute{color:#a7aaad}
-		.y4m-acts{white-space:nowrap;text-align:right}.y4m-acts .button{padding:0 6px!important;min-height:28px}.y4m-acts .dashicons{font-size:16px;width:16px;height:16px;vertical-align:text-bottom}
-		.y4m-more td{background:#f9fafb}.y4m-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 18px;margin:4px 0 10px}.y4m-facts .is-wide{grid-column:1/-1}.y4m-facts dt{font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase}.y4m-facts dd{margin:2px 0 0;overflow-wrap:anywhere}
-		.y4m-more-acts{display:flex;flex-wrap:wrap;gap:6px;margin:0}.y4m-empty{padding:30px!important;text-align:center;color:var(--mute)}
-		@media (max-width:782px){.y4m-tabs,.y4m{margin-left:10px!important;margin-right:10px!important}.y4m-bulk{top:46px}.y4m-total{margin-left:0}.y4m-filters input[type=search]{min-width:0;flex:1}}
-		</style>
 		<script>
 		(function () {
 			var f = document.querySelector('[data-y4m]'); if (!f) { return; }

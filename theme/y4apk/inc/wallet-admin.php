@@ -137,7 +137,7 @@ $member = function ($id) {
 					<tr>
 						<td><?php echo $member($p->user_id); // phpcs:ignore WordPress.Security.EscapeOutput ?><br><span class="y4ui-kpi-s">#<?php echo (int) $p->id; ?></span></td>
 						<td><b style="font-size:15px"><?php echo esc_html($W::fmt($p->amount)); ?></b></td>
-						<td><span class="y4ui-chip is-blue"><?php echo esc_html($m[0]); ?></span><br><code class="y4wal-to"><?php echo esc_html(is_array($d) ? (string) ($d['to'] ?? '') : ''); ?></code></td>
+						<td><span class="y4ui-chip is-blue"><?php echo esc_html($m[0]); ?></span><br><code class="y4wal-to"><!--email_off--><?php echo esc_html(is_array($d) ? (string) ($d['to'] ?? '') : ''); ?><!--/email_off--></code></td>
 						<td><span class="y4ui-kpi-s"><?php echo esc_html(wp_date(get_option('date_format') . ' H:i', (int) $p->made)); ?></span></td>
 						<td>
 							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4wal-act">
