@@ -329,6 +329,8 @@ class Y4APK_VIP {
 				$ctx['errors'][] = __('The page was open too long. Try again.', 'y4apk');
 			} elseif (!$plan) {
 				$ctx['errors'][] = __('Choose a plan.', 'y4apk');
+			} elseif (Y4APK_Members::unconfirmed()) { // 2.66
+				$ctx['errors'][] = __('Confirm your email first: open the link we sent you, then try again.', 'y4apk');
 			} elseif (($_POST['pay_with'] ?? '') === 'wallet' && class_exists('Y4APK_Wallet')) { // 2.64: from the balance, at once
 				$r = Y4APK_Wallet::buy_vip($uid, $plan, !empty($_POST['gift']));
 				if (!$r['ok']) {

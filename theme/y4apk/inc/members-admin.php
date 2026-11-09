@@ -571,6 +571,8 @@ class Y4APK_Members_Admin {
 			'auto_files'  => empty($in['auto_files']) ? 0 : 1,
 			'auto_after'  => max(0, min(50, (int) (isset($in['auto_after']) ? $in['auto_after'] : 1))),
 			'notify'      => empty($in['notify']) ? 0 : 1,
+			'early'       => empty($in['early']) ? 0 : 1,
+			'remind'      => empty($in['remind']) ? 0 : 1,
 			'from_name'   => trim(mb_substr(sanitize_text_field(isset($in['from_name']) ? (string) $in['from_name'] : 'Y4APK'), 0, 40)) ?: 'Y4APK',
 			'hosts'       => implode("\n", array_keys($hosts)),
 			'reply_to'    => is_email(isset($in['reply_to']) ? trim((string) $in['reply_to']) : '') ? sanitize_email($in['reply_to']) : '',
@@ -581,6 +583,9 @@ class Y4APK_Members_Admin {
 			'smtp_user'   => is_email(isset($in['smtp_user']) ? trim((string) $in['smtp_user']) : '') ? sanitize_email($in['smtp_user']) : '',
 			'smtp_pass'   => isset($in['smtp_pass']) && (string) $in['smtp_pass'] !== '' ? Y4APK_Mail::hide((string) $in['smtp_pass']) : (isset($old['smtp_pass']) ? $old['smtp_pass'] : ''),
 		]), false);
+		if (class_exists('Y4APK_OAuth')) {
+			Y4APK_OAuth::save_settings($in); // 2.66
+		}
 		if (!empty($in['clear_secret'])) {
 			$o = get_option(Y4APK_Members::OPTION);
 			$o['ts_secret'] = '';
@@ -732,6 +737,27 @@ class Y4APK_Members_Admin {
 					<tr><th scope="row"><?php esc_html_e('Registration', 'y4apk'); ?></th>
 						<td><label><input type="checkbox" name="on" value="1" <?php checked($s['on']); ?>> <strong><?php esc_html_e('Anyone can create an account and send scripts', 'y4apk'); ?></strong></label>
 							<p class="description"><?php esc_html_e('Off: nobody new can sign up or send; members who already have an account can still sign in.', 'y4apk'); ?></p></td></tr>
+					<tr><th scope="row"><?php esc_html_e('Confirming the email', 'y4apk'); ?></th>
+						<td><label><input type="checkbox" name="early" value="1" <?php checked($s['early']); ?>> <strong><?php esc_html_e('Members can sign in before they confirm', 'y4apk'); ?></strong></label>
+							<p class="description"><?php esc_html_e('They are in at once after signing up, with a reminder at the top of their pages. Sharing, paying, tips and withdrawals wait until the email is confirmed. Off: they cannot sign in at all until they open the link.', 'y4apk'); ?></p>
+							<p><label><input type="checkbox" name="remind" value="1" <?php checked($s['remind']); ?>> <?php esc_html_e('Send the confirmation email again by itself, once, a day after signing up', 'y4apk'); ?></label></p></td></tr>
+					<?php if (class_exists('Y4APK_OAuth')) : $os = Y4APK_OAuth::settings(); // 2.66 ?>
+					<tr id="y4m-oauth"><th scope="row"><?php esc_html_e('Sign in with Google and Discord', 'y4apk'); ?></th>
+						<td><p class="description" style="max-width:720px;margin-bottom:.75rem"><?php esc_html_e('Buttons on the sign-in and sign-up pages. Emails from Google and Discord are already confirmed, so these members can share and pay at once. New members still pick their own username (their real name is never shown); a member whose email matches is linked to their account. Fill in a provider to turn its button on.', 'y4apk'); ?></p>
+						<?php foreach (['google' => ['Google', 'console.cloud.google.com ▸ APIs & Services ▸ Credentials ▸ Create credentials ▸ OAuth client ID ▸ Web application'], 'discord' => ['Discord', 'discord.com/developers/applications ▸ New Application ▸ OAuth2']] as $p => $info) :
+							$const = !empty($os[$p . '_config']);
+							?>
+							<div class="y4m-oauth-box">
+								<p style="margin-top:0"><strong><?php echo esc_html($info[0]); ?></strong> <?php if (Y4APK_OAuth::ready($p)) : ?><span class="y4m-oauth-on"><?php esc_html_e('On', 'y4apk'); ?></span><?php else : ?><span class="y4m-oauth-off"><?php esc_html_e('Off', 'y4apk'); ?></span><?php endif; ?></p>
+								<p><label><?php esc_html_e('Client ID', 'y4apk'); ?><br><input type="text" class="regular-text code" name="oauth_<?php echo esc_attr($p); ?>_id" value="<?php echo esc_attr($const ? '' : $os[$p . '_id']); ?>" <?php disabled($const); ?> autocomplete="off"></label></p>
+								<p><label><?php esc_html_e('Client secret', 'y4apk'); ?><br><input type="password" class="regular-text code" name="oauth_<?php echo esc_attr($p); ?>_secret" value="" placeholder="<?php echo esc_attr(!$const && $os[$p . '_secret'] !== '' ? '•••••••••• ' . __('(saved: leave empty to keep)', 'y4apk') : ''); ?>" <?php disabled($const); ?> autocomplete="new-password"></label>
+									<?php if (!$const && $os[$p . '_secret'] !== '') : ?><label style="margin-left:1rem"><input type="checkbox" name="oauth_<?php echo esc_attr($p); ?>_forget" value="1"> <?php esc_html_e('Remove it', 'y4apk'); ?></label><?php endif; ?></p>
+								<p class="description"><?php echo esc_html($info[1]); ?>. <?php esc_html_e('Redirect address to add there:', 'y4apk'); ?> <code><?php echo esc_html(Y4APK_OAuth::redirect_uri($p)); ?></code>
+									<?php if ($const) : ?><br><?php esc_html_e('Set in wp-config.php.', 'y4apk'); ?><?php endif; ?></p>
+							</div>
+						<?php endforeach; ?>
+						<style>.y4m-oauth-box{max-width:720px;margin:0 0 12px;padding:12px 16px;border:1px solid #dcdcde;border-radius:12px;background:#fff}.y4m-oauth-on,.y4m-oauth-off{display:inline-block;margin-left:6px;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;background:#e6f4ea;color:#1a7f37}.y4m-oauth-off{background:#f0f0f1;color:#646970}</style></td></tr>
+					<?php endif; ?>
 					<tr><th scope="row"><?php esc_html_e('Bot protection', 'y4apk'); ?></th>
 						<td><?php if (!Y4APK_Members::turnstile_on()) : ?><p class="notice notice-warning inline" style="margin:0 0 .75rem;padding:8px 12px"><?php esc_html_e('Cloudflare Turnstile is not set. Until it is, only a hidden trap and limits protect the forms: set it up before you open registration.', 'y4apk'); ?></p><?php endif; ?>
 							<p><label><?php esc_html_e('Site key', 'y4apk'); ?><br><input type="text" class="regular-text code" name="ts_site" value="<?php echo esc_attr($s['ts_site']); ?>" <?php disabled($ts_const); ?> autocomplete="off"></label></p>

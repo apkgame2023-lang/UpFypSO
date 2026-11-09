@@ -585,6 +585,14 @@ textarea#dle-promt-text { width: 100% !important; }
 @keyframes h-acct-in { from { opacity: 0; transform: translateY(-.375rem) scale(.98); } }
 .h-acct-me { display: flex; align-items: center; gap: .75rem; padding: .625rem; margin-bottom: .375rem; border-radius: .875rem; color: inherit !important; background: #f3f7f8; }
 .h-acct-me:hover { background: #e9f4f8; }
+/* 2.66: the email is not confirmed yet */
+@media (min-width: 62rem) { .h-acct-btn.has-dot { position: relative; } } /* the dot's frame; on phones the button is fixed, which frames it already */
+.h-acct-btn.has-dot::after { content: ""; position: absolute; top: .1rem; right: .1rem; width: .625rem; height: .625rem; border-radius: 50%; background: #f5a524; box-shadow: 0 0 0 2px #fff; }
+.h-acct-confirm { display: flex; align-items: center; gap: .75rem; margin: .25rem .5rem .25rem; padding: .7rem .9rem; border-radius: .875rem; background: #fff6e0; color: #6b4a00 !important; font-weight: 700; text-decoration: none; }
+.h-acct-confirm:hover { background: #ffefc7; }
+.h-acct-confirm svg { flex: none; color: #e08a00; }
+.h-acct-confirm span { flex: 1; min-width: 0; line-height: 1.25; }
+.h-acct-confirm small { display: block; color: #8a6a2a; font-weight: 500; font-size: .75rem; }
 .h-acct-me .h-acct-av { width: 2.75rem; height: 2.75rem; font-size: 1.25rem; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(41, 177, 216, .35); }
 .h-acct-who { flex: 1; min-width: 0; }
 .h-acct-who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; }

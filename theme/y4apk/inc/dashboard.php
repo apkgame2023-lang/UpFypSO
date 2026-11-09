@@ -525,8 +525,10 @@ class Y4APK_Dashboard {
 			</nav>
 
 			<?php $payouts_n = !empty($d['money']['payouts_n']) ? (int) $d['money']['payouts_n'] : 0; ?>
-			<?php if ($d['waiting'] || $d['reported'] || $d['unsorted'] || $d['pictures_new'] || $payouts_n) : ?>
+			<?php $broken_n = class_exists('Y4APK_Links') ? Y4APK_Links::counts()['bad'] : 0; // 2.66 ?>
+			<?php if ($d['waiting'] || $d['reported'] || $d['unsorted'] || $d['pictures_new'] || $payouts_n || $broken_n) : ?>
 			<div class="y4d-todo">
+				<?php if ($broken_n) : ?><a href="<?php echo esc_url(Y4APK_Links::admin_url()); ?>"><b><?php echo esc_html(number_format_i18n($broken_n)); ?></b> <?php echo esc_html(_n('broken download link', 'broken download links', $broken_n, 'y4apk')); ?> →</a><?php endif; ?>
 				<?php if ($payouts_n) : // 2.65.1 ?><a href="<?php echo esc_url(admin_url('admin.php?page=y4apk-wallet&tab=payouts')); ?>"><b><?php echo esc_html(number_format_i18n($payouts_n)); ?></b> <?php echo esc_html(sprintf(_n('withdrawal to pay (%s)', 'withdrawals to pay (%s)', $payouts_n, 'y4apk'), Y4APK_Wallet::fmt($d['money']['payouts_a']))); ?> →</a><?php endif; ?>
 				<?php if ($d['waiting']) : ?><a href="<?php echo esc_url($review_link); ?>"><b><?php echo esc_html(number_format_i18n($d['waiting'])); ?></b> <?php echo esc_html(_n('script waiting for review', 'scripts waiting for review', $d['waiting'], 'y4apk')); ?> →</a><?php endif; ?>
 				<?php if ($d['reported']) : ?><a href="<?php echo esc_url($review_link); ?>"><b><?php echo esc_html(number_format_i18n($d['reported'])); ?></b> <?php echo esc_html(_n('reported script', 'reported scripts', $d['reported'], 'y4apk')); ?> →</a><?php endif; ?>

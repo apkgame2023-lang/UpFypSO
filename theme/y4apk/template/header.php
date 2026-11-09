@@ -227,6 +227,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
                 'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
                 'next'   => '<path d="m9.4 6-1.4 1.4 4.6 4.6-4.6 4.6L9.4 18l6-6-6-6Z"/>',
+                'mail'   => '<path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/>',
                 'globe'  => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-2.9a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8ZM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4ZM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4H4.3Zm.8 2h2.9c.3 1.3.8 2.5 1.4 3.6A8 8 0 0 1 5.1 16ZM8 8H5.1a8 8 0 0 1 4.3-3.6C8.8 5.5 8.3 6.7 8 8Zm4 12c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4Zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4Zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h2.9a8 8 0 0 1-4.3 3.6Zm1.7-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4h-3.4Z"/>',
             );
         ?>
@@ -266,6 +267,8 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'customize' => __('Edit profile', 'y4apk'),
                 'settings'  => __('Account settings', 'y4apk'),
                 'wallet'    => __('Wallet and earnings', 'y4apk'),
+                'confirm'   => __('Confirm your email', 'y4apk'),
+                'confirmWhy'=> __('Open the link we sent you', 'y4apk'),
                 'out'       => __('Sign out', 'y4apk'),
                 'help'      => __('Help and contact', 'y4apk'),
                 'feedback'  => __('Send feedback', 'y4apk'),
@@ -306,6 +309,15 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
             who.appendChild(b); who.appendChild(sm); head.appendChild(who);
             head.insertAdjacentHTML('beforeend', svg('next', 18));
             menu.appendChild(head);
+            if (me.c === 0) { // 2.66: the email is not confirmed yet
+                var ca = document.createElement('a'), ct = document.createElement('span'), cs = document.createElement('small');
+                ca.className = 'h-acct-confirm'; ca.href = U.home;
+                ca.innerHTML = svg('mail', 22);
+                ct.textContent = T.confirm; cs.textContent = T.confirmWhy; ct.appendChild(cs); ca.appendChild(ct);
+                ca.insertAdjacentHTML('beforeend', svg('next', 16));
+                menu.appendChild(ca);
+                btn.classList.add('has-dot');
+            }
             if (U.vip) { // 2.62
                 var vipOn = +me.v > Date.now() / 1000, va = document.createElement('a');
                 va.className = 'h-acct-vip' + (vipOn ? ' is-on' : ''); va.href = U.vip;

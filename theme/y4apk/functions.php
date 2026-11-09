@@ -45,6 +45,7 @@ require $theme_dir . '/inc/writer.php';
 require $theme_dir . '/inc/discover.php';
 require $theme_dir . '/inc/members.php';
 require $theme_dir . '/inc/members-social.php';
+require $theme_dir . '/inc/members-oauth.php'; // sign in with Google or Discord (2.66)
 require $theme_dir . '/inc/members-cover.php'; // a post's own cover (2.55)
 require $theme_dir . '/inc/members-insights.php';
 require $theme_dir . '/inc/members-pictures.php';
@@ -59,6 +60,7 @@ require $theme_dir . '/inc/help.php'; // Terms, Privacy, DMCA, Copyright, Contac
 require $theme_dir . '/inc/vip.php'; // VIP: no ads, no countdown, redeem codes (2.62)
 require $theme_dir . '/inc/pay.php'; // paying on the site: VIP or a gift code at once (2.63)
 require $theme_dir . '/inc/wallet.php'; // the wallet, tips and the creator program (2.64)
+require $theme_dir . '/inc/link-check.php'; // broken download links, found in the background (2.66)
 require $theme_dir . '/inc/dashboard.php';
 require $theme_dir . '/inc/tgm/tgm.php';
 require $theme_dir . '/inc/rest-api.php';

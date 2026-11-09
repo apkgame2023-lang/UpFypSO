@@ -846,3 +846,35 @@
 /* 2.64: tip a creator, from their profile */
 .prf-btn-tip, .acc a.prf-btn-tip { background: rgba(229, 72, 77, .9); box-shadow: 0 .75rem 1.5rem -.5rem rgba(229, 72, 77, .6); }
 .prf-btn-tip:hover, .acc a.prf-btn-tip:hover { background: #e5484d; }
+
+/* 2.66: the email is not confirmed yet */
+.acc-confirm { display: flex; align-items: center; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; }
+.acc-confirm span { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+.acc-confirm b { display: block; }
+.acc-confirm form { margin: 0; flex: none; }
+.acc-confirm .acc-btn-small { background: #fff; color: #7a4d00; box-shadow: 0 0 0 1px rgba(122, 77, 0, .2); }
+.acc-confirm-again { margin: 0 0 .75rem; }
+
+/* 2.66: sign in with Google or Discord */
+.acc-social { display: grid; gap: .6rem; margin: 0 0 1rem; }
+.acc a.acc-social-btn { display: flex; align-items: center; justify-content: center; gap: .65rem; min-height: 3rem; padding: .6rem 1rem; border-radius: 999px; background: #fff; color: #1f2933; font-weight: 700; text-decoration: none;
+	box-shadow: 0 0 0 1.5px var(--acc-line, #dfe6e8); transition: box-shadow .15s, background-color .15s; }
+.acc a.acc-social-btn:hover { box-shadow: 0 0 0 1.5px #b9c6ca, 0 .5rem 1rem -.6rem rgba(23, 32, 33, .35); }
+.acc a.acc-social-btn svg { flex: none; }
+.acc a.acc-social-btn.is-discord { background: #5865f2; color: #fff; box-shadow: none; }
+.acc a.acc-social-btn.is-discord:hover { background: #4752c4; }
+.acc-or { display: flex; align-items: center; gap: .75rem; margin: .25rem 0 1rem; color: var(--acc-mute, #6b7a80); font-size: .8125rem; font-weight: 600; }
+.acc-or::before, .acc-or::after { content: ""; flex: 1; height: 1px; background: var(--acc-line, #dfe6e8); }
+.acc-oauth-who { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; padding: .55rem .8rem; border-radius: .9rem; background: #f3f7f8; color: var(--acc-mute, #6b7a80); font-size: .8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.acc-oauth-who svg { flex: none; }
+.acc-oauth-who:has(svg[fill="currentColor"]) svg { color: #5865f2; }
+.acc-methods { margin-top: 1rem; }
+.acc-method-list { display: grid; gap: .5rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+.acc-method-list li { display: flex; align-items: center; gap: .75rem; padding: .7rem .9rem; border-radius: 1rem; background: #f6f9fa; }
+.acc-method-list li > svg { flex: none; }
+.acc-method-list li > svg[fill="currentColor"] { color: #5865f2; }
+.acc-method-list li > span:first-of-type { flex: 1; min-width: 0; line-height: 1.25; }
+.acc-method-list b { display: block; }
+.acc-method-list small { color: var(--acc-mute, #6b7a80); font-size: .75rem; }
+.acc-method-list form { margin: 0; }
+.acc-method-list .acc-hint { margin: 0; font-size: .75rem; text-align: right; max-width: 10rem; }

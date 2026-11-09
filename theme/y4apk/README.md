@@ -638,6 +638,92 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Confirming the email, broken links, Google and Discord (2.66)
+
+**Signing in before the email is confirmed.** A new member is signed in as soon
+as they sign up (Members ▸ Settings ▸ *Confirming the email* ▸ *Members can
+sign in before they confirm*, on by default). Until they open the link:
+
+- every account page shows *Confirm your email* with the address half hidden
+  (`ne•••@example.com`) and *Send it again* (3 an hour);
+- the header menu has an amber *Confirm your email* line, and a dot on the
+  avatar (the `y4apk_me` cookie carries `"c":0`);
+- sharing (scripts, games, apps) shows *Open the link we sent to …* with a
+  send-again button; topping up, tipping, withdrawing and buying VIP (crypto or
+  balance) answer *Confirm your email first*.
+
+Opening the link while signed in says *All set* and goes to the account. A
+password reset by email also counts as confirming. With the setting off, it is
+as before: no sign-in until the link is opened.
+
+**The reminder.** Once, a day after signing up (up to 14 days), a member who
+has not confirmed gets the confirmation email again by itself (hourly cron
+`y4apk_members_remind`, 30 an hour; usermeta `y4apk_vauto`), unless the owner
+sent one by hand in the last day. *Send the confirmation email again by itself*
+in the same settings row turns it off.
+
+**Broken download links** (`inc/link-check.php`, page `inc/link-check-admin.php`,
+Y4APK ▸ *Broken links*). Every download row of every published post is kept in
+the `y4apk_links` table and looked at in the background (every 10 minutes: the
+links of up to 300 posts are read, and up to 50 links are looked at, in 20
+seconds at most):
+
+- one of the site's download folders (`dir_url`): the folder is there, its
+  page sends to a file and not "#", and that file is on R2 (HEAD of its public
+  address); an older page that sends elsewhere: that address answers;
+- any other address: HEAD (or a one-byte GET where HEAD is refused) must not
+  be 404/410; MediaFire, Google Drive and a few others are read for their
+  "file removed" words, since they answer 200;
+- no clear answer (a time-out, a site blocking robots): *Not sure yet*, and
+  broken after 3 tries in a row.
+
+Working links are looked at again every 7 days, broken ones every 6 hours, so a
+fixed link leaves the list by itself; a link changed in a post is looked at on
+the next run. The page lists them with the post, the type and version, what is
+wrong and since when, with *Look again*, *Ignore* and links to *Edit post* and
+*Upload a new file* (App updates). The count shows on the menu and in the
+Dashboard's to-do strip. Settings: off/on, and *Start a full check*.
+
+**Sign in with Google or Discord** (`inc/members-oauth.php`). Buttons on the
+sign-in and sign-up pages, once a provider's keys are in Members ▸ Settings ▸
+*Sign in with Google and Discord* (the secret is stored encrypted; or
+`Y4APK_GOOGLE_ID` / `Y4APK_GOOGLE_SECRET`, `Y4APK_DISCORD_ID` /
+`Y4APK_DISCORD_SECRET` in wp-config.php). The redirect addresses to register
+with them are `/account/google/` and `/account/discord/`.
+
+- The site sends the visitor to the provider with a one-time *state* kept in a
+  short HttpOnly cookie, and trades the code it gets back for the account's id
+  and email, server to server. Only a **confirmed** email is accepted.
+- Seen before (usermeta `y4apk_google_id` / `y4apk_discord_id`): signed in.
+- A member with that email: the provider is linked to them and the email
+  counts as confirmed. An account of the people who run the site is never
+  signed in or linked this way.
+- Someone new: **Pick your username** first (empty for Google, so a real name
+  is never put forward; the Discord username for Discord), the rules box, then
+  the account is made, already confirmed, with no password of its own
+  (`y4apk_nopass`): Account settings then offers *Set a password* (no current
+  password asked), and closing the account needs only the username.
+- Account settings ▸ *Sign-in methods*: Connect / Disconnect (the last way in of
+  a member with no password cannot be disconnected).
+- Kept: the provider's id and the email. Not kept: the name, the picture,
+  tokens. The Privacy page says so.
+
+### Setting up Google
+
+1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent
+   screen*: External, app name *Y4APK*, a support email, the domain
+   `y4apk.com`, links to the Privacy and Terms pages; scopes `openid`, `email`,
+   `profile`; then *Publish app*.
+2. *Credentials* ▸ *Create credentials* ▸ *OAuth client ID* ▸ *Web
+   application*; *Authorised redirect URIs*: `https://y4apk.com/account/google/`.
+3. Copy the Client ID and Client secret into Members ▸ Settings.
+
+### Setting up Discord
+
+1. discord.com/developers/applications ▸ *New Application* (name *Y4APK*).
+2. *OAuth2* ▸ *Redirects* ▸ `https://y4apk.com/account/discord/`; copy the
+   Client ID and (*Reset Secret*) the Client secret into Members ▸ Settings.
+
 ## The payment page on the site (2.65)
 
 Paying (VIP, a top-up, a tip) no longer leaves for NOWPayments' page: the

@@ -21,6 +21,11 @@ $notices = [
 	'pw'          => __('Password changed.', 'y4apk'),
 	'emails'      => __('Email settings saved.', 'y4apk'),
 	'profile'     => __('Profile saved.', 'y4apk'),
+	'welcome'     => __('Welcome! Your account is ready. We emailed you a link: open it to confirm your email.', 'y4apk'),
+	'resent'      => __('Sent. Open the newest email from us (look in Spam too, just in case).', 'y4apk'),
+	'welcome_social' => __('Welcome! Your account is ready. Add a picture and a few words in Edit profile.', 'y4apk'),
+	'linked'      => __('Connected. You can sign in with it from now on.', 'y4apk'),
+	'unlinked'    => __('Disconnected.', 'y4apk'),
 ];
 $ok = isset($notices[$c['ok']]) ? $notices[$c['ok']] : '';
 $old = $c['old'];
@@ -58,6 +63,13 @@ $kinds_switch = function ($on) {
 $messages = function () use ($c, $ok) {
 	if ($ok) {
 		echo '<div class="acc-note acc-note-ok" role="status">' . esc_html($ok) . '</div>';
+	}
+	// 2.66: signed in, email not confirmed yet
+	if (!empty($c['user']) && Y4APK_Members::unconfirmed($c['user'])) {
+		echo '<div class="acc-note acc-note-warn acc-confirm"><span><b>' . esc_html__('Confirm your email', 'y4apk') . '</b> '
+			. esc_html(sprintf(__('We sent a link to %s. Sharing, paying and tips open once you confirm.', 'y4apk'), Y4APK_Members::masked_email($c['user']->user_email))) . '</span>'
+			. '<form method="post"><input type="hidden" name="y4_do" value="resend_me">' . Y4APK_Members::nonce('resend_me') // phpcs:ignore WordPress.Security.EscapeOutput
+			. '<button type="submit" class="acc-btn acc-btn-small">' . esc_html__('Send it again', 'y4apk') . '</button></form></div>';
 	}
 	foreach ($c['errors'] as $e) {
 		echo '<div class="acc-note acc-note-err" role="alert">' . esc_html($e) . '</div>';
@@ -261,6 +273,7 @@ if ($screen === 'login') {
 	?>
 	<h1><?php esc_html_e('Sign in', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
+	<?php if (class_exists('Y4APK_OAuth')) echo Y4APK_OAuth::buttons(); // 2.66 // phpcs:ignore WordPress.Security.EscapeOutput ?>
 	<?php $form_open('login'); ?>
 		<?php $field(__('Username or email', 'y4apk'), 'login', 'text', ['autocomplete' => 'username', 'required' => true, 'maxlength' => '100']); ?>
 		<?php $field(__('Password', 'y4apk'), 'password', 'password', ['autocomplete' => 'current-password', 'required' => true, 'maxlength' => '100']); ?>
@@ -290,6 +303,9 @@ if ($screen === 'login') {
 		<p class="acc-alt"><a href="<?php echo esc_url($M::url('login')); ?>"><?php esc_html_e('Sign in', 'y4apk'); ?></a></p>
 	<?php else : ?>
 		<?php $messages(); ?>
+		<?php if (class_exists('Y4APK_OAuth') && Y4APK_OAuth::on()) : // 2.66 ?>
+			<?php echo Y4APK_OAuth::buttons(true); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php endif; ?>
 		<?php $form_open('register'); ?>
 			<input type="hidden" name="y4_land_ref" value=""><input type="hidden" name="y4_land_page" value=""><input type="hidden" name="y4_app" value="">
 			<?php $field(__('Username', 'y4apk'), 'handle', 'text', ['autocomplete' => 'username', 'required' => true, 'minlength' => '3', 'maxlength' => '20', 'pattern' => '[A-Za-z0-9_]{3,20}', 'autocapitalize' => 'none']); ?>
@@ -325,14 +341,43 @@ if ($screen === 'login') {
 	$shell_close();
 
 /* ======================================================= email link */
+} elseif ($screen === 'oauth_pick') { // 2.66: a new member from Google or Discord picks a username
+	$o = $c['oauth'];
+	$shell_open(__('Join Y4APK', 'y4apk'), __('One step left.', 'y4apk'));
+	?>
+	<div class="acc-oauth-who"><?php echo Y4APK_OAuth::icon($o['p'], 22); // phpcs:ignore WordPress.Security.EscapeOutput ?><span><?php echo esc_html(sprintf(__('Signed in with %1$s as %2$s', 'y4apk'), $o['name'], $o['email'])); ?></span></div>
+	<h1><?php esc_html_e('Pick your username', 'y4apk'); ?></h1>
+	<?php $messages(); ?>
+	<form class="acc-form" method="post" action="<?php echo esc_url($M::url($o['p'])); ?>">
+		<input type="hidden" name="y4_do" value="oauth_finish"><?php echo $M::nonce('oauth_finish'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+		<?php $field(__('Username', 'y4apk'), 'handle', 'text', ['autocomplete' => 'username', 'required' => true, 'minlength' => '3', 'maxlength' => '20', 'pattern' => '[A-Za-z0-9_]{3,20}', 'autocapitalize' => 'none', 'autofocus' => true]); ?>
+		<p class="acc-hint"><?php esc_html_e('3–20 letters, numbers or underscores. It is shown on what you share, so it does not have to be your real name. Your email is never shown.', 'y4apk'); ?></p>
+		<label class="acc-check acc-terms"><input type="checkbox" name="terms" value="1" required> <span><?php
+			if (class_exists('Y4APK_Help')) {
+				echo wp_kses(sprintf(__('I agree to the <a href="%1$s" target="_blank">Terms of Service</a> and <a href="%2$s" target="_blank">Privacy Policy</a>, and I only share files and scripts I trust.', 'y4apk'), esc_url(Y4APK_Help::url('terms')), esc_url(Y4APK_Help::url('privacy'))), ['a' => ['href' => [], 'target' => []]]);
+			} else {
+				esc_html_e('I agree to the rules, and I only share files and scripts I trust.', 'y4apk');
+			}
+		?></span></label>
+		<button class="acc-btn acc-btn-primary" type="submit"><?php esc_html_e('Create my account', 'y4apk'); ?></button>
+	</form>
+	<p class="acc-alt"><a href="<?php echo esc_url($M::url('login')); ?>"><?php esc_html_e('Cancel', 'y4apk'); ?></a></p>
+	<?php
+	$shell_close();
+
 } elseif ($screen === 'verify') {
 	$shell_open();
 	if (!empty($c['good'])) {
 		?>
 		<div class="acc-big-icon acc-big-ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="m9.5 17.5-5-5 1.4-1.4 3.6 3.6 8.6-8.6 1.4 1.4-10 10Z"/></svg></div>
 		<h1><?php esc_html_e('Email confirmed', 'y4apk'); ?></h1>
+		<?php if ($c['user']) : // 2.66: signed in already ?>
+		<p class="acc-lead"><?php esc_html_e('All set. Sharing, paying and tips are open to you now.', 'y4apk'); ?></p>
+		<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url()); ?>"><?php esc_html_e('Go to my account', 'y4apk'); ?></a>
+		<?php else : ?>
 		<p class="acc-lead"><?php esc_html_e('Your account is ready. Sign in to share your first script.', 'y4apk'); ?></p>
 		<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url('login', ['ok' => 'verified'])); ?>"><?php esc_html_e('Sign in', 'y4apk'); ?></a>
+		<?php endif; ?>
 		<?php
 	} else {
 		?>
@@ -428,7 +473,10 @@ if ($screen === 'login') {
 	$shell_open();
 	?>
 	<h1><?php echo esc_html($screen === 'closed' ? __('Sharing is closed at the moment', 'y4apk') : __('Confirm your email first', 'y4apk')); ?></h1>
-	<p class="acc-lead"><?php echo esc_html($screen === 'closed' ? __('New scripts are not being accepted right now. Your scripts are safe. Come back soon.', 'y4apk') : __('Open the link we sent to your email, then come back here to share a script.', 'y4apk')); ?></p>
+	<p class="acc-lead"><?php echo esc_html($screen === 'closed' ? __('New scripts are not being accepted right now. Your scripts are safe. Come back soon.', 'y4apk') : sprintf(__('Open the link we sent to %s, then come back here to share.', 'y4apk'), $c['user'] ? $M::masked_email($c['user']->user_email) : __('your email', 'y4apk'))); ?></p>
+	<?php if ($screen === 'unverified' && $c['user']) : // 2.66 ?>
+	<form method="post" class="acc-confirm-again"><input type="hidden" name="y4_do" value="resend_me"><?php echo $M::nonce('resend_me'); // phpcs:ignore WordPress.Security.EscapeOutput ?><button type="submit" class="acc-btn acc-btn-ghost"><?php esc_html_e('Send the link again', 'y4apk'); ?></button></form>
+	<?php endif; ?>
 	<a class="acc-btn acc-btn-primary" href="<?php echo esc_url($M::url()); ?>"><?php esc_html_e('My scripts', 'y4apk'); ?></a>
 	<?php
 	$shell_close();
@@ -647,10 +695,12 @@ if ($screen === 'login') {
 	<h1 class="acc-h2"><?php esc_html_e('Account settings', 'y4apk'); ?></h1>
 	<?php $messages(); ?>
 	<div class="acc-two">
+		<?php $nopass = (string) get_user_meta($u->ID, 'y4apk_nopass', true); // 2.66 ?>
 		<div class="acc-card">
-			<h2><?php esc_html_e('Change password', 'y4apk'); ?></h2>
+			<h2><?php echo esc_html($nopass ? __('Set a password', 'y4apk') : __('Change password', 'y4apk')); ?></h2>
+			<?php if ($nopass) : ?><p class="acc-hint"><?php echo esc_html(sprintf(__('You sign in with %s. Set a password to sign in with your username or email too.', 'y4apk'), ucfirst($nopass))); ?></p><?php endif; ?>
 			<?php $form_open('password'); ?>
-				<?php $field(__('Current password', 'y4apk'), 'current', 'password', ['autocomplete' => 'current-password', 'required' => true]); ?>
+				<?php if (!$nopass) $field(__('Current password', 'y4apk'), 'current', 'password', ['autocomplete' => 'current-password', 'required' => true]); ?>
 				<?php $field(__('New password', 'y4apk'), 'password', 'password', ['autocomplete' => 'new-password', 'required' => true, 'minlength' => '10', 'maxlength' => '100']); ?>
 				<?php $field(__('Type it again', 'y4apk'), 'password2', 'password', ['autocomplete' => 'new-password', 'required' => true, 'minlength' => '10', 'maxlength' => '100']); ?>
 				<button class="acc-btn acc-btn-primary" type="submit"><?php esc_html_e('Save password', 'y4apk'); ?></button>
@@ -669,13 +719,35 @@ if ($screen === 'login') {
 				<p><?php esc_html_e('This removes your account and email. It cannot be undone.', 'y4apk'); ?></p>
 				<?php $form_open('close'); ?>
 					<?php $field(__('Type your username', 'y4apk'), 'confirm', 'text', ['required' => true, 'autocomplete' => 'off']); ?>
-					<?php $field(__('Your password', 'y4apk'), 'current', 'password', ['required' => true, 'autocomplete' => 'current-password']); ?>
+					<?php if (!$nopass) $field(__('Your password', 'y4apk'), 'current', 'password', ['required' => true, 'autocomplete' => 'current-password']); ?>
 					<label class="acc-check"><input type="checkbox" name="delete_scripts" value="1"> <span><?php esc_html_e('Also delete the scripts I shared (otherwise they stay on the site, without your name)', 'y4apk'); ?></span></label>
 					<button class="acc-btn acc-btn-danger" type="submit"><?php esc_html_e('Close my account', 'y4apk'); ?></button>
 				</form>
 			</details>
 		</div>
 	</div>
+	<?php if (class_exists('Y4APK_OAuth') && ($oauth_on = Y4APK_OAuth::on())) : // 2.66 ?>
+	<div class="acc-card acc-methods">
+		<h2><?php esc_html_e('Sign-in methods', 'y4apk'); ?></h2>
+		<p class="acc-hint"><?php esc_html_e('Connect an account to sign in with one tap. We only keep its id and email, not your name or picture.', 'y4apk'); ?></p>
+		<ul class="acc-method-list">
+		<?php foreach ($oauth_on as $p) :
+			$prov = Y4APK_OAuth::providers()[$p];
+			$linked = (bool) get_user_meta($u->ID, $prov['meta'], true);
+			?>
+			<li><?php echo Y4APK_OAuth::icon($p, 24); // phpcs:ignore WordPress.Security.EscapeOutput ?><span><b><?php echo esc_html($prov['name']); ?></b><small><?php echo esc_html($linked ? __('Connected', 'y4apk') : __('Not connected', 'y4apk')); ?></small></span>
+				<?php if ($linked && Y4APK_OAuth::can_unlink($u)) : ?>
+					<?php $form_open('unlink'); ?><input type="hidden" name="provider" value="<?php echo esc_attr($p); ?>"><button class="acc-btn acc-btn-small acc-btn-ghost" type="submit"><?php esc_html_e('Disconnect', 'y4apk'); ?></button></form>
+				<?php elseif ($linked) : ?>
+					<span class="acc-hint"><?php esc_html_e('Set a password first to disconnect', 'y4apk'); ?></span>
+				<?php else : ?>
+					<a class="acc-btn acc-btn-small" href="<?php echo esc_url(Y4APK_OAuth::start_url($p)); ?>"><?php esc_html_e('Connect', 'y4apk'); ?></a>
+				<?php endif; ?>
+			</li>
+		<?php endforeach; ?>
+		</ul>
+	</div>
+	<?php endif; ?>
 	<?php
 
 /* ======================================================= share / edit a script: /upload/, four steps */

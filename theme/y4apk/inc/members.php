@@ -47,7 +47,7 @@ class Y4APK_Members {
 	const RISKY = '/\b(?:syn\.request|http_request|http\.request|fluxus\.request|request)\s*\(|\b(?:writefile|appendfile|delfile|makefolder|delfolder|setclipboard|toclipboard|queue_on_teleport|queueonteleport)\b|MarketplaceService|Prompt(?:Product|GamePass)?Purchase|\brequire\s*\(\s*\d|\\\\x[0-9a-f]{2}|\\\\\d{2,3}\\\\\d{2,3}|\bstring\.char\s*\(|\b(?:getfenv|setfenv|getrenv)\b|[A-Za-z0-9+\/=]{180,}/i';
 	// y4_do => the screen that takes it
 	const ACTIONS = ['register' => 'register', 'login' => 'login', 'forgot' => 'forgot', 'reset' => 'reset', 'resend' => 'login', 'submit' => 'submit',
-		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'customize' => 'customize', 'share' => 'share'];
+		'edit' => 'edit', 'delete' => 'home', 'password' => 'settings', 'emails' => 'settings', 'close' => 'settings', 'unlink' => 'settings', 'customize' => 'customize', 'share' => 'share'];
 	const GENERATOR = '/<meta\b[^>]*\bname\s*=\s*["\']?generator\b[^>]*>[ \t]*\n?/i';
 
 	private static $head_level = null;
@@ -57,6 +57,11 @@ class Y4APK_Members {
 
 	public static function init() {
 		add_action('init', [__CLASS__, 'setup'], 6);
+		add_action('init', function () {
+			if (!wp_next_scheduled('y4apk_members_remind')) {
+				wp_schedule_event(time() + 600, 'hourly', 'y4apk_members_remind');
+			}
+		}, 20);
 		add_filter('query_vars', [__CLASS__, 'query_vars']);
 		add_action('template_redirect', [__CLASS__, 'route'], 0);
 		add_filter('redirect_canonical', [__CLASS__, 'no_slash'], 10, 2);
@@ -70,6 +75,7 @@ class Y4APK_Members {
 
 		// Who may sign in, and where they are sent.
 		add_filter('wp_authenticate_user', [__CLASS__, 'authenticate'], 20, 2);
+		add_action('y4apk_members_remind', [__CLASS__, 'remind_cron']); // 2.66
 		add_filter('login_redirect', [__CLASS__, 'login_redirect'], 10, 3);
 		add_action('admin_init', [__CLASS__, 'keep_out']);
 		add_filter('show_admin_bar', [__CLASS__, 'admin_bar']);
@@ -96,6 +102,8 @@ class Y4APK_Members {
 			'auto_files'  => 1,   // 2.50: games and apps whose file checks pass go live at once
 			'auto_after'  => 1,   // 2.50: uploads the owner approved before a member's go live at once
 			'notify'      => 1,   // email the site owner when a script arrives
+			'early'       => 1,   // 2.66: members sign in before confirming their email (sharing, paying and tips wait for it)
+			'remind'      => 1,   // 2.66: the confirmation email again, once, a day after signing up
 			'from_name'   => 'Y4APK',
 			'reply_to'    => '',  // where replies go (optional; mail comes from a no-reply address)
 			'smtp_on'     => 0,   // send through the site's mailbox (inc/mail.php)
@@ -275,10 +283,50 @@ class Y4APK_Members {
 		if (get_user_meta($user->ID, self::BANNED, true)) {
 			return new WP_Error('y4_banned', __('This account is closed.', 'y4apk'));
 		}
-		if (!self::is_verified($user->ID)) {
+		if (!self::is_verified($user->ID) && !self::settings()['early']) {
 			return new WP_Error('y4_unverified', __('Confirm your email first: open the link we sent you.', 'y4apk'));
 		}
 		return $user;
+	}
+
+	/** A member who has not opened the confirmation link yet (2.66). */
+	public static function unconfirmed($user = null) {
+		$user = $user ?: wp_get_current_user();
+		return $user instanceof WP_User && $user->exists() && self::is_member($user) && get_user_meta($user->ID, self::VERIFIED, true) === '0';
+	}
+
+	/** The email with most of the name hidden: "ab•••@gmail.com". */
+	public static function masked_email($email) {
+		$parts = explode('@', (string) $email, 2);
+		if (count($parts) < 2) {
+			return '';
+		}
+		return mb_substr($parts[0], 0, 2) . '•••@' . $parts[1];
+	}
+
+	/**
+	 * The confirmation email again, once, a day after signing up (2.66), to
+	 * members who have not opened it; at most 30 an hour. Not to anyone the
+	 * owner reminded by hand in the last day.
+	 */
+	public static function remind_cron() {
+		if (!self::settings()['remind']) {
+			return;
+		}
+		global $wpdb;
+		$ids = $wpdb->get_col($wpdb->prepare("SELECT u.ID FROM {$wpdb->users} u
+			JOIN {$wpdb->usermeta} v ON v.user_id = u.ID AND v.meta_key = %s AND v.meta_value = '0'
+			LEFT JOIN {$wpdb->usermeta} r ON r.user_id = u.ID AND r.meta_key = 'y4apk_vauto'
+			WHERE r.umeta_id IS NULL AND u.user_registered BETWEEN %s AND %s ORDER BY u.ID LIMIT 30",
+			self::VERIFIED, gmdate('Y-m-d H:i:s', time() - 14 * DAY_IN_SECONDS), gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS)));
+		foreach ($ids as $id) {
+			update_user_meta((int) $id, 'y4apk_vauto', time());
+			$u = get_userdata((int) $id);
+			if (!$u || get_user_meta($u->ID, self::BANNED, true) || (int) get_user_meta($u->ID, 'y4apk_vsent', true) > time() - DAY_IN_SECONDS) {
+				continue;
+			}
+			self::resend_verification($u);
+		}
 	}
 
 	public static function login_redirect($to, $requested, $user) {
@@ -663,7 +711,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay', 'google', 'discord'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -705,6 +753,10 @@ class Y4APK_Members {
 		}
 		self::$ctx = &$ctx;
 
+		if (($view === 'google' || $view === 'discord') && class_exists('Y4APK_OAuth')) { // 2.66: sign in with Google or Discord
+			Y4APK_OAuth::route($ctx);
+			return;
+		}
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
 		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
@@ -729,6 +781,16 @@ class Y4APK_Members {
 			$ctx['errors'][] = sprintf(__('That was more than the site takes at once (%s). Send a smaller picture, or one picture at a time.', 'y4apk'), size_format(wp_max_upload_size()));
 		}
 		$do = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do'])) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
+		if ($do === 'resend_me' && $ctx['user']) { // 2.66: the confirmation email again, from the banner
+			if (wp_verify_nonce(isset($_POST['_y4n']) ? sanitize_text_field(wp_unslash($_POST['_y4n'])) : '', 'y4apk_acct_resend_me') && self::unconfirmed($ctx['user'])
+				&& self::hit('resend_me_' . $ctx['user']->ID, 3, HOUR_IN_SECONDS)) {
+				self::resend_verification($ctx['user']);
+				wp_safe_redirect(add_query_arg('ok', 'resent', remove_query_arg('ok'))); // the same page
+				exit;
+			}
+			$ctx['errors'][] = __('Sent a moment ago: wait a little, and look in Spam too.', 'y4apk');
+			$do = '';
+		}
 		// A game or app (2.44): its own wizard, at /upload/game/, /upload/app/ and /account/edit/N/
 		$share = class_exists('Y4APK_Share') && ($view === 'share' || ($view === 'edit' && Y4APK_Share::is_share(absint(get_query_var('y4_id')))));
 		if ($share) {
@@ -830,7 +892,7 @@ class Y4APK_Members {
 	 * Actions (the forms' answers)
 	 * ---------------------------------------------------------------- */
 
-	private static function reserved($handle) {
+	public static function reserved($handle) {
 		return in_array($handle, ['admin', 'administrator', 'root', 'support', 'help', 'staff', 'moderator', 'mod', 'owner', 'system', 'official', 'webmaster', 'info', 'contact', 'team', 'roblox',
 			'y4apk', 'y4', 'null', 'undefined', 'account', 'login', 'register', 'wp', 'wordpress', 'user', 'users', 'guest', 'anonymous'], true);
 	}
@@ -907,6 +969,12 @@ class Y4APK_Members {
 		update_user_meta($id, self::VERIFIED, '0');
 		update_user_meta($id, 'y4apk_ip', $ip);
 		self::send_verification(get_userdata($id));
+		if (self::settings()['early']) { // 2.66: in at once; sharing, paying and tips wait for the email
+			wp_set_current_user($id);
+			wp_set_auth_cookie($id, true, is_ssl());
+			wp_safe_redirect(self::url('', ['ok' => 'welcome']));
+			exit;
+		}
 		$ctx['screen'] = 'check';
 		$ctx['email'] = $email;
 	}
@@ -921,7 +989,8 @@ class Y4APK_Members {
 			return;
 		}
 		if (self::is_verified($user->ID)) {
-			return; // the same answer as a wrong link: an address with someone else's number in it must not say who is a member
+			$ctx['good'] = get_current_user_id() === $user->ID; // 2.66: their own link, opened twice
+			return; // else the same answer as a wrong link: an address with someone else's number in it must not say who is a member
 		}
 		$hash = (string) get_user_meta($user->ID, 'y4apk_vtoken', true);
 		if ($hash !== '' && hash_equals($hash, hash('sha256', $token)) && (int) get_user_meta($user->ID, 'y4apk_vexp', true) > time()) {
@@ -1025,7 +1094,7 @@ class Y4APK_Members {
 		$who = trim((string) wp_unslash(isset($_POST['login']) ? $_POST['login'] : ''));
 		if (self::hit('forgot_ip_' . self::ip_hash(), 4, HOUR_IN_SECONDS) && self::hit('forgot_' . strtolower($who), 3, HOUR_IN_SECONDS)) {
 			$user = is_email($who) ? get_user_by('email', $who) : get_user_by('login', strtolower($who));
-			if ($user && self::is_member($user) && self::is_verified($user->ID) && !get_user_meta($user->ID, self::BANNED, true)) {
+			if ($user && self::is_member($user) && (self::is_verified($user->ID) || self::settings()['early']) && !get_user_meta($user->ID, self::BANNED, true)) {
 				$key = get_password_reset_key($user);
 				if (!is_wp_error($key)) {
 					self::mail($user->user_email, __('Choose a new password', 'y4apk'),
@@ -1080,6 +1149,9 @@ class Y4APK_Members {
 			return;
 		}
 		reset_password($user, $pass);
+		if (get_user_meta($user->ID, self::VERIFIED, true) === '0') {
+			update_user_meta($user->ID, self::VERIFIED, '1'); // 2.66: the reset link came by email, so the address is theirs
+		}
 		wp_safe_redirect(self::url('login', ['ok' => 'reset']));
 		exit;
 	}
@@ -1094,7 +1166,8 @@ class Y4APK_Members {
 		$user = $ctx['user'];
 		$old = (string) wp_unslash(isset($_POST['current']) ? $_POST['current'] : '');
 		$new = (string) wp_unslash(isset($_POST['password']) ? $_POST['password'] : '');
-		if (!self::hit('pw_' . $user->ID, 6, HOUR_IN_SECONDS) || !wp_check_password($old, $user->user_pass, $user->ID)) {
+		$nopass = (bool) get_user_meta($user->ID, 'y4apk_nopass', true); // 2.66: made with Google/Discord, no password of their own yet
+		if (!self::hit('pw_' . $user->ID, 6, HOUR_IN_SECONDS) || (!$nopass && !wp_check_password($old, $user->user_pass, $user->ID))) {
 			$ctx['errors'][] = __('Your current password is not right.', 'y4apk');
 		} elseif ($p = self::password_problem($new, $user->user_login, $user->user_email)) {
 			$ctx['errors'][] = $p;
@@ -1105,8 +1178,25 @@ class Y4APK_Members {
 			return;
 		}
 		wp_set_password($new, $user->ID);
+		delete_user_meta($user->ID, 'y4apk_nopass');
 		wp_set_auth_cookie($user->ID, true, is_ssl()); // wp_set_password signs everyone out, this device included
 		wp_safe_redirect(self::url('settings', ['ok' => 'pw']));
+		exit;
+	}
+
+	/** Settings ▸ Sign-in methods (2.66): disconnect Google or Discord. */
+	private static function do_unlink(&$ctx) {
+		$ctx['screen'] = 'settings';
+		$g = self::guard('unlink', false);
+		if ($g !== true) {
+			$ctx['errors'][] = $g;
+			return;
+		}
+		$p = sanitize_key(wp_unslash($_POST['provider'] ?? ''));
+		if (class_exists('Y4APK_OAuth')) {
+			Y4APK_OAuth::unlink($ctx['user'], $p);
+		}
+		wp_safe_redirect(self::url('settings', ['ok' => 'unlinked']));
 		exit;
 	}
 
@@ -1135,7 +1225,7 @@ class Y4APK_Members {
 			return;
 		}
 		$user = $ctx['user'];
-		if (!self::hit('close_' . $user->ID, 5, HOUR_IN_SECONDS) || !wp_check_password((string) wp_unslash(isset($_POST['current']) ? $_POST['current'] : ''), $user->user_pass, $user->ID)
+		if (!self::hit('close_' . $user->ID, 5, HOUR_IN_SECONDS) || (!get_user_meta($user->ID, 'y4apk_nopass', true) && !wp_check_password((string) wp_unslash(isset($_POST['current']) ? $_POST['current'] : ''), $user->user_pass, $user->ID))
 			|| strtolower(trim((string) wp_unslash(isset($_POST['confirm']) ? $_POST['confirm'] : ''))) !== $user->user_login) {
 			$ctx['errors'][] = __('Type your name and your password to close the account.', 'y4apk');
 			return;

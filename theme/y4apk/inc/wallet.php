@@ -764,6 +764,10 @@ class Y4APK_Wallet {
 			$ctx['errors'][] = __('The wallet is closed at the moment.', 'y4apk');
 			$do = '';
 		}
+		if ($do !== '' && Y4APK_Members::unconfirmed($ctx['user'])) { // 2.66: money waits for a confirmed email
+			$ctx['errors'][] = __('Confirm your email first: open the link we sent you, then try again.', 'y4apk');
+			$do = '';
+		}
 		// The tip form: to a creator (?to=name) or to the site
 		$to = null;
 		$to_name = isset($_REQUEST['to']) ? sanitize_user(wp_unslash($_REQUEST['to'])) : '';
