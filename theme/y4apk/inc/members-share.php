@@ -58,6 +58,7 @@ class Y4APK_Share {
 		add_action('trashed_post', [__CLASS__, 'trashed']);
 		add_action('before_delete_post', [__CLASS__, 'trashed']);
 		add_action('admin_init', [__CLASS__, 'drop_by']);
+		add_action('admin_init', [__CLASS__, 'fix_rows']); // 2.66.4
 	}
 
 	/** 2.55: titles of members' uploads lose the "by …" they were given (once). */
@@ -1024,6 +1025,53 @@ class Y4APK_Share {
 	 * Approving: the download folder, the post
 	 * ---------------------------------------------------------------- */
 
+	/** As the site's own posts name a download (2.66.4): "MOD" for an APK (the others by their type: XAPK, OBB, IPA…). */
+	public static function row_name($label) {
+		$label = strtoupper(trim((string) $label));
+		return $label === 'APK' || $label === '' ? 'MOD' : $label;
+	}
+
+	/** "1.3.4.3" → "v1.3.4.3.apk", as the site's own posts write it (the file's real extension). */
+	public static function row_version($version, $ext) {
+		$n = Y4APK_App_Updates::number($version);
+		return $n === '' ? '' : 'v' . $n . '.' . strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $ext) ?: 'apk');
+	}
+
+	/** Once (2.66.4): members' posts made before, written the same way ("APK 1.3.4.3" → "MOD v1.3.4.3.apk"). */
+	public static function fix_rows() {
+		if (get_option('y4apk_share_rows') === '1') {
+			return;
+		}
+		update_option('y4apk_share_rows', '1', false);
+		global $wpdb;
+		$ids = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::META));
+		foreach (array_map('intval', (array) $ids) as $id) {
+			$links = get_post_meta($id, 'repeatable_download_link', true);
+			if (!is_array($links)) {
+				continue;
+			}
+			$new = $links;
+			foreach ($new as $i => $l) {
+				if (!is_array($l)) {
+					continue;
+				}
+				$v = trim((string) ($l['download_version'] ?? ''));
+				if (preg_match('/^v?\d+(?:\.\d+)*$/i', $v)) { // a bare number: the extension from its download folder's name
+					$folder = class_exists('Y4APK_R2') ? Y4APK_R2::folder_of((string) ($l['download_url'] ?? '')) : '';
+					$ext = $folder !== '' ? pathinfo($folder, PATHINFO_EXTENSION) : '';
+					$name = strtoupper((string) ($l['download_name'] ?? ''));
+					$new[$i]['download_version'] = self::row_version($v, $ext !== '' ? $ext : (in_array($name, ['OBB', 'ZIP'], true) ? 'zip' : strtolower($name === 'APK' || $name === 'MOD' ? 'apk' : $name)));
+				}
+				if (strtoupper(trim((string) ($l['download_name'] ?? ''))) === 'APK') {
+					$new[$i]['download_name'] = 'MOD';
+				}
+			}
+			if ($new !== $links) {
+				update_post_meta($id, 'repeatable_download_link', $new);
+			}
+		}
+	}
+
 	/** A download row for each file: [rows, error message]. Each file gets a folder in files/up, pointing at it on R2. */
 	private static function rows_for($post_id, $d) {
 		$o = Y4APK_R2::settings();
@@ -1038,7 +1086,7 @@ class Y4APK_Share {
 			if (is_wp_error($ok)) {
 				return [[], $ok->get_error_message()];
 			}
-			$rows[] = ['download_name' => $f['label'], 'download_version' => Y4APK_App_Updates::number($d['version']), 'download_size' => Y4APK_R2::size_text($f['size']), 'download_url' => $o['dir_url'] . $folder];
+			$rows[] = ['download_name' => self::row_name($f['label']), 'download_version' => self::row_version($d['version'], $ext), 'download_size' => Y4APK_R2::size_text($f['size']), 'download_url' => $o['dir_url'] . $folder];
 		}
 		return [$rows, ''];
 	}

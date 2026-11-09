@@ -1349,6 +1349,11 @@ class Y4APK_Writer {
 			$play = ['status' => 'none']; // Google Play busy or not there: the member's words and the post's own details are enough
 		}
 		$ctx = self::context($post_id, $play);
+		if ($ctx['package'] === '' && $package !== '') { // 2.66.4: the main post's Google Play, linked in the article as on the site's own posts
+			$ctx['package'] = $package;
+			$ctx['play_url'] = 'https://play.google.com/store/apps/details?id=' . $package;
+			$ctx['on_play'] = $play['status'] === 'ok';
+		}
 		$d = class_exists('Y4APK_Share') ? Y4APK_Share::data($post_id) : null;
 		$version = Y4APK_App_Updates::number(get_post_meta($post_id, 'wp_version_GP', true));
 		$mods = self::plain(get_post_meta($post_id, 'wp_mods', true));

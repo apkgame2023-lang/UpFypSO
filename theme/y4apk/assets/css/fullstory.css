@@ -176,12 +176,12 @@
 }
 
 .f-app-meta, .f-app-download { text-align: center; }
-/* The facts (2.66.3): a real grid, each row as tall as its tallest card (floats let a short card pull the next one up beside a tall one) */
-.f-app-meta .grid-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* The facts (2.66.3): rows, each as tall as its tallest card (floats let a short card pull the next one up beside a tall one);
+   2.66.4: a last row that is not full sits in the middle, not on the left with a hole */
+.f-app-meta .grid-list { display: flex; flex-wrap: wrap; justify-content: center; }
 .f-app-meta .grid-list::after { display: none; }
-.f-app-meta .grid-list > .b-grid { float: none; width: auto; display: flex; }
+.f-app-meta .grid-list > .b-grid { float: none; display: flex; }
 .f-app-meta .grid-list > .b-grid > .block { flex: 1; min-width: 0; }
-@media (min-width: 48rem) { .f-app-meta .grid-list.grid4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .f-app-meta .block { padding: 1rem; position: relative; }
 .f-app-meta .block .f-app-meta-icon { display: block; }

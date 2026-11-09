@@ -745,6 +745,19 @@ phones). The *Category* card shows the post's subcategories; a post only in a
 top category shows that one, unless it is already the name card's label
 (*Games*, *Apps*): then there is no card, instead of an empty one.
 
+2.66.4 — members' games and apps look like the site's own posts:
+
+- their downloads are named as the site names them: **MOD v1.3.4.3.apk**
+  (an APK is *MOD*; XAPK, OBB, IPA… keep their type; the version with the
+  file's own extension), not "APK 1.3.4.3". Members' posts made before are
+  changed once, when an administrator next opens the dashboard (option
+  `y4apk_share_rows`); *Restore a file* writes it the same way;
+- the article Write with AI makes for a member's version links the game's name
+  to its Google Play page (the main post's), as the site's own articles do.
+  An article written before needs *Write with AI* again to get the link;
+- the facts' last row, when not full (7 cards in rows of 4), sits in the middle
+  instead of leaving a hole on the right.
+
 ### Setting up Google
 
 1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent

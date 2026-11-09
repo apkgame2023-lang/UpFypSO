@@ -759,7 +759,7 @@ class Y4APK_Versions {
 			}
 		}
 		if ($v !== '') {
-			$links[$i]['download_version'] = $v;
+			$links[$i]['download_version'] = Y4APK_Writer::version_text($v, (string) ($links[$i]['download_name'] ?? '')); // "v1.3.4.3.apk", as the site writes it (2.66.4)
 		}
 		update_post_meta($pid, 'repeatable_download_link', $links);
 		list($main) = Y4APK_App_Updates::download($pid);
