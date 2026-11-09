@@ -676,6 +676,12 @@ NOWPayments' API does not know is refused even when signed, and "paid" counts
 only once the API confirms it (otherwise NOWPayments is asked to send it again):
 a leaked IPN secret alone gives nothing.
 
+2.63.2 — opening the payment page and leaving makes an order nobody pays:
+*Your purchases* now lists only paid orders, orders a payment was started for,
+and the last hour's; unpaid ones end as *expired* (after 6 hours with no
+payment started, 7 days with one). The *Getting VIP* card says what its address
+is for once paying on the site is on (*Other ways to pay*).
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta

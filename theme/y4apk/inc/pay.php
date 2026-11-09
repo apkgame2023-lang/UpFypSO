@@ -180,9 +180,25 @@ class Y4APK_Pay {
 		return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', (int) $id));
 	}
 
+	/**
+	 * A member's orders worth showing (2.63.2): paid ones, ones a payment was
+	 * started for, and the last hour's. Opening the payment page and leaving
+	 * makes an order nobody pays: it is not listed, and ends as expired.
+	 */
 	public static function for_user($user_id, $limit = 10) {
 		global $wpdb;
-		return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE user_id = %d AND status <> 'new' ORDER BY id DESC LIMIT %d", (int) $user_id, (int) $limit));
+		self::tidy();
+		return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . self::table() . " WHERE user_id = %d AND status NOT IN ('new', 'expired') AND (pay_id <> '' OR status = 'finished' OR made > %d) ORDER BY id DESC LIMIT %d",
+			(int) $user_id, time() - HOUR_IN_SECONDS, (int) $limit));
+	}
+
+	/** Orders never paid: expired after 6 hours (no payment started) or 7 days (a payment started, never finished). */
+	public static function tidy() {
+		global $wpdb;
+		$t = self::table();
+		$now = time();
+		$wpdb->query($wpdb->prepare("UPDATE $t SET status = 'expired', updated = %d WHERE status IN ('new', 'waiting') AND pay_id = '' AND made < %d", $now, $now - 6 * HOUR_IN_SECONDS));
+		$wpdb->query($wpdb->prepare("UPDATE $t SET status = 'expired', updated = %d WHERE status = 'waiting' AND pay_id <> '' AND made < %d", $now, $now - 7 * DAY_IN_SECONDS));
 	}
 
 	/**

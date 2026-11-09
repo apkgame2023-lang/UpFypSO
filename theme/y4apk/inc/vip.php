@@ -706,6 +706,9 @@ class Y4APK_VIP {
 
 			<?php elseif ($tab === 'payments') :
 				$ot = class_exists('Y4APK_Pay') ? Y4APK_Pay::table() : '';
+				if ($ot) {
+					Y4APK_Pay::tidy(); // 2.63.2: unpaid orders end as expired
+				}
 				$since = $now - 30 * DAY_IN_SECONDS;
 				$sums = $ot ? $wpdb->get_results($wpdb->prepare("SELECT currency, SUM(amount) AS s, COUNT(*) AS n FROM $ot WHERE status = 'finished' AND made > %d GROUP BY currency", $since)) : [];
 				$waiting = $ot ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $ot WHERE status IN ('waiting', 'confirming', 'confirmed', 'sending')") : 0;
@@ -772,7 +775,9 @@ class Y4APK_VIP {
 						</div>
 						<div class="y4ui-side">
 							<div class="y4ui-card">
-								<div class="y4ui-card-h"><div><h2><?php esc_html_e('Getting VIP', 'y4apk'); ?></h2><p><?php esc_html_e('Payments are not built in yet: “Get VIP” opens your own place to buy (a shop, a Telegram account…), where people pay and get a code. Leave it empty and the page offers only the code box.', 'y4apk'); ?></p></div></div>
+								<div class="y4ui-card-h"><div><h2><?php esc_html_e('Getting VIP', 'y4apk'); ?></h2><p><?php echo esc_html(class_exists('Y4APK_Pay') && Y4APK_Pay::ready()
+									? __('People pay on the VIP page (Pay on the site, below). An address here is optional: it shows as “Other ways to pay” under the Pay button, for a shop or a Telegram account where you sell codes.', 'y4apk')
+									: __('Without payments on the site (below), “Get VIP” opens your own place to buy (a shop, a Telegram account…), where people pay and get a code. Leave it empty and the page offers only the code box.', 'y4apk')); ?></p></div></div>
 								<div class="y4ui-card-b y4ui-fields">
 									<div class="y4ui-field"><label for="vip-cur"><?php esc_html_e('Currency', 'y4apk'); ?></label><select id="vip-cur" name="currency"><?php foreach (self::currencies() as $c => $sym) : ?><option value="<?php echo esc_attr($c); ?>" <?php selected($s['currency'], $c); ?>><?php echo esc_html($c . ' ' . $sym); ?></option><?php endforeach; ?></select></div>
 									<div class="y4ui-field"><label for="vip-buy"><?php esc_html_e('Where to buy (address)', 'y4apk'); ?></label><input type="url" id="vip-buy" name="buy_url" value="<?php echo esc_attr($s['buy_url']); ?>" placeholder="https://t.me/…"></div>
