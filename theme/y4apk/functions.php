@@ -14,6 +14,7 @@ define('Y4APK_MENU', 'y4apk-dashboard'); // the Y4APK admin menu (its first page
 require $theme_dir . '/inc/i18n.php'; // first: a /th/ address is read before anything else asks for links (2.51)
 require $theme_dir . '/inc/breadcrumbs.php';
 require $theme_dir . '/inc/core.php';
+require $theme_dir . '/inc/quiet.php'; // no plugin or WordPress signatures in the pages' source (2.61.1)
 require $theme_dir . '/inc/inits.php';
 require $theme_dir . '/inc/scripts.php';
 require $theme_dir . '/inc/roblox.php';

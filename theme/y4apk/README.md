@@ -659,6 +659,28 @@ The site left 10Web Booster (its Cloudflare Enterprise CDN ran out). Now:
   cleared: visitors get it now.* Without LiteSpeed Cache it says to clear it by
   hand, as before. Posts are cleared by LiteSpeed itself when they change.
 
+2.61.1 — **quiet pages** (`inc/quiet.php`): the pages' source no longer
+names the plugins and software behind them.
+
+- One output buffer takes every HTML comment ("Search Engine Optimization by
+  Rank Math PRO", "… added by Site Kit", `<!-- wp:… -->`) and every
+  `<meta name="generator">` off the page. Scripts, styles, `<pre>`,
+  `<textarea>` and IE's `[if]` comments stay exactly as they are; feeds,
+  sitemaps, robots.txt and anything that is not an HTML page pass untouched.
+- LiteSpeed's "Page cached by LiteSpeed Cache …" line goes through its own
+  filters (`litespeed_comment`, `litespeed_buffer_after`), and Rank Math's
+  `rank-math-schema-pro` class leaves its structured-data script.
+- Not sent any more: the REST API and oEmbed discovery links (in `<head>` and
+  the Link header), X-Powered-By (PHP's version) and X-Pingback.
+- `?ver=` equal to WordPress's version becomes a short code made from it, so
+  browsers still fetch new files after an update.
+
+`/wp-content/` and `/wp-includes/` addresses stay (renaming them breaks plugins
+and updates). Hostinger's `x-turbo-charged-by` and LiteSpeed's
+`x-litespeed-cache` headers are the server's; a Cloudflare Transform Rule
+(Rules ▸ Transform Rules ▸ Response Header ▸ Remove) takes them off. After
+installing, Purge All once so cached pages are made again without them.
+
 ## Your own rows on the home page (2.60)
 
 2.60.2 — a member's **banner** may be from **480 × 160** pixels (it was 600 ×
