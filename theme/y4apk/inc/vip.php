@@ -537,6 +537,16 @@ class Y4APK_VIP {
 		$all = !empty($_GET['all']);
 		$rows = $wpdb->get_results($wpdb->prepare('SELECT code, days, used_by, used_at FROM ' . self::table() . ' WHERE batch = %s' . ($all ? '' : ' AND used_by = 0') . ' ORDER BY id', $batch));
 		nocache_headers();
+		if (!empty($_GET['txt'])) { // codes only, one a line: what shops (Komerza, Sell.app…) take as a pool of keys (2.63.5)
+			header('Content-Type: text/plain; charset=utf-8');
+			header('Content-Disposition: attachment; filename="vip-codes-' . sanitize_file_name($batch ?: 'batch') . '.txt"');
+			foreach ($rows as $r) {
+				if (!(int) $r->used_by) {
+					echo self::pretty($r->code), "\n";
+				}
+			}
+			exit;
+		}
 		header('Content-Type: text/csv; charset=utf-8');
 		header('Content-Disposition: attachment; filename="vip-codes-' . sanitize_file_name($batch ?: 'batch') . '.csv"');
 		$out = fopen('php://output', 'w');
@@ -663,7 +673,7 @@ class Y4APK_VIP {
 				?>
 				<div class="y4ui-cols">
 					<div class="y4ui-card">
-						<div class="y4ui-card-h"><div><h2><?php esc_html_e('Batches of codes', 'y4apk'); ?></h2><p><?php esc_html_e('Download a batch’s unused codes to sell or give them; each works once.', 'y4apk'); ?></p></div></div>
+						<div class="y4ui-card-h"><div><h2><?php esc_html_e('Batches of codes', 'y4apk'); ?></h2><p><?php esc_html_e('Download a batch’s unused codes to sell or give them; each works once. To sell them in a shop (Komerza, Sell.app…), paste “Codes only” into the product’s keys: each buyer gets one by email at once.', 'y4apk'); ?></p></div></div>
 						<?php if (!$batches) : ?>
 							<div class="y4ui-empty"><?php esc_html_e('No codes yet. Make the first batch on the right.', 'y4apk'); ?></div>
 						<?php else : ?>
@@ -678,7 +688,8 @@ class Y4APK_VIP {
 									<td><span class="y4ui-chip is-blue"><?php echo esc_html(self::plan_label((int) $b->days)); ?></span></td>
 									<td><?php echo esc_html(number_format_i18n((int) $b->used) . ' / ' . number_format_i18n((int) $b->n)); ?><span class="y4ui-bar is-green" style="margin-top:6px;width:120px"><i style="width:<?php echo esc_attr((int) round(100 * (int) $b->used / max(1, (int) $b->n))); ?>%"></i></span></td>
 									<td style="text-align:right;white-space:nowrap">
-										<?php if ((int) $b->used < (int) $b->n) : ?><a class="button button-primary" href="<?php echo esc_url($csv); ?>"><?php esc_html_e('Unused codes (CSV)', 'y4apk'); ?></a><?php endif; ?>
+										<?php if ((int) $b->used < (int) $b->n) : ?><a class="button button-primary" href="<?php echo esc_url($csv); ?>"><?php esc_html_e('Unused codes (CSV)', 'y4apk'); ?></a>
+										<a class="button" href="<?php echo esc_url(add_query_arg('txt', 1, $csv)); ?>" title="<?php esc_attr_e('One code a line, to paste into a shop as its keys', 'y4apk'); ?>"><?php esc_html_e('Codes only (.txt)', 'y4apk'); ?></a><?php endif; ?>
 										<a class="button" href="<?php echo esc_url(add_query_arg('all', 1, $csv)); ?>"><?php esc_html_e('All', 'y4apk'); ?></a>
 										<?php if ((int) $b->used < (int) $b->n) : ?>
 										<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline" onsubmit="return confirm(<?php echo esc_attr(wp_json_encode(__('Delete this batch’s unused codes? People who have one can no longer use it.', 'y4apk'))); ?>)"><?php $form('drop', 'codes'); ?><input type="hidden" name="batch" value="<?php echo esc_attr($b->batch); ?>"><button class="button-link button-link-delete"><?php esc_html_e('Delete unused', 'y4apk'); ?></button></form>

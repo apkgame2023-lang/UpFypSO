@@ -701,6 +701,11 @@ the wallet's address on that network in NOWPayments ▸ Payout wallets (in Binan
 Deposit ▸ the coin ▸ the same network), make it the main one, pick it on the
 card and press *Check again*.
 
+2.63.5 — Y4APK ▸ VIP ▸ Codes ▸ **Codes only (.txt)**: a batch's unused codes,
+one a line, to paste into a shop (Komerza, Sell.app…) as a product's pool of
+keys. The shop sends each buyer one code by email the moment they pay; they
+redeem it on *Your VIP*. Point *Other ways to pay* at the shop.
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta
