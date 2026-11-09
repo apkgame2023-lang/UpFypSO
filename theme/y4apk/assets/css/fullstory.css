@@ -479,3 +479,6 @@
 .y4-shared-row .y4-shared { margin: 0; }
 .y4-tip { display: inline-flex; align-items: center; gap: .4rem; height: 2.5rem; padding: 0 1rem; border-radius: 2rem; background: #fff1f1; color: #d93c42; font-size: .875rem; font-weight: 700; box-shadow: 0 0 0 1px rgba(229, 72, 77, .2); }
 .y4-tip:hover { color: #fff; background: #e5484d; }
+
+/* 2.64.1: the Copy Script box and the "Shared by" row sit 1rem under the facts cards (their row ends with a −.5rem margin meant for the download boxes' own padding) */
+.f-app-download > .y4-scripts, .f-app-download > .y4-shared-row { margin-top: 1rem; }

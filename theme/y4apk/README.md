@@ -694,6 +694,11 @@ worth $0.0005 adds up exactly; spending happens in a database transaction with
 the row locked and a `WHERE … >= amount` guard, so a balance can never go below
 zero, even with many taps at once. Terms and Privacy have a section on it.
 
+2.64.1 — the Copy Script box (and the *Shared by* row) sat flush against the
+facts cards above it: their row ends with a −.5rem margin meant for the download
+boxes, which bring their own padding. Both now start 1rem below, like the
+download boxes.
+
 ## Paying for VIP on the site (2.63)
 
 `inc/pay.php`: VIP bought on the VIP page and given at once, through a payment
