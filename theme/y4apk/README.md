@@ -758,6 +758,26 @@ top category shows that one, unless it is already the name card's label
 - the facts' last row, when not full (7 cards in rows of 4), sits in the middle
   instead of leaving a hole on the right.
 
+2.66.5 —
+
+- **A member's own title as they wrote it.** It no longer gets the game's
+  name put in front ("Car Parking Multiplayer 2 – …"); titles made that way
+  before are put back once (option `y4apk_share_titles`).
+- **The article in the member's language.** Write with AI writes a member's
+  version in the language of the title they wrote (or, with no title, of their
+  description), told by its letters: Thai, Korean, Japanese, Chinese, Russian,
+  Arabic, Persian, Hindi, Bengali, Hebrew, Greek, Khmer, Lao, Burmese,
+  Vietnamese; English otherwise (Spanish, Indonesian… are written in the same
+  letters as English, so they stay English). The MOD in bold and the heading
+  under the article are in that language too; the name (linked to Google
+  Play), "MOD APK", "Android" and the site's name stay as they are.
+- **Long articles fold like a YouTube description**: the first lines with a
+  fade, then *Show more* / *Show less* (a click on the text opens it too).
+  The whole text stays in the page for search engines; short articles show
+  as before.
+- The heading in an article is smaller (1.25–1.625rem), so the long "… For
+  Android – Download MOD APK from …" heading takes two lines on a computer.
+
 ### Setting up Google
 
 1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent

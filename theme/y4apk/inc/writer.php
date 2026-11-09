@@ -998,7 +998,63 @@ class Y4APK_Writer {
 
 	/** "MOD APK [Unlimited Money]", the words after the name in bold. */
 	private static function label($ctx) {
+		if (!empty($ctx['mod_tr']) && $ctx['mod'] !== '') {
+			return 'MOD APK [' . $ctx['mod_tr'] . ']'; // 2.66.5: the MOD in the article's language
+		}
 		return 'MOD APK' . ($ctx['mod'] !== '' ? ' [' . $ctx['mod'] . ']' : '');
+	}
+
+	/** The heading under the article, filled in (English, as Settings has it); '' when there is none. */
+	private static function heading_text($ctx) {
+		$o = self::settings();
+		if (!$ctx['apk'] || trim($o['heading']) === '') {
+			return '';
+		}
+		$h = $o['heading'];
+		if ($ctx['mod'] === '') {
+			$h = preg_replace('/\s*[(\[]\s*\{mod\}\s*[)\]]/', '', $h);
+		}
+		return trim(preg_replace('/\s+/u', ' ', self::fill($h, ['name' => $ctx['show']] + $ctx)));
+	}
+
+	/**
+	 * The language a member wrote in (2.66.5), from its letters: "Thai", "Korean"…;
+	 * '' for English and other languages written in Latin letters.
+	 */
+	public static function lang_of($text) {
+		$t = (string) $text;
+		$scripts = ['Thai' => '\p{Thai}', 'Korean' => '\p{Hangul}', 'Japanese' => '[\p{Hiragana}\p{Katakana}]', 'Chinese' => '\p{Han}', 'Russian' => '\p{Cyrillic}',
+			'Arabic' => '\p{Arabic}', 'Hindi' => '\p{Devanagari}', 'Bengali' => '\p{Bengali}', 'Hebrew' => '\p{Hebrew}', 'Greek' => '\p{Greek}', 'Khmer' => '\p{Khmer}',
+			'Lao' => '\p{Lao}', 'Burmese' => '\p{Myanmar}', 'Persian' => '[\x{067E}\x{0686}\x{0698}\x{06AF}]'];
+		$best = '';
+		$most = 0;
+		foreach ($scripts as $lang => $re) {
+			$n = (int) preg_match_all('/' . $re . '/u', $t);
+			if ($n > $most) {
+				$most = $n;
+				$best = $lang;
+			}
+		}
+		if ($best === 'Chinese' && preg_match('/[\p{Hiragana}\p{Katakana}]/u', $t)) {
+			$best = 'Japanese';
+		}
+		if ($best === 'Arabic' && preg_match('/[\x{067E}\x{0686}\x{0698}\x{06AF}]/u', $t)) {
+			$best = 'Persian';
+		}
+		if ($most >= 2) {
+			return $best;
+		}
+		return preg_match_all('/[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/iu', $t) >= 2 ? 'Vietnamese' : '';
+	}
+
+	/** "LABEL: …" / "HEADING: …" lines taken off the answer: [text, value]. */
+	private static function take_line($answer, $key) {
+		$val = '';
+		$text = preg_replace_callback('/^[ \t*_]*' . $key . '[ \t*_]*:[ \t]*(.*?)[ \t*_]*$/mi', function ($m) use (&$val) {
+			$val = trim(wp_strip_all_tags($m[1]), " \t\"'“”«»");
+			return '';
+		}, (string) $answer);
+		return [trim($text), mb_substr($val, 0, 240)];
 	}
 
 	private static function fill($template, $ctx) {
@@ -1027,10 +1083,18 @@ class Y4APK_Writer {
 			]);
 			$user .= "\n\n---\nFacts from its store page, for accuracy only. Write in your own words: do not copy its sentences, and do not mention the store, MOD or APK.\n" . implode("\n", $facts);
 		}
+		$lang = (string) ($ctx['lang'] ?? '');
 		$system = 'You write short articles for an Android games and apps website. Reply with the article only, as plain text: '
 			. 'two paragraphs separated by one blank line. No title, no headings, no lists, no markdown, no emojis, no links. '
-			. 'Begin the first paragraph with the exact words "' . $ctx['show'] . ' is".'
+			. ($lang !== ''
+				? 'Write the article in ' . $lang . '. Begin the first paragraph with the exact name "' . $ctx['show'] . '", then go on in ' . $lang . ' (keep names, "MOD APK" and "Android" as they are).'
+				: 'Begin the first paragraph with the exact words "' . $ctx['show'] . ' is".')
 			. ($o['link_self'] && $ctx['short'] !== '' ? ' Mention ' . $ctx['short'] . ' once more in the second paragraph.' : '');
+		if ($lang !== '') { // 2.66.5: the MOD and the heading under the article, in that language too
+			$heading = self::heading_text($ctx);
+			$system .= ($ctx['mod'] !== '' ? ' After the article, add a line "LABEL: " followed by this in ' . $lang . ': ' . $ctx['mod'] . '.' : '')
+				. ($heading !== '' ? ' Then a line "HEADING: " followed by this in ' . $lang . ', keeping the name, "MOD APK", "Android" and "' . get_bloginfo('name') . '" as they are: ' . $heading : '');
+		}
 		if ($ask_mod) {
 			$system .= ' After the article, add one more line: "MOD: " followed by the MOD feature that MOD APK download sites list for this '
 				. ($ctx['game'] ? 'game' : 'app') . ', as they write it in their titles (for example "Premium Unlocked", "Unlimited Money" or "Menu, God Mode")'
@@ -1130,7 +1194,7 @@ class Y4APK_Writer {
 			$lead = 0;
 			foreach ($i === 0 ? array_unique([$ctx['name'], $ctx['show']]) : [] as $start) {
 				$n = mb_strlen($start);
-				if ($n && mb_strtolower(mb_substr($p, 0, $n)) === mb_strtolower($start) && preg_match('/^\s+\S/u', mb_substr($p, $n))) {
+				if ($n && mb_strtolower(mb_substr($p, 0, $n)) === mb_strtolower($start) && preg_match(empty($ctx['lang']) ? '/^\s+\S/u' : '/^\s*[^\s\p{L}\p{N}]*\s*\S/u', mb_substr($p, $n))) {
 					$lead = $n;
 					break;
 				}
@@ -1158,12 +1222,8 @@ class Y4APK_Writer {
 			}
 			$blocks[] = "<!-- wp:paragraph -->\n<p>" . $html . "</p>\n<!-- /wp:paragraph -->";
 		}
-		if ($ctx['apk'] && trim($o['heading']) !== '') {
-			$h = $o['heading'];
-			if ($ctx['mod'] === '') {
-				$h = preg_replace('/\s*[(\[]\s*\{mod\}\s*[)\]]/', '', $h);
-			}
-			$h = trim(preg_replace('/\s+/u', ' ', self::fill($h, ['name' => $ctx['show']] + $ctx)));
+		$h = !empty($ctx['heading_tr']) ? $ctx['heading_tr'] : self::heading_text($ctx);
+		if ($h !== '') {
 			$blocks[] = "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">" . self::text($h) . "</h2>\n<!-- /wp:heading -->";
 		}
 		return ['html' => implode("\n\n", $blocks), 'words' => $words];
@@ -1363,6 +1423,8 @@ class Y4APK_Writer {
 			$ctx['apk'] = false; // the original file: no "MOD APK" in the article
 		}
 		$notes = $d ? trim(wp_strip_all_tags((string) $d['desc'])) : '';
+		// 2.66.5: in the language the member wrote the title in (else the description), as they would read it
+		$ctx['lang'] = $d ? (self::lang_of((string) ($d['own_title'] ?? '')) ?: (trim((string) ($d['own_title'] ?? '')) === '' ? self::lang_of($notes) : '')) : '';
 		$extra = "\n\n---\nThis page is one member's own upload of " . $ctx['name'] . ($version !== '' ? ', version ' . $version : '')
 			. ($mods !== '' ? ', with this MOD: ' . $mods : ', the original file (not modded)') . '.'
 			. ($notes !== '' ? "\nWhat the member wrote about it (use what fits, in your own words; do not add features they did not write):\n" . mb_substr($notes, 0, 1500) : '');
@@ -1376,6 +1438,10 @@ class Y4APK_Writer {
 		}
 		list($answer, $provider, $model) = $asked;
 		$ctx['permalink'] = self::permalink($post_id);
+		if ($ctx['lang'] !== '') {
+			list($answer, $ctx['mod_tr']) = self::take_line($answer, 'LABEL');
+			list($answer, $ctx['heading_tr']) = self::take_line($answer, 'HEADING');
+		}
 		$article = self::layout($answer, $ctx);
 		if (!$article) {
 			return self::result(false, __('The answer had no paragraphs.', 'y4apk'));

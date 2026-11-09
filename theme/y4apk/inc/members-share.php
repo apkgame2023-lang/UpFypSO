@@ -59,6 +59,7 @@ class Y4APK_Share {
 		add_action('before_delete_post', [__CLASS__, 'trashed']);
 		add_action('admin_init', [__CLASS__, 'drop_by']);
 		add_action('admin_init', [__CLASS__, 'fix_rows']); // 2.66.4
+		add_action('admin_init', [__CLASS__, 'fix_titles']); // 2.66.5
 	}
 
 	/** 2.55: titles of members' uploads lose the "by …" they were given (once). */
@@ -219,12 +220,7 @@ class Y4APK_Share {
 
 	/** A member's own title (2.52): with the game's name in it, so the page is found by it (added at the start when it is not). */
 	public static function own_title($title, $name) {
-		$title = trim((string) $title);
-		$name = trim((string) $name);
-		if ($name === '' || mb_stripos($title, $name) !== false) {
-			return $title;
-		}
-		return $name . ' – ' . $title;
+		return trim((string) $title); // 2.66.5: as the member wrote it, no "Name – " put in front
 	}
 
 	/** "Name MOD APK v1.2.3 (Unlimited Money)", as the site's titles go. */
@@ -1035,6 +1031,23 @@ class Y4APK_Share {
 	public static function row_version($version, $ext) {
 		$n = Y4APK_App_Updates::number($version);
 		return $n === '' ? '' : 'v' . $n . '.' . strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $ext) ?: 'apk');
+	}
+
+	/** Once (2.66.5): "Name – the member's title" made before → the member's title. */
+	public static function fix_titles() {
+		if (get_option('y4apk_share_titles') === '1') {
+			return;
+		}
+		update_option('y4apk_share_titles', '1', false);
+		global $wpdb;
+		foreach (array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::META))) as $id) {
+			$d = self::data($id);
+			$own = $d ? trim((string) ($d['own_title'] ?? '')) : '';
+			$name = $d ? trim((string) $d['name']) : '';
+			if ($own !== '' && $name !== '' && get_post_field('post_title', $id, 'raw') === $name . ' – ' . $own) {
+				wp_update_post(wp_slash(['ID' => $id, 'post_title' => $own]));
+			}
+		}
 	}
 
 	/** Once (2.66.4): members' posts made before, written the same way ("APK 1.3.4.3" → "MOD v1.3.4.3.apk"). */

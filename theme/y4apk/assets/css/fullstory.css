@@ -157,7 +157,7 @@
 @media (min-width: 62rem) {
 	.f-app-main-text { padding: 2rem; }
 }
-.f-app-main-text > p:last-child { margin-bottom: 0; }
+.f-app-main-text > p:last-child, .y4-desc > p:last-child, .y4-desc > :last-child { margin-bottom: 0; }
 .f-app-main-text img { vertical-align: top; max-width: 100%; }
 
 /* Grid Blocks */
@@ -488,3 +488,12 @@
 
 /* 2.64.1: the Copy Script box and the "Shared by" row sit 1rem under the facts cards (their row ends with a −.5rem margin meant for the download boxes' own padding) */
 .f-app-download > .y4-scripts, .f-app-download > .y4-shared-row { margin-top: 1rem; }
+
+/* 2.66.5: a long article opens like a YouTube description */
+.y4-desc.is-cut { max-height: 12.5rem; overflow: hidden; cursor: pointer; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+.y4-desc-more { display: inline-flex; align-items: center; gap: .3rem; margin: .5rem 0 0; padding: .5rem .95rem .5rem 1.1rem; border: 0; border-radius: 999px; background: #eef4f6; color: #172021; font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer; transition: background-color .15s; }
+.y4-desc-more:hover { background: #e1ecef; }
+.y4-desc-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.y4-desc-more[hidden] { display: none; }
+/* The heading under the article: two lines on a computer, not three */
+.f-app-main-text h2 { font-size: clamp(1.25rem, .95rem + 1vw, 1.625rem); line-height: 1.35; }
