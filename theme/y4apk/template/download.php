@@ -1,7 +1,7 @@
 <?php
 add_action('wp_head', function () {echo '<meta name="robots" content="noindex, nofollow">';}, 1);
 get_header();
-$download_timer = get_theme_mod('download_timer', 7);
+$download_timer = function_exists('y4apk_is_vip') && y4apk_is_vip() ? 1 : get_theme_mod('download_timer', 7); // VIP (2.62): no countdown
 ?>
 <div class="p-file">
 	<div class="section">

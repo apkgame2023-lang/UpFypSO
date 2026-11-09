@@ -638,6 +638,47 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## VIP: no ads, no countdown, redeem codes (2.62)
+
+A member can be **VIP** until a date (`inc/vip.php`, usermeta
+`y4apk_vip_until`). Days always go on the end (7 more on top of 3 left make 10)
+and nothing renews by itself.
+
+**What a VIP gets**
+- **No ads:** the theme's ad boxes (home, post, archive, download page) print
+  nothing, Direct Link neither opens on download buttons nor locks scripts, and
+  the page's `<body>` gets the class `y4-vip` (any `.advertisement` box is
+  hidden). Ad code put in by a plugin (WPCode, Ad Inserter…) needs the
+  condition "User role is not VIP": while VIP the account also has the role
+  `y4apk_vip` (taken off by an hourly job when the time is up).
+- **No countdown:** the download page's button is there at once, and goes
+  straight to the file on R2 instead of through the "Preparing your download"
+  folder page (still counted as a download).
+- **A VIP badge** on the profile, and a gold *You are VIP · Until …* line in
+  the header's account menu (others get *Get VIP*).
+
+Pages for signed-in people are never kept by the page cache (LiteSpeed
+Cache ▸ Cache ▸ *Cache Logged-in Users* stays off), so a VIP's pages are made
+for them; signed-out visitors keep getting the cached ones, ads and all.
+
+**The VIP page** `/account/vip/`: the member and their VIP date on a dark card
+(gold while VIP), what VIP gives, the plans (7 days $3.99, 1 month $5.99,
+1 year $59.99 ~~$74.99~~ to start), a *Get VIP* button, the code box and the
+member's VIP history. Download pages show *No wait, no ads: get VIP*.
+
+**Redeem codes** like `ABCD-EFGH-JKLM-NPQR` (no 0/O or 1/I). Y4APK ▸ VIP ▸
+Codes makes up to 1,000 at a time, each worth a plan's days, in named batches;
+a batch's unused codes (or all, with who used them) download as CSV, and its
+unused ones can be deleted. A code works once: one `UPDATE … WHERE used_by = 0`
+decides, so two people redeeming at the same moment cannot both get it. Eight
+wrong codes an hour, then the box waits.
+
+**Payments are not built in.** *Get VIP* opens the address in Y4APK ▸ VIP ▸
+Plans and settings (a shop, a Telegram account…) where people pay and receive
+a code; without one the page offers the code box only. Prices there are only
+shown. Y4APK ▸ VIP ▸ Members lists VIPs (ending soonest first), gives days by
+@username or email, and ends a VIP.
+
 ## The page cache: LiteSpeed Cache, and Cloudflare of our own (2.61)
 
 The site left 10Web Booster (its Cloudflare Enterprise CDN ran out). Now:

@@ -15,6 +15,6 @@ $url = $_SERVER['REQUEST_URI'];
 	<?php endif; ?>
 	
 </head>
-<body>
+<body<?php echo function_exists('y4apk_is_vip') && y4apk_is_vip() ? ' class="y4-vip"' : ''; // VIP (2.62): ad boxes from anywhere hidden ?>>
 	<div id="main-cont">
 		<?php if (strpos($url, '/download/') == false) get_template_part('template/header'); ?>

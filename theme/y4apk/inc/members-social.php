@@ -215,7 +215,8 @@ class Y4APK_Social {
 
 	/** What the header shows: public things only. */
 	public static function me_value($user) {
-		return wp_json_encode(['l' => $user->user_login, 'n' => self::name($user), 'a' => self::picture($user), 'h' => abs(crc32($user->user_login)) % 360], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$vip = class_exists('Y4APK_VIP') ? Y4APK_VIP::until($user->ID) : 0; // 2.62: the header's VIP line
+		return wp_json_encode(['l' => $user->user_login, 'n' => self::name($user), 'a' => self::picture($user), 'h' => abs(crc32($user->user_login)) % 360, 'v' => $vip > time() ? $vip : 0], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 	}
 
 	private static function me_set($value, $expire) {

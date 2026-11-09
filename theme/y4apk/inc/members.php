@@ -663,7 +663,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -738,6 +738,10 @@ class Y4APK_Members {
 			if ($ctx['screen'] !== 'notfound' && ($do === '' || !in_array($ctx['screen'], ['share', 'unverified', 'share_closed'], true))) {
 				Y4APK_Share::view($ctx);
 			}
+			return;
+		}
+		if ($view === 'vip' && class_exists('Y4APK_VIP')) { // 2.62: what VIP gives, the plans, the code box
+			Y4APK_VIP::route($ctx);
 			return;
 		}
 		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {

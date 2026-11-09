@@ -222,6 +222,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'gear'   => '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5-2.2-1.6ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
                 'out'    => '<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.6 4.4-1.4 1.4 2.2 2.2H9v2h8.4l-2.2 2.2 1.4 1.4L21.2 12l-4.6-4.6Z"/>',
                 'down'   => '<path d="m7 10 5 5 5-5H7Z"/>',
+                'crown'  => '<path d="M3 7.5 7.5 11 12 4l4.5 7L21 7.5 19.2 18H4.8L3 7.5ZM5 19.5h14V21H5v-1.5Z"/>',
                 'help'   => '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 17h-2v-2h2v2Zm2.1-7.8-.9.9c-.7.7-1.2 1.3-1.2 2.9h-2v-.5c0-1.1.5-2.1 1.2-2.8l1.2-1.3c.4-.4.6-.9.6-1.4a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 .9-.4 1.7-.9 2.2Z"/>',
                 'chat'   => '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 9h10v2H7V9Zm6 5H7v-2h6v2Zm4-6H7V6h10v2Z"/>',
                 'next'   => '<path d="m9.4 6-1.4 1.4 4.6 4.6-4.6 4.6L9.4 18l6-6-6-6Z"/>',
@@ -251,6 +252,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'help'      => class_exists('Y4APK_Help') ? Y4APK_Help::url('faq') : '',
                 'feedback'  => class_exists('Y4APK_Help') ? Y4APK_Help::url('feedback') : '',
                 'profile'   => home_url('/@'),
+                'vip'       => class_exists('Y4APK_VIP') ? Y4APK_VIP::url() : '',
                 'ajax'      => admin_url('admin-ajax.php'),
             )); ?>;
             var T = <?php echo wp_json_encode(array(
@@ -264,6 +266,11 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
                 'out'       => __('Sign out', 'y4apk'),
                 'help'      => __('Help and contact', 'y4apk'),
                 'feedback'  => __('Send feedback', 'y4apk'),
+                'vipGet'    => __('Get VIP', 'y4apk'),
+                'vipWhy'    => __('No ads, no waiting', 'y4apk'),
+                'vipOn'     => __('You are VIP', 'y4apk'),
+                /* translators: %s: a date */
+                'vipUntil'  => __('Until %s', 'y4apk'),
                 // The language menu from here too, as YouTube has it in its account menu (2.51)
                 'lang'      => class_exists('Y4APK_I18n') && count(Y4APK_I18n::ready()) > 1 ? sprintf(__('Language: %s', 'y4apk'), Y4APK_I18n::languages()[Y4APK_I18n::current()][0]) : '',
             )); ?>;
@@ -296,6 +303,15 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
             who.appendChild(b); who.appendChild(sm); head.appendChild(who);
             head.insertAdjacentHTML('beforeend', svg('next', 18));
             menu.appendChild(head);
+            if (U.vip) { // 2.62
+                var vipOn = +me.v > Date.now() / 1000, va = document.createElement('a');
+                va.className = 'h-acct-vip' + (vipOn ? ' is-on' : ''); va.href = U.vip;
+                va.innerHTML = svg('crown', 22) + '<span></span>' + svg('next', 16);
+                var vt = va.querySelector('span'), vs = document.createElement('small');
+                vt.textContent = vipOn ? T.vipOn : T.vipGet;
+                vs.textContent = vipOn ? T.vipUntil.replace('%s', new Date(me.v * 1000).toLocaleDateString()) : T.vipWhy;
+                vt.appendChild(vs); menu.appendChild(va);
+            }
             var list = '<nav class="h-acct-list">';
             [['home', 'home'], ['submit', 'upload'], ['following', 'users'], ['customize', 'edit'], ['settings', 'gear']].forEach(function (x) {
                 if (U[x[0]]) { list += '<a href="' + U[x[0]] + '">' + svg(x[1]) + '<span>' + T[x[0]] + '</span></a>'; }

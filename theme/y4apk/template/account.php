@@ -681,6 +681,8 @@ if ($screen === 'login') {
 /* ======================================================= share / edit a script: /upload/, four steps */
 } elseif ($screen === 'share') {
 	include locate_template('template/share.php'); // a game or app (2.44)
+} elseif ($screen === 'vip') {
+	include locate_template('template/vip.php'); // VIP (2.62)
 } elseif ($screen === 'share_closed') {
 	$shell_open();
 	?>
@@ -1085,7 +1087,7 @@ if ($screen === 'login') {
 					<button type="button" class="prf-btn" data-open="prf-share"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 				</div>
 			</div>
-			<h1 class="prf-name"><?php echo esc_html($name); ?></h1>
+			<h1 class="prf-name"><?php echo esc_html($name); ?><?php echo class_exists('Y4APK_VIP') && Y4APK_VIP::is_vip($u->ID) ? ' ' . Y4APK_VIP::badge() : ''; // phpcs:ignore WordPress.Security.EscapeOutput ?></h1>
 			<p class="prf-meta">
 				<span>@<?php echo esc_html($u->user_login); ?></span>
 				<span><?php echo $si('cal'); ?><?php echo esc_html(sprintf(__('Joined %s', 'y4apk'), mysql2date('M Y', $u->user_registered))); ?></span>

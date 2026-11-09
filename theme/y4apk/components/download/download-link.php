@@ -6,7 +6,7 @@ $app_name = get_post_meta( $post->ID, 'wp_title_GP', true );
 $app_name = $app_name ?: get_the_title();
 $download_links = get_post_meta(get_the_ID(), 'repeatable_download_link', true);
 $download_links = is_array($download_links) ? $download_links : []; // a post without download links stores ''
-$download_timer = get_theme_mod('download_timer', 7);
+$download_timer = function_exists('y4apk_is_vip') && y4apk_is_vip() ? 1 : get_theme_mod('download_timer', 7); // VIP (2.62): no countdown
 
 foreach($download_links as $index => $download) : if ($index === $download_id) : ?>
 
@@ -38,10 +38,13 @@ foreach($download_links as $index => $download) : if ($index === $download_id) :
         </svg>
     </div>
     <div class="p-file-timer-btn" style="opacity:0;pointer-events:none;visibility:hidden;">
-        <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo $download['download_url']; ?>" target="_blank">
+        <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo esc_url(class_exists('Y4APK_VIP') ? Y4APK_VIP::file_url($download['download_url']) : $download['download_url']); ?>" target="_blank">
 			<?php esc_html_e('Download', 'Y4Apk'); ?><?php echo y4apk_size_label(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 		</a>
     </div>
 </div>
+<?php if (class_exists('Y4APK_VIP') && !Y4APK_VIP::is_vip()) : // 2.62: the way round the wait ?>
+<a class="y4-vip-cta" href="<?php echo esc_url(Y4APK_VIP::url()); ?>"><?php echo Y4APK_VIP::crown(18); // phpcs:ignore WordPress.Security.EscapeOutput ?><span><?php esc_html_e('No wait, no ads: get VIP', 'y4apk'); ?></span></a>
+<?php endif; ?>
 <?php if(function_exists('download_bottom_ad')) download_bottom_ad(); ?>
 <?php endif; endforeach; ?>

@@ -125,6 +125,9 @@ class Y4APK_Direct_Link {
 	 * whatever the download-button "When" mode is — the two gates are separate.
 	 */
 	public static function script_gate() {
+		if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) {
+			return null; // VIP (2.62): scripts open without the ad
+		}
 		$s = self::settings();
 		$links = self::js_links('scripts');
 		if (!$links || empty($s['script_lock'])) {
@@ -155,6 +158,9 @@ class Y4APK_Direct_Link {
 		$exec = is_singular('y4apk_executor'); // an executor's page (2.44): its download buttons too
 		if ((!is_singular('post') && !$exec) || get_query_var('download', null) !== null) {
 			return; // game pages only, not their download pages
+		}
+		if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) {
+			return; // VIP (2.62)
 		}
 		$s = self::settings();
 		$links = self::js_links('downloads');

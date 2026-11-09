@@ -1,5 +1,6 @@
 <?php
 function home_top_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_home_top_ad = get_theme_mod("home_top_ads_swt", false);
 	$home_top_ad_code = get_theme_mod("home_top_ads");
 	if($is_home_top_ad){
@@ -10,6 +11,7 @@ function home_top_ad(){
 }
 
 function home_bottom_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_home_btm_ad = get_theme_mod("home_botm_ads_swt", false);
 	$home_btm_ad_code = get_theme_mod("home_botm_ads");
 	if($is_home_btm_ad){
@@ -20,6 +22,7 @@ function home_bottom_ad(){
 }
 
 function single_top_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_single_top_ad = get_theme_mod('single_top_ads_swt', false); 
 	$single_top_ad_code = get_theme_mod("single_top_ads");
 	if($is_single_top_ad){
@@ -30,6 +33,7 @@ function single_top_ad(){
 }
 
 function single_bottom_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_single_bottom_ad = get_theme_mod('single_botm_ads_swt', false); 
 	$single_bottom_ad_code = get_theme_mod("single_botm_ads");
 	if($is_single_bottom_ad){
@@ -40,6 +44,7 @@ function single_bottom_ad(){
 }
 
 function archive_top_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_archive_top_ad = get_theme_mod('archive_top_ads_swt', false);
 	$archive_top_ad_code = get_theme_mod('archive_top_ads');
 	if($is_archive_top_ad){
@@ -50,6 +55,7 @@ function archive_top_ad(){
 }
 
 function archive_bottom_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_archive_bottom_ad = get_theme_mod('archive_botm_ads_swt', false);
 	$archive_bottom_ad_code = get_theme_mod('archive_botm_ads');
 	if($is_archive_bottom_ad){
@@ -60,6 +66,7 @@ function archive_bottom_ad(){
 }
 
 function download_top_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_download_top_ad = get_theme_mod('download_top_ads_swt', false);
 	$download_top_ad_code = get_theme_mod('download_top_ads');
 	if($is_download_top_ad){
@@ -70,6 +77,7 @@ function download_top_ad(){
 }
 
 function download_bottom_ad(){
+	if (function_exists('y4apk_ads_on') && !y4apk_ads_on()) return; // VIP (2.62)
 	$is_download_bottom_ad = get_theme_mod('download_botm_ads_swt', false);
 	$download_bottom_ad_code = get_theme_mod('download_botm_ads');
 	if($is_download_bottom_ad){
