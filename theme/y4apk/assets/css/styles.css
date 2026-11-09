@@ -58,3 +58,4 @@
 .foot-second .footer-social-bottom a.fsb:hover, .foot-second .footer-social-bottom a.fsb:focus-visible { transform: translateY(-2px); filter: brightness(1.08); color: #fff !important; }
 .foot-second .footer-social-bottom a.fsb:active { transform: scale(.95); }
 .foot-second .footer-social-bottom a.fsb svg path { fill-rule: evenodd; clip-rule: evenodd; }
+@media (max-width: 61.9375rem) { .foot-second .footer-social-bottom { justify-content: center; } } /* centred like the footer text under 992px */

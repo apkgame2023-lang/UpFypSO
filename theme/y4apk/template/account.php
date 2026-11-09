@@ -685,6 +685,8 @@ if ($screen === 'login') {
 	include locate_template('template/vip.php'); // VIP (2.62)
 } elseif ($screen === 'wallet') {
 	include locate_template('template/wallet.php'); // the wallet (2.64)
+} elseif ($screen === 'pay') {
+	include locate_template('template/pay.php'); // the payment page (2.65)
 } elseif ($screen === 'share_closed') {
 	$shell_open();
 	?>

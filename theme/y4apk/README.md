@@ -638,6 +638,36 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## The payment page on the site (2.65)
+
+Paying (VIP, a top-up, a tip) no longer leaves for NOWPayments' page: the
+member lands on **/account/pay/?order=…&k=…** (`template/pay.php`,
+`assets/css/pay.css`), on Y4APK, in its look:
+
+1. **Coin** — the coins the NOWPayments account takes (NOWPayments ▸ Coins;
+   asked of `GET /merchant/coins`, kept 6 hours), with USDT TRC20 marked
+   *Lowest fees*. A coin whose smallest payment (from the owner's last *Check
+   minimums*) is above the price shows *From $X* and cannot be picked; if
+   NOWPayments still says the amount is too small, the member is told to pick
+   USDT (TRC20) or another coin.
+2. **Send** — NOWPayments makes the payment by API (`POST /payment`) and
+   answers with the exact amount and the address: shown with copy buttons, a QR
+   code of the address (drawn in the browser by qrcode-generator, MIT,
+   `assets/js/qrcode.min.js`), the memo/tag when the coin needs one (XRP, TON…),
+   the network to use, a countdown, and a warning that an exchange's
+   withdrawal fee comes on top. *Change coin* starts again; *Pay on
+   NOWPayments' page instead* opens their invoice page for the same order.
+3. **Done** — the page asks `GET /wp-json/y4apk/v1/pay/state?o=&k=` every few
+   seconds; the site asks NOWPayments (`GET /payment/{id}`, at most every 15
+   seconds per order) and moves the order on with the same checks as the IPN
+   (order, amount, currency), so it finishes even when a notice is late. Paid:
+   back to the VIP page (VIP added, or the gift code) or the wallet.
+
+An order's payment ends when NOWPayments says (about 20 minutes; the
+`expires` column); two hours after that, an unpaid one is *expired* and leaves
+*Your purchases*. VIP ▸ Plans and settings ▸ *Payment page on Y4APK* (on by
+default) turns it off: back to NOWPayments' own page.
+
 ## The wallet, tips and the creator program (2.64)
 
 `inc/wallet.php` (the member's page: `template/wallet.php`, `assets/css/wallet.css`;

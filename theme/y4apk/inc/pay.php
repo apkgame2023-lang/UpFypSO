@@ -30,7 +30,7 @@ defined('ABSPATH') || exit;
 class Y4APK_Pay {
 
 	const OPTION = 'y4apk_pay';
-	const DBV    = '2'; // 2.64: meta (a top-up's or a tip's details)
+	const DBV    = '3'; // 2.64: meta (a top-up's or a tip's details); 2.65: expires (the on-site payment's end)
 	const ROUTE  = 'y4apk/v1';
 	const DONE   = ['finished'];
 	const WAIT   = ['new', 'waiting', 'confirming', 'confirmed', 'sending', 'partially_paid'];
@@ -72,6 +72,7 @@ class Y4APK_Pay {
 			granted tinyint(1) unsigned NOT NULL DEFAULT 0,
 			code char(16) NOT NULL DEFAULT '',
 			meta text,
+			expires int(10) unsigned NOT NULL DEFAULT 0,
 			made int(10) unsigned NOT NULL DEFAULT 0,
 			updated int(10) unsigned NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
@@ -88,7 +89,7 @@ class Y4APK_Pay {
 
 	public static function settings() {
 		$o = get_option(self::OPTION, []);
-		return wp_parse_args(is_array($o) ? $o : [], ['np_key' => '', 'np_ipn' => '', 'np_sandbox' => 0, 'np_payout' => 'usdttrc20']);
+		return wp_parse_args(is_array($o) ? $o : [], ['np_key' => '', 'np_ipn' => '', 'np_sandbox' => 0, 'np_payout' => 'usdttrc20', 'np_onsite' => 1]);
 	}
 
 	private static function secret($name) {
@@ -128,6 +129,9 @@ class Y4APK_Pay {
 		}
 		$o['np_sandbox'] = empty($in['np_sandbox']) ? 0 : 1;
 		$o['np_payout'] = isset(self::payouts()[$in['np_payout'] ?? '']) ? $in['np_payout'] : 'usdttrc20';
+		if (isset($in['np_onsite_set'])) { // 2.65: the payment page on the site, or NOWPayments' own
+			$o['np_onsite'] = empty($in['np_onsite']) ? 0 : 1;
+		}
 		update_option(self::OPTION, $o, false);
 	}
 
@@ -294,6 +298,8 @@ class Y4APK_Pay {
 		$now = time();
 		$wpdb->query($wpdb->prepare("UPDATE $t SET status = 'expired', updated = %d WHERE status IN ('new', 'waiting') AND pay_id = '' AND made < %d", $now, $now - 6 * HOUR_IN_SECONDS));
 		$wpdb->query($wpdb->prepare("UPDATE $t SET status = 'expired', updated = %d WHERE status = 'waiting' AND pay_id <> '' AND made < %d", $now, $now - 7 * DAY_IN_SECONDS));
+		// 2.65: a payment made on the site has an end; two hours after it, nobody is paying it any more
+		$wpdb->query($wpdb->prepare("UPDATE $t SET status = 'expired', updated = %d WHERE status = 'waiting' AND expires > 0 AND expires < %d", $now, $now - 2 * HOUR_IN_SECONDS));
 	}
 
 	/**
@@ -331,21 +337,45 @@ class Y4APK_Pay {
 		if (!$id) {
 			return new WP_Error('y4apk_pay', __('The order could not be saved. Try again.', 'y4apk'));
 		}
-		$back = self::back_url((object) ['id' => $id, 'token' => $token, 'kind' => $kind]);
+		$o = self::get($id);
+		if (self::settings()['np_onsite']) {
+			return self::checkout_url($o); // 2.65: the payment page on this site
+		}
+		$url = self::invoice($o);
+		if (is_wp_error($url)) {
+			$wpdb->update(self::table(), ['status' => 'failed', 'updated' => time()], ['id' => $id]);
+		}
+		return $url;
+	}
+
+	/** What an order is for, in plain ASCII for the payment company (its signature is made over it). */
+	public static function description($o) {
+		if ($o->kind === 'topup') {
+			return 'Balance top-up';
+		}
+		if ($o->kind === 'tip') {
+			return !empty(self::meta($o)['to']) ? 'Tip to a creator' : 'Tip';
+		}
+		return sprintf('VIP %d days', (int) $o->days) . ($o->gift ? ' (gift)' : '');
+	}
+
+	/** NOWPayments' own payment page for an order (there the buyer picks the coin): its address, or a WP_Error. */
+	public static function invoice($o) {
+		global $wpdb;
+		$back = self::back_url($o);
 		$r = self::api('POST', '/invoice', [
-			'price_amount'      => $amount,
-			'price_currency'    => strtolower($cur),
-			'order_id'          => 'y4-' . $id,
-			'order_description' => preg_replace('/[^\x20-\x7E]/', '', $desc), // plain ASCII: the IPN signature is made over it
+			'price_amount'      => round((float) $o->amount, 2),
+			'price_currency'    => strtolower($o->currency),
+			'order_id'          => 'y4-' . $o->id,
+			'order_description' => self::description($o),
 			'ipn_callback_url'  => self::ipn_url(),
 			'success_url'       => $back,
 			'cancel_url'        => add_query_arg('cancel', 1, $back),
 		]);
 		if (is_wp_error($r) || empty($r['invoice_url']) || empty($r['id'])) {
-			$wpdb->update(self::table(), ['status' => 'failed', 'updated' => time()], ['id' => $id]);
 			return new WP_Error('y4apk_pay', __('The payment page could not be opened. Try again in a minute.', 'y4apk') . (is_wp_error($r) && current_user_can('manage_options') ? ' (' . $r->get_error_message() . ')' : ''));
 		}
-		$wpdb->update(self::table(), ['ext_id' => substr((string) $r['id'], 0, 64), 'status' => 'waiting', 'updated' => time()], ['id' => $id]);
+		$wpdb->update(self::table(), ['ext_id' => substr((string) $r['id'], 0, 64), 'status' => $o->status === 'new' ? 'waiting' : $o->status, 'updated' => time()], ['id' => (int) $o->id]);
 		return esc_url_raw((string) $r['invoice_url']);
 	}
 
@@ -357,6 +387,11 @@ class Y4APK_Pay {
 		register_rest_route(self::ROUTE, '/pay/nowpayments', [
 			'methods'             => 'POST',
 			'callback'            => [__CLASS__, 'ipn'],
+			'permission_callback' => '__return_true',
+		]);
+		register_rest_route(self::ROUTE, '/pay/state', [ // 2.65: the payment page asks how its payment is going
+			'methods'             => 'GET',
+			'callback'            => [__CLASS__, 'state'],
 			'permission_callback' => '__return_true',
 		]);
 	}
@@ -418,13 +453,20 @@ class Y4APK_Pay {
 			self::update($order, 'confirming', $pay_id, '');
 			return new WP_REST_Response(['ok' => false, 'retry' => true], 503);
 		}
+		self::apply($order, $d);
+		return new WP_REST_Response(['ok' => true], 200);
+	}
+
+	/** What NOWPayments says about a payment (checked: from its API, or signed) → the order's new state. */
+	private static function apply($order, $d) {
+		$status = sanitize_key((string) ($d['payment_status'] ?? ''));
+		$pay_id = substr(preg_replace('/[^0-9A-Za-z_-]/', '', (string) ($d['payment_id'] ?? '')), 0, 64);
 		$same = abs((float) ($d['price_amount'] ?? 0) - (float) $order->amount) < 0.01 && strcasecmp((string) ($d['price_currency'] ?? ''), (string) $order->currency) === 0;
 		if (!$same) {
 			$status = 'mismatch';
 		}
 		$paid = trim(((string) ($d['actually_paid'] ?? '')) . ' ' . strtoupper((string) ($d['pay_currency'] ?? '')));
 		self::update($order, $status, $pay_id, $paid);
-		return new WP_REST_Response(['ok' => true], 200);
 	}
 
 	/** A new state for an order; paid ones are fulfilled, once. */
@@ -503,6 +545,207 @@ class Y4APK_Pay {
 
 	public static function waiting($o) {
 		return in_array($o->status, self::WAIT, true) && $o->status !== 'new';
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * The payment page on the site (2.65): /account/pay/?order=&k=
+	 *
+	 * The member picks a coin here; NOWPayments makes the payment by API
+	 * (POST /payment) and answers with the amount and the address to send it
+	 * to, shown with a QR code. The page asks every few seconds how it is
+	 * going; the site asks NOWPayments (GET /payment/{id}, at most every 15
+	 * seconds per order), so it moves on even if a notice (IPN) is late.
+	 * The checks are the IPN's: the order, the amount and the currency must
+	 * be the order's.
+	 * ---------------------------------------------------------------- */
+
+	/** Coins offered on the page: ticker => [name, network, colour]. */
+	const COINS = [
+		'usdttrc20' => ['USDT', 'TRC20', '#26a17b'],
+		'usdtbsc'   => ['USDT', 'BEP20', '#26a17b'],
+		'trx'       => ['TRX', 'TRON', '#ef0027'],
+		'ltc'       => ['LTC', 'Litecoin', '#345d9d'],
+		'bnbbsc'    => ['BNB', 'BEP20', '#f0b90b'],
+		'sol'       => ['SOL', 'Solana', '#9945ff'],
+		'ton'       => ['TON', 'TON', '#0098ea'],
+		'usdcbsc'   => ['USDC', 'BEP20', '#2775ca'],
+		'doge'      => ['DOGE', 'Dogecoin', '#c2a633'],
+		'xrp'       => ['XRP', 'XRP Ledger', '#23292f'],
+		'usdterc20' => ['USDT', 'ERC20', '#26a17b'],
+		'eth'       => ['ETH', 'Ethereum', '#627eea'],
+		'btc'       => ['BTC', 'Bitcoin', '#f7931a'],
+	];
+
+	public static function checkout_url($o) {
+		return Y4APK_Members::url('pay', ['order' => (int) $o->id, 'k' => (string) $o->token]);
+	}
+
+	/**
+	 * The coins this account takes (NOWPayments ▸ Coins), in the order above:
+	 * ticker => [name, network, colour, smallest payment in dollars or null].
+	 * The smallest payment comes from the owner's last "Check minimums".
+	 */
+	public static function coins() {
+		$on = get_transient('y4apk_pay_coins');
+		if (!is_array($on)) {
+			$r = self::api('GET', '/merchant/coins');
+			$on = !is_wp_error($r) && !empty($r['selectedCurrencies']) ? array_map('strtolower', (array) $r['selectedCurrencies']) : [];
+			set_transient('y4apk_pay_coins', $on, $on ? 6 * HOUR_IN_SECONDS : 10 * MINUTE_IN_SECONDS);
+		}
+		$mins = self::mins();
+		$out = [];
+		foreach (self::COINS as $k => $c) {
+			if ($on && !in_array($k, $on, true)) {
+				continue;
+			}
+			$c[] = $mins && isset($mins['rows'][$k]) ? $mins['rows'][$k]['usd'] : null;
+			$out[$k] = $c;
+		}
+		return $out;
+	}
+
+	/** Pay an order with a coin: NOWPayments makes the payment; true, or a WP_Error for the member. */
+	public static function start_payment($o, $coin) {
+		global $wpdb;
+		$coins = self::coins();
+		if (!isset($coins[$coin])) {
+			return new WP_Error('y4apk_pay', __('Choose a coin.', 'y4apk'));
+		}
+		$r = self::api('POST', '/payment', [
+			'price_amount'      => round((float) $o->amount, 2),
+			'price_currency'    => strtolower($o->currency),
+			'pay_currency'      => $coin,
+			'order_id'          => 'y4-' . $o->id,
+			'order_description' => self::description($o),
+			'ipn_callback_url'  => self::ipn_url(),
+		]);
+		if (is_wp_error($r) || empty($r['payment_id']) || empty($r['pay_address'])) {
+			$msg = is_wp_error($r) ? $r->get_error_message() : '';
+			if (stripos($msg, 'minimal') !== false || stripos($msg, 'too small') !== false || stripos($msg, 'less than') !== false) {
+				return new WP_Error('y4apk_pay', sprintf(__('%s needs a bigger payment than this. Choose USDT (TRC20) or another coin.', 'y4apk'), $coins[$coin][0] . ' (' . $coins[$coin][1] . ')'));
+			}
+			return new WP_Error('y4apk_pay', __('That coin cannot be used right now. Try another one, or again in a minute.', 'y4apk') . ($msg !== '' && current_user_can('manage_options') ? ' (' . $msg . ')' : ''));
+		}
+		$meta = array_merge(self::meta($o), ['coin' => $coin, 'address' => substr((string) $r['pay_address'], 0, 140), 'amount' => (string) $r['pay_amount'],
+			'extra' => substr((string) ($r['payin_extra_id'] ?? ''), 0, 80), 'network' => substr((string) ($r['network'] ?? ''), 0, 30)]);
+		$exp = !empty($r['expiration_estimate_date']) ? (int) strtotime((string) $r['expiration_estimate_date']) : 0;
+		$wpdb->update(self::table(), [
+			'pay_id' => substr(preg_replace('/[^0-9A-Za-z_-]/', '', (string) $r['payment_id']), 0, 64), 'status' => 'waiting', 'meta' => wp_json_encode($meta),
+			'expires' => $exp > time() ? $exp : time() + 20 * MINUTE_IN_SECONDS, 'updated' => time(),
+		], ['id' => (int) $o->id]);
+		return true;
+	}
+
+	/** Ask NOWPayments how the order's payment is going (at most every 15 seconds); the order as it is now. */
+	public static function sync($o) {
+		if (!$o || $o->pay_id === '' || in_array($o->status, array_merge(self::DONE, ['refunded', 'mismatch']), true)) {
+			return $o;
+		}
+		$k = 'y4apk_pay_sync_' . (int) $o->id;
+		if (get_transient($k)) {
+			return $o;
+		}
+		set_transient($k, 1, 15);
+		$r = self::api('GET', '/payment/' . rawurlencode($o->pay_id));
+		if (is_wp_error($r) || (string) ($r['order_id'] ?? '') !== 'y4-' . $o->id) {
+			return $o;
+		}
+		self::apply($o, $r);
+		return self::get($o->id);
+	}
+
+	/** The order behind a page's ?order=&k=, if the token is right. */
+	private static function by_token($id, $k) {
+		$o = $id ? self::get((int) $id) : null;
+		return $o && $k !== '' && hash_equals((string) $o->token, (string) $k) ? $o : null;
+	}
+
+	/** GET /wp-json/y4apk/v1/pay/state?o=&k= — for the payment page's own checks. */
+	public static function state(WP_REST_Request $req) {
+		nocache_headers();
+		$o = self::by_token(absint($req->get_param('o')), (string) $req->get_param('k'));
+		if (!$o) {
+			return new WP_REST_Response(['ok' => false], 404);
+		}
+		$o = self::sync($o);
+		$done = in_array($o->status, self::DONE, true);
+		return new WP_REST_Response([
+			'ok' => true, 'status' => $o->status, 'text' => self::status_text($o), 'done' => $done,
+			'wait' => self::waiting($o), 'back' => $done ? self::back_url($o) : '',
+		], 200);
+	}
+
+	/** What the order buys, for the member. */
+	public static function what($o) {
+		if ($o->kind === 'topup') {
+			return __('Balance top-up', 'y4apk');
+		}
+		if ($o->kind === 'tip') {
+			$to = (int) (self::meta($o)['to'] ?? 0);
+			$u = $to ? get_userdata($to) : null;
+			return $u ? sprintf(__('Tip to @%s', 'y4apk'), $u->user_login) : __('Tip', 'y4apk');
+		}
+		return sprintf($o->gift ? __('VIP gift code · %s', 'y4apk') : __('VIP · %s', 'y4apk'), Y4APK_VIP::plan_label($o->days));
+	}
+
+	/** /account/pay/ (Y4APK_Members routes it here). */
+	public static function route(&$ctx) {
+		$ctx['screen'] = 'pay';
+		$uid = (int) $ctx['user']->ID;
+		$o = self::by_token(absint($_REQUEST['order'] ?? 0), isset($_REQUEST['k']) ? (string) wp_unslash($_REQUEST['k']) : '');
+		if (!$o || (int) $o->user_id !== $uid) {
+			$ctx['screen'] = 'notfound';
+			return;
+		}
+		if (in_array($o->status, self::DONE, true)) {
+			wp_safe_redirect(self::back_url($o)); // paid: the VIP page or the wallet says what it gave
+			exit;
+		}
+		$do = $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do']) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
+		if ($do !== '' && !wp_verify_nonce(isset($_POST['_y4n']) ? sanitize_text_field(wp_unslash($_POST['_y4n'])) : '', 'y4apk_acct_pay')) {
+			$ctx['errors'][] = __('The page was open too long. Try again.', 'y4apk');
+			$do = '';
+		}
+		if ($do === 'pay_coin') {
+			$r = self::start_payment($o, sanitize_key(wp_unslash($_POST['coin'] ?? '')));
+			if (is_wp_error($r)) {
+				$ctx['errors'][] = $r->get_error_message();
+			} else {
+				wp_safe_redirect(self::checkout_url($o));
+				exit;
+			}
+		} elseif ($do === 'pay_change') {
+			$meta = self::meta($o);
+			unset($meta['coin'], $meta['address'], $meta['amount'], $meta['extra'], $meta['network']);
+			global $wpdb;
+			$wpdb->update(self::table(), ['meta' => $meta ? wp_json_encode($meta) : '', 'expires' => 0, 'updated' => time()], ['id' => (int) $o->id]);
+			wp_safe_redirect(self::checkout_url($o));
+			exit;
+		} elseif ($do === 'pay_page') {
+			$url = self::invoice($o);
+			if (is_wp_error($url)) {
+				$ctx['errors'][] = $url->get_error_message();
+			} else {
+				wp_redirect($url);
+				exit;
+			}
+		}
+		$o = self::sync(self::get($o->id));
+		if (in_array($o->status, self::DONE, true)) {
+			wp_safe_redirect(self::back_url($o));
+			exit;
+		}
+		$meta = self::meta($o);
+		$live = !empty($meta['address']) && (int) $o->expires > time() - 2 * HOUR_IN_SECONDS && !in_array($o->status, ['expired', 'failed'], true);
+		$ctx['pay'] = [
+			'order' => $o, 'meta' => $meta, 'live' => $live, 'coins' => $live ? [] : self::coins(),
+			'what' => self::what($o), 'back' => self::back_url($o),
+			'state' => add_query_arg(['o' => (int) $o->id, 'k' => (string) $o->token], rest_url(self::ROUTE . '/pay/state')),
+		];
+		add_action('wp_enqueue_scripts', function () {
+			wp_enqueue_style('y4apk-pay', get_template_directory_uri() . '/assets/css/pay.css', ['y4apk-account'], Y4APK_THEME_VERSION);
+			wp_enqueue_script('y4apk-qr', get_template_directory_uri() . '/assets/js/qrcode.min.js', [], Y4APK_THEME_VERSION, true);
+		}, 20);
 	}
 }
 

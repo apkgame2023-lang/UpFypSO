@@ -663,7 +663,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -706,7 +706,7 @@ class Y4APK_Members {
 		self::$ctx = &$ctx;
 
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
-		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet'];
+		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
 			wp_safe_redirect(self::url());
 			exit;
@@ -746,6 +746,10 @@ class Y4APK_Members {
 		}
 		if ($view === 'wallet' && class_exists('Y4APK_Wallet')) { // 2.64: balance, tips, earnings, withdrawals
 			Y4APK_Wallet::route($ctx);
+			return;
+		}
+		if ($view === 'pay' && class_exists('Y4APK_Pay')) { // 2.65: the payment page, on the site
+			Y4APK_Pay::route($ctx);
 			return;
 		}
 		if ($do !== '' && isset(self::ACTIONS[$do]) && self::ACTIONS[$do] === $view && method_exists(__CLASS__, 'do_' . $do)) {
