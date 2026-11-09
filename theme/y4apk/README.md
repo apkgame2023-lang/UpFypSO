@@ -699,6 +699,14 @@ facts cards above it: their row ends with a −.5rem margin meant for the downlo
 boxes, which bring their own padding. Both now start 1rem below, like the
 download boxes.
 
+2.64.2 — sharper icons: the gear (Account settings; its hole was 1px off
+centre), share, the profile's Activity tab (a thin zigzag that turned into a
+scribble at small sizes; now a history clock) and the wallet's coin are the
+standard Material Design shapes. The footer's Facebook, YouTube and Telegram
+buttons are round, in each platform's own colour (#1877f2, #ff0033, #229ed9)
+with a white glyph, and lift a little on hover; their rules win over older
+custom CSS that painted them all blue.
+
 ## Paying for VIP on the site (2.63)
 
 `inc/pay.php`: VIP bought on the VIP page and given at once, through a payment

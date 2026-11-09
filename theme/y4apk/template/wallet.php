@@ -140,7 +140,7 @@ $pt = $w['pay_to'];
 
 	<section class="acc-card wal-earn" id="earn">
 		<div class="wal-head">
-			<span class="wal-head-i is-green"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15.9V19h-2v-1.1c-1.6-.3-2.9-1.3-3-3h1.9c.1.9.8 1.5 2.1 1.5 1.4 0 1.8-.7 1.8-1.2 0-.6-.3-1.2-2-1.6-1.9-.5-3.1-1.2-3.1-2.8 0-1.3 1-2.2 2.3-2.5V7h2v1.3c1.4.3 2.2 1.3 2.3 2.7H15.4c-.1-.8-.5-1.4-1.6-1.4-1.1 0-1.7.5-1.7 1.1 0 .6.5 1 2 1.4 1.5.4 3.1 1 3.1 2.9 0 1.4-1 2.3-2.2 2.6Z"/></svg></span>
+			<span class="wal-head-i is-green"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16Z"/></svg></span>
 			<div><h2><?php esc_html_e('Creator earnings', 'y4apk'); ?></h2><p><?php echo esc_html($W::dl_on()
 				? sprintf(__('Creators earn from tips and from every download of the games and apps they share (%s per 1,000 downloads).', 'y4apk'), Y4APK_VIP::money($set['dl_rate']))
 				: __('Creators earn from the tips members send them.', 'y4apk')); ?></p></div>
