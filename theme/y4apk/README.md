@@ -678,6 +678,9 @@ more "4000%"); the Analytics page uses the same. *Newest members* marks
 confirmed accounts in green. Members ▸ Accounts: the envelope in *Remind N
 members to confirm* sits on the text's line.
 
+2.65.2 — every email's footer links the site's three parts, as in its menu:
+*y4apk.com · Games · Apps · Roblox* (it said only "Roblox scripts").
+
 ## The wallet, tips and the creator program (2.64)
 
 `inc/wallet.php` (the member's page: `template/wallet.php`, `assets/css/wallet.css`;

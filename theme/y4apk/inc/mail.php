@@ -229,7 +229,22 @@ class Y4APK_Mail {
 			<tr><td align="center" style="padding:24px 16px 8px;font-family:<?php echo $font; ?>;font-size:12px;line-height:1.7;color:<?php echo $mute; ?>;">
 				<?php if ($m['why'] !== '') : ?><?php echo $e($m['why']); ?><br><?php endif; ?>
 				<a href="<?php echo esc_url($home); ?>" style="color:<?php echo $mute; ?>;text-decoration:underline;"><?php echo $e(preg_replace('~^https?://~', '', untrailingslashit($home))); ?></a>
-				<?php if (class_exists('Y4APK_Roblox') && Y4APK_Roblox::hub_url()) : ?> · <a href="<?php echo esc_url(Y4APK_Roblox::hub_url()); ?>" style="color:<?php echo $mute; ?>;text-decoration:underline;"><?php echo $e(__('Roblox scripts', 'y4apk')); ?></a><?php endif; ?>
+				<?php
+				// 2.65.2: the site's three parts, as in its menu: Games · Apps · Roblox
+				$parts = [];
+				$roots = class_exists('Y4APK_Share') ? Y4APK_Share::roots() : [];
+				foreach (['game' => __('Games', 'y4apk'), 'app' => __('Apps', 'y4apk')] as $k => $label) {
+					if (!empty($roots[$k][0])) {
+						$link = get_category_link($roots[$k][0]);
+						if (!is_wp_error($link)) {
+							$parts[] = [$link, $label];
+						}
+					}
+				}
+				if (class_exists('Y4APK_Roblox') && Y4APK_Roblox::hub_url()) {
+					$parts[] = [Y4APK_Roblox::hub_url(), __('Roblox', 'y4apk')];
+				}
+				foreach ($parts as $pt) : ?> · <a href="<?php echo esc_url($pt[0]); ?>" style="color:<?php echo $mute; ?>;text-decoration:underline;"><?php echo $e($pt[1]); ?></a><?php endforeach; ?>
 				<br>© <?php echo esc_html(wp_date('Y')); ?> <?php echo $e($site); ?>
 			</td></tr>
 		</table>
