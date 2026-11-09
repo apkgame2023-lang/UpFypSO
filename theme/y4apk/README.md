@@ -706,6 +706,10 @@ one a line, to paste into a shop (Komerza, Sell.app…) as a product's pool of
 keys. The shop sends each buyer one code by email the moment they pay; they
 redeem it on *Your VIP*. Point *Other ways to pay* at the shop.
 
+2.63.6 — a VIP's download buttons on the post page go straight to the file
+(R2's own address when the file is on R2; a new tab), with no stop at the
+/download/N/ page. Still counted as a file download (Analytics).
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta

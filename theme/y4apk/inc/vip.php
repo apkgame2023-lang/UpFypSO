@@ -435,6 +435,20 @@ class Y4APK_VIP {
 		return $key !== '' ? Y4APK_R2::public_url($key) : $url;
 	}
 
+	/**
+	 * A post's download button (2.63.6): its /download/N/ page, or for a VIP
+	 * the file itself, from the post page at once (counted as a download).
+	 * Escaped attributes: href, rel and the rest.
+	 */
+	public static function dl_attrs($post_id, $index, $download) {
+		$page = get_permalink($post_id) . 'download/' . (int) $index . '/';
+		$url  = is_array($download) ? trim((string) ($download['download_url'] ?? '')) : '';
+		if ($url === '' || !self::is_vip()) {
+			return 'href="' . esc_url($page) . '" rel="nofollow"';
+		}
+		return 'href="' . esc_url(self::file_url($url)) . '" target="_blank" rel="nofollow noopener" data-y4-dl="' . (int) $post_id . '"';
+	}
+
 	/* ---------------------------------------------------------------- *
 	 * Y4APK ▸ VIP
 	 * ---------------------------------------------------------------- */

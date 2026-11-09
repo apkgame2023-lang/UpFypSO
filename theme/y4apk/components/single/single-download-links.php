@@ -60,7 +60,7 @@ $y4dl_badge = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColo
                 <span class="dl-badge" aria-hidden="true"><?php echo $y4dl_badge; ?></span>
                 <div class="attachment-name"><?php esc_html_e('DOWNLOAD MOD', 'y4apk'); ?></div>
                 <?php endif; ?>
-                <a class="btn btn-block attachment-link" href="<?php echo get_permalink() . 'download/' . $index; ?>/" rel="nofollow">
+                <a class="btn btn-block attachment-link" <?php echo class_exists('Y4APK_VIP') ? Y4APK_VIP::dl_attrs(get_the_ID(), $index, $download) : 'href="' . esc_url(get_permalink() . 'download/' . $index . '/') . '" rel="nofollow"'; // phpcs:ignore WordPress.Security.EscapeOutput -- VIP (2.63.6): straight to the file ?>>
 					<?php echo $y4dl_arrow; ?><span class="dl-name"><?php echo esc_html(trim($download['download_name'] . ' ' . ($download['download_version'] ?? ''))); ?></span><?php echo y4apk_dl_size(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 				</a>
                 <?php endif; endforeach; if ($hasApk) : // Close the b-grid block if APK downloads exist ?>
@@ -81,7 +81,7 @@ $y4dl_badge = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColo
                 <span class="dl-badge" aria-hidden="true"><?php echo $y4dl_badge; ?></span>
                 <div class="attachment-name"><?php esc_html_e('DOWNLOAD OBB', 'y4apk'); ?></div>
                 <?php endif; ?>
-                <a class="btn btn-block attachment-link" href="<?php echo get_permalink() . 'download/' . $index; ?>/" rel="nofollow">
+                <a class="btn btn-block attachment-link" <?php echo class_exists('Y4APK_VIP') ? Y4APK_VIP::dl_attrs(get_the_ID(), $index, $download) : 'href="' . esc_url(get_permalink() . 'download/' . $index . '/') . '" rel="nofollow"'; // phpcs:ignore WordPress.Security.EscapeOutput -- VIP (2.63.6): straight to the file ?>>
 					<?php echo $y4dl_arrow; ?><span class="dl-name"><?php echo esc_html(trim($download['download_name'] . ' ' . ($download['download_version'] ?? ''))); ?></span><?php echo y4apk_dl_size(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 				</a>
                 <?php endif; endforeach; if ($hasObb) : // Close the b-grid block if OBB download exists ?>

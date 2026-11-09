@@ -816,11 +816,12 @@ class Y4APK_PWA {
 			if (!localStorage.getItem('y4apk_seen_' + kind)) { localStorage.setItem('y4apk_seen_' + kind, today); y4apkTrack('app_new', kind); }
 		} catch (e) {}
 	}
-	if (c.post) {
-		document.addEventListener('click', function (e) {
-			if (e.target.closest && e.target.closest('#check')) y4apkTrack('file_download', String(c.post));
-		}, true);
-	}
+	document.addEventListener('click', function (e) {
+		if (!e.target.closest) return;
+		var vip = e.target.closest('[data-y4-dl]'); // a VIP's download button on the post page (2.63.6)
+		if (vip) y4apkTrack('file_download', vip.getAttribute('data-y4-dl'));
+		else if (c.post && e.target.closest('#check')) y4apkTrack('file_download', String(c.post));
+	}, true);
 	if (c.banner) {
 		window.addEventListener('beforeinstallprompt', function (e) {
 			e.preventDefault();
