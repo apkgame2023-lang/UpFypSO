@@ -738,6 +738,13 @@ Thai (a long word, or a long button label, has no space to wrap at, and stretche
 the page's one column); the columns now stay within the screen and full-width
 buttons wrap.
 
+2.66.3 — a game or app's facts (Name, Category, Developer, Version…) are a real
+grid: every row is as tall as its tallest card (the old floating boxes let a
+short card pull the next one up beside a tall one, so the cards jumbled on
+phones). The *Category* card shows the post's subcategories; a post only in a
+top category shows that one, unless it is already the name card's label
+(*Games*, *Apps*): then there is no card, instead of an empty one.
+
 ### Setting up Google
 
 1. console.cloud.google.com ▸ new project ▸ *APIs & Services* ▸ *OAuth consent

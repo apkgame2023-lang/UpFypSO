@@ -14,6 +14,7 @@ $app_price = get_post_meta($post_id, 'price', true);
 $app_requires = get_post_meta($post_id, 'wp_requires_GP', true);
 $app_os = get_post_meta($post_id, 'platform', true);
 $post_categories = get_the_category($post_id);
+$name_root = 0; // the menu part already shown as the name's label (2.66.3)
 // The name's label: the menu's own word for what it is — "Games" on a game, "Apps" on an app (a category name, so the same in every language)
 $name_label = __('Name', 'y4apk');
 if (class_exists('Y4APK_Share')) {
@@ -25,10 +26,21 @@ if (class_exists('Y4APK_Share')) {
 		foreach ($post_categories as $cat) {
 			if ((int) $cat->term_id === (int) $root->term_id || cat_is_ancestor_of((int) $root->term_id, (int) $cat->term_id)) {
 				$name_label = html_entity_decode($root->name, ENT_QUOTES, 'UTF-8');
+				$name_root = (int) $root->term_id;
 				break 2;
 			}
 		}
 	}
+}
+
+// The category card (2.66.3): the post's subcategories; else its top ones, but not the one already the name's label; no card when nothing is left
+$cat_show = array_values(array_filter($post_categories, function ($cat) {
+	return (int) $cat->parent !== 0;
+}));
+if (!$cat_show) {
+	$cat_show = array_values(array_filter($post_categories, function ($cat) use ($name_root) {
+		return (int) $cat->term_id !== $name_root && strtolower($cat->slug) !== 'uncategorized';
+	}));
 }
 
 if (empty($app_os)) {
@@ -61,7 +73,7 @@ if(strtolower($app_os) == 'android') {
                 <span class="f-app-meta-data"><?php echo $app_name; ?></span>
             </div>
         </div>
-		<?php endif; if(!empty($post_categories)) : ?>
+		<?php endif; if(!empty($cat_show)) : ?>
 		<div class="b-grid">
             <div class="block">
                 <i class="f-app-meta-icon c-blue">
@@ -70,9 +82,9 @@ if(strtolower($app_os) == 'android') {
                     </svg>
                 </i>
                 <span class="fw-b c-blue"><?php esc_html_e('Category', 'y4apk'); ?></span>
-				<?php foreach($post_categories as $cat) : if($cat->parent != 0) : ?>
+				<?php foreach($cat_show as $cat) : ?>
 				<a class="f-app-meta-data" href="<?php echo esc_url(get_category_link( $cat->term_id )); ?>"><?php echo esc_html($cat->name); ?></a>
-				<?php endif; endforeach; ?>
+				<?php endforeach; ?>
             </div>
         </div>
 		<?php endif; if(!empty($app_publisher)) : ?>
