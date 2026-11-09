@@ -728,6 +728,35 @@ class Y4APK_VIP {
 					<a class="y4ui-kpi" href="<?php echo esc_url(self::admin_url(['tab' => 'payments', 'st' => 'wait'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Being paid', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($waiting)); ?></span><span class="y4ui-kpi-s"><?php esc_html_e('on the payment page or confirming', 'y4apk'); ?></span></a>
 					<a class="y4ui-kpi<?php echo $trouble ? ' is-red' : ''; ?>" href="<?php echo esc_url(self::admin_url(['tab' => 'payments', 'st' => 'trouble'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Need a look', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n($trouble)); ?></span><span class="y4ui-kpi-s"><?php esc_html_e('paid less, wrong amount, failed', 'y4apk'); ?></span></a>
 				</div>
+				<?php if (class_exists('Y4APK_Pay') && Y4APK_Pay::ready()) : $mins = Y4APK_Pay::mins(); ?>
+				<div class="y4ui-card" id="mins">
+					<div class="y4ui-card-h">
+						<div><h2><?php esc_html_e('Which coins can pay each plan', 'y4apk'); ?></h2><p><?php esc_html_e('NOWPayments takes no payment below a minimum, different for each coin (its network fees): below it the payment page says “less than minimal”. Keep every plan above the minimum of the coins people use, USDT (TRC20) first.', 'y4apk'); ?></p></div>
+						<a class="button<?php echo $mins ? '' : ' button-primary'; ?>" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_pay_mins'), 'y4apk_pay_mins')); ?>"><?php echo esc_html($mins ? __('Check again', 'y4apk') : __('Check minimums', 'y4apk')); ?></a>
+					</div>
+					<?php if (!$mins) : ?>
+						<div class="y4ui-empty"><?php esc_html_e('Not checked yet: press “Check minimums”. It asks NOWPayments with your key (a few seconds).', 'y4apk'); ?></div>
+					<?php else : ?>
+						<?php if ($mins['error'] !== '') : ?><div class="notice notice-error inline" style="margin:12px 20px"><p><?php echo esc_html($mins['error']); ?></p></div><?php endif; ?>
+						<div class="y4ui-scroll"><table class="y4ui-table">
+							<thead><tr><th><?php esc_html_e('Coin', 'y4apk'); ?></th><th><?php esc_html_e('Smallest payment', 'y4apk'); ?></th>
+							<?php foreach ($s['plans'] as $p) : ?><th><?php echo esc_html(self::plan_label($p['days']) . ' ' . self::money($p['price'])); ?></th><?php endforeach; ?></tr></thead>
+							<tbody>
+							<?php foreach ($mins['rows'] as $coin => $r) : ?>
+								<tr>
+									<td><b><?php echo esc_html(Y4APK_Pay::POPULAR[$coin] ?? strtoupper($coin)); ?></b></td>
+									<td><?php echo $r['usd'] !== null ? esc_html('$' . number_format_i18n($r['usd'], 2)) : '<span class="y4ui-chip">' . esc_html($r['err'] !== '' ? $r['err'] : '?') . '</span>'; ?></td>
+									<?php foreach ($s['plans'] as $p) : $ok = $r['usd'] !== null && (float) $p['price'] >= $r['usd'] * 1.03; ?>
+										<td><?php echo $r['usd'] === null ? '—' : ($ok ? '<span class="y4ui-chip is-green">✓</span>' : '<span class="y4ui-chip is-red">✗</span>'); ?></td>
+									<?php endforeach; ?>
+								</tr>
+							<?php endforeach; ?>
+							</tbody>
+						</table></div>
+						<p class="y4ui-note" style="padding:0 20px 16px"><?php echo esc_html(sprintf(__('Checked %1$s, for payouts in %2$s. A ✓ leaves 3%% for the rate moving.', 'y4apk'), wp_date(get_option('date_format') . ' H:i', (int) $mins['at']), Y4APK_Pay::payouts()[$mins['to']] ?? $mins['to'])); ?></p>
+					<?php endif; ?>
+				</div>
+				<?php endif; ?>
 				<div class="y4ui-card">
 					<div class="y4ui-card-h"><div><h2><?php esc_html_e('Orders', 'y4apk'); ?></h2><p><?php esc_html_e('Paid ones are given by themselves: VIP on the account, or a gift code. “Paid less” is not given: settle it in NOWPayments, then give the days on Members.', 'y4apk'); ?></p></div></div>
 					<?php if (!$orders) : ?>
@@ -800,6 +829,7 @@ class Y4APK_VIP {
 									<div class="y4ui-field"><label for="np-ipn"><?php esc_html_e('IPN secret', 'y4apk'); ?></label><input type="text" id="np-ipn" name="np_ipn" value="" class="y4vip-secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="<?php echo esc_attr($ps['np_ipn'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : __('Paste it here', 'y4apk')); ?>"><?php if (Y4APK_Pay::tail('np_ipn') !== '') : ?><p class="description">✓ <?php echo esc_html(sprintf(__('Saved: ends with %s', 'y4apk'), Y4APK_Pay::tail('np_ipn'))); ?></p><?php endif; ?></div>
 									<p class="description"><?php esc_html_e('Kept encrypted. Or put them in wp-config.php as Y4APK_NOWPAYMENTS_KEY and Y4APK_NOWPAYMENTS_IPN.', 'y4apk'); ?></p>
 									<?php endif; ?>
+									<div class="y4ui-field"><label for="np-payout"><?php esc_html_e('Your payout wallet’s coin', 'y4apk'); ?></label><select id="np-payout" name="np_payout"><?php foreach (Y4APK_Pay::payouts() as $k => $label) : ?><option value="<?php echo esc_attr($k); ?>" <?php selected($ps['np_payout'], $k); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select><p class="description"><?php esc_html_e('As in NOWPayments ▸ Payout wallets: used to check each coin’s smallest payment.', 'y4apk'); ?></p></div>
 									<label class="y4ui-opt"><input type="checkbox" name="np_sandbox" value="1" <?php checked(!empty($ps['np_sandbox'])); ?>><span><b><?php esc_html_e('Sandbox (test payments)', 'y4apk'); ?></b><small><?php esc_html_e('With keys from NOWPayments’ sandbox account: no real money moves.', 'y4apk'); ?></small></span></label>
 									<?php if ($pay_on) : ?><p><a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=y4apk_pay_test'), 'y4apk_pay_test')); ?>"><?php esc_html_e('Test the connection', 'y4apk'); ?></a></p><?php endif; ?>
 								</div>

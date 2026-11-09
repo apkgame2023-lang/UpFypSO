@@ -682,6 +682,16 @@ and the last hour's; unpaid ones end as *expired* (after 6 hours with no
 payment started, 7 days with one). The *Getting VIP* card says what its address
 is for once paying on the site is on (*Other ways to pay*).
 
+2.63.3 — each coin has its own smallest payment on NOWPayments (its network
+fees; BTC's is far above USDT's): below it the payment page says *less than
+minimal*. **Y4APK ▸ VIP ▸ Payments ▸ Check minimums** asks NOWPayments, with
+your key, for the smallest payment of each coin you accept, cheapest first, and
+marks which plans each coin can pay (✓ leaves 3% for the rate moving; the
+answer is kept 12 hours). Settings ▸ *Your payout wallet's coin* (USDT TRC20 by
+default) is the coin it is reckoned in. *Your purchases* now lists only paid
+orders and orders a payment was started for, and the VIP page tells buyers to
+pick USDT (TRC20) or a bigger plan when a coin says *less than minimal*.
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta

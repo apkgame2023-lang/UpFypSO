@@ -125,6 +125,7 @@ $added = (int) $vp['added'];
 				<a class="acc-btn acc-btn-primary vip-pay" href="<?php echo esc_url($M::url('login')); ?>"><span><?php esc_html_e('Sign in to pay', 'y4apk'); ?></span><small><?php esc_html_e('VIP is kept with your account', 'y4apk'); ?></small></a>
 				<?php endif; ?>
 				<p class="vip-pay-note"><?php esc_html_e('Crypto: USDT, BTC, ETH and 300 more, on a secure payment page. VIP is added the moment the payment is confirmed.', 'y4apk'); ?></p>
+				<p class="vip-pay-note"><?php esc_html_e('If a coin says “less than minimal”, choose USDT (TRC20) or a bigger plan: each coin has its own smallest payment.', 'y4apk'); ?></p>
 				<?php if ($buy !== '') : ?><p class="vip-pay-note"><a href="<?php echo esc_url($buy); ?>" target="_blank" rel="noopener nofollow"><?php esc_html_e('Other ways to pay', 'y4apk'); ?></a></p><?php endif; ?>
 			</div>
 		</form>
