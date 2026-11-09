@@ -16,7 +16,7 @@
  *   any line. A language is offered to visitors only once 90% of it is done,
  *   as the big ones never show a half-translated language.
  * - A language has its own address: /th/, /id/, /vi/ … like Google's and
- *   Apple's pages. A page cache (10Web, Cloudflare) keeps one copy per
+ *   Apple's pages. A page cache (LiteSpeed Cache) keeps one copy per
  *   address, so every visitor gets their language from the cache. The address
  *   is stripped before WordPress reads the request, so /th/some-game/ is the
  *   same post as /some-game/, and every link on a /th/ page leads to /th/.
@@ -1633,6 +1633,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		self::count_all();
 		self::publish();
 		self::schedule();
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'saved' => 1], admin_url('admin.php')));
 		exit;
 	}
@@ -1749,6 +1750,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		self::count_all(); // kept in English in every language
 		$back = isset($_POST['back']) ? esc_url_raw(wp_unslash($_POST['back'])) : '';
 		$back = $back !== '' ? $back : add_query_arg(['page' => self::SLUG, 'edit' => $code], admin_url('admin.php'));
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['saved' => 1, 'wrong' => $wrong], $back));
 		exit;
 	}
@@ -1861,7 +1863,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 		]);
 		?>
 		<?php if (!empty($_GET['saved'])) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so the language menu shows the change.', 'y4apk'); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div>
 		<?php endif; ?>
 		<?php if (!$can) : ?>
 			<div class="notice notice-warning"><p><?php echo wp_kses_post(sprintf(__('Translations are made by Write with AI. Add a key first in <a href="%s">Y4APK ▸ Write with AI ▸ Settings</a> (Gemini’s is free).', 'y4apk'), esc_url(admin_url('admin.php?page=y4apk-writer')))); ?></p></div>
@@ -2104,7 +2106,7 @@ a.y4l-item{color:#172021!important;text-decoration:none}
 			'sub'   => esc_html__('Change any line and Save: a line you wrote is never replaced by the AI. Empty a line to have the AI translate it again. Tick “Keep in English” for words that should stay as they are in every language (the site’s categories, menu and home page heading are kept so at first).', 'y4apk'),
 		]); ?>
 		<?php if (!empty($_GET['saved'])) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache so visitors get it.', 'y4apk'); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div>
 		<?php endif; ?>
 		<?php if (!empty($_GET['wrong'])) : ?>
 			<div class="notice notice-error"><p><?php echo esc_html(sprintf(_n('%s line was not saved: it must keep the same %%s, %%d, tags and {words} as the English.', '%s lines were not saved: they must keep the same %%s, %%d, tags and {words} as the English.', (int) $_GET['wrong'], 'y4apk'), number_format_i18n((int) $_GET['wrong']))); ?></p></div>

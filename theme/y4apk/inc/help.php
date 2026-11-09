@@ -470,6 +470,7 @@ class Y4APK_Help {
 			if (!empty($in['remake'])) {
 				self::make_pages();
 			}
+			y4apk_purge_pages();
 			wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'view' => 'pages', 'saved' => 1], admin_url('admin.php')));
 			exit;
 		}
@@ -520,6 +521,7 @@ class Y4APK_Help {
 				}
 			}
 			$note = $do === 'hide' ? 'hidden' : 'restored';
+			y4apk_purge_pages();
 			$back = add_query_arg('n', $n, $back);
 		} elseif ($do === 'delete') {
 			wp_delete_post($id, true);
@@ -717,7 +719,7 @@ class Y4APK_Help {
 		$dmca = self::m($id, 'dmca', []);
 		$thread = (array) self::m($id, 'thread', []);
 		$notes = ['sent' => __('Answer sent.', 'y4apk'), 'mailfail' => __('The answer is saved, but the email could not be sent. Check Y4APK ▸ Members ▸ Emails.', 'y4apk'),
-			'saved' => __('Saved.', 'y4apk'), 'hidden' => __('Hidden: the posts are drafts now. Clear the page cache.', 'y4apk'), 'restored' => __('Put back. Clear the page cache.', 'y4apk')];
+			'saved' => __('Saved.', 'y4apk'), 'hidden' => __('Hidden: the posts are drafts now.', 'y4apk') . ' ' . y4apk_cache_note(), 'restored' => __('Put back.', 'y4apk') . ' ' . y4apk_cache_note()];
 		$note = isset($_GET['note']) ? sanitize_key(wp_unslash($_GET['note'])) : '';
 		$form = function ($do, $inner, $confirm = '') use ($id) {
 			echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"' . ($confirm !== '' ? ' onsubmit="return confirm(' . esc_attr(wp_json_encode($confirm)) . ')"' : '') . '>';
@@ -814,7 +816,7 @@ class Y4APK_Help {
 			'back'  => [add_query_arg('page', self::SLUG, admin_url('admin.php')), __('Messages', 'y4apk')],
 			'sub'   => esc_html__('Terms, Privacy, DMCA, Copyright, Contact, Feedback and the FAQ: where they are, and whether they show the theme’s words.', 'y4apk'),
 		]); ?>
-		<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache).', 'y4apk'); ?></p></div><?php endif; ?>
+		<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div><?php endif; ?>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 			<input type="hidden" name="action" value="y4apk_help"><input type="hidden" name="do" value="pages"><?php wp_nonce_field('y4apk-help'); ?>
 			<div class="y4ui-card">

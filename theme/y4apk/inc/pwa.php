@@ -906,7 +906,7 @@ class Y4APK_PWA {
 			'workerBad'        => __('Not served correctly (%s).', 'y4apk'),
 			'page'             => __('Startup script on the page visitors get', 'y4apk'),
 			'pageOk'           => __('Present and runs straight away.', 'y4apk'),
-			'pageNoManifest'   => __('The page visitors get has no app tags yet. Clear the 10Web / page cache.', 'y4apk'),
+			'pageNoManifest'   => __('The page visitors get has no app tags yet. Clear the page cache (LiteSpeed Cache ▸ Purge All).', 'y4apk'),
 			'pageNoBoot'       => __('Missing from the page visitors get: probably merged into a bundle by "JavaScript aggregation". Add y4apk-pwa to its excluded files, then clear the cache.', 'y4apk'),
 			'pageDelayed'      => __('Held back by a speed plugin (its type was changed to "%s"). Add y4apk-pwa to the JavaScript delay exclusions, then clear the cache.', 'y4apk'),
 			'pageUnknown'      => __('Could not load the home page to look.', 'y4apk'),
@@ -1013,6 +1013,7 @@ class Y4APK_PWA {
 			}
 		}
 
+		y4apk_purge_pages();
 		$args = ['page' => self::SLUG, 'saved' => 1];
 		if ($error) {
 			$args['error'] = $error;
@@ -1033,7 +1034,7 @@ class Y4APK_PWA {
 
 			<?php if (isset($_GET['saved'])) : ?>
 				<div class="notice notice-success is-dismissible"><p>
-					<?php esc_html_e('Saved. Clear the 10Web / page cache so visitors get the new settings.', 'y4apk'); ?>
+					<?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?>
 				</p></div>
 			<?php endif; ?>
 			<?php
@@ -1254,8 +1255,8 @@ class Y4APK_PWA {
 				<?php submit_button(__('Save', 'y4apk')); ?>
 			</form>
 
-			<h2><?php esc_html_e('If you use 10Web Booster', 'y4apk'); ?></h2>
-			<p><?php esc_html_e('Under Website Booster ▸ Settings, add y4apk-pwa to both exclusion lists: JavaScript delay ▸ Excluded JavaScript files, and JavaScript aggregation ▸ Excluded JavaScript files. Otherwise the app’s startup script waits for the first tap, or is merged into a bundle that loads late, and robots like PWABuilder never see the service worker. Then Clear Cache and run the check above.', 'y4apk'); ?></p>
+			<h2><?php esc_html_e('If you turn on LiteSpeed Cache’s JavaScript options', 'y4apk'); ?></h2>
+			<p><?php esc_html_e('They are off at first; leave them so. If you turn on Page Optimization ▸ JS Settings ▸ Load JS Deferred or JS Combine, add y4apk-pwa to Page Optimization ▸ Tuning ▸ JS Deferred / Delayed Excludes and JS Excludes. Otherwise the app’s startup script waits for the first tap, or is merged into a bundle that loads late, and robots like PWABuilder never see the service worker. Then Purge All and run the check above.', 'y4apk'); ?></p>
 		</div>
 		<?php
 	}

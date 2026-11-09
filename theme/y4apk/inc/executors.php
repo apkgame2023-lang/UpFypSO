@@ -463,7 +463,7 @@ class Y4APK_Executors {
 					<?php endforeach; ?>
 				</p>
 				<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
-				<?php if (!empty($_GET['y4x_default'])) : ?><span style="margin-left:8px;color:#008a20">✓ <?php esc_html_e('Saved. Clear the 10Web cache so the script pages show it.', 'y4apk'); ?></span><?php endif; ?>
+				<?php if (!empty($_GET['y4x_default'])) : ?><span style="margin-left:8px;color:#008a20">✓ <?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></span><?php endif; ?>
 			</form>
 		</div>
 		<?php
@@ -481,6 +481,7 @@ class Y4APK_Executors {
 			}
 		}
 		update_option(self::DEFAULT, array_values(array_unique($ok)), false);
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['post_type' => self::CPT, 'y4x_default' => 1], admin_url('edit.php')));
 		exit;
 	}

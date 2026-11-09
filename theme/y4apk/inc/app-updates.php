@@ -2303,6 +2303,7 @@ class Y4APK_App_Updates {
 			}
 		}
 		delete_transient('y4apk_outside_scan');
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'outside' => $undo ? 'back' : 'off', 'n' => $n], admin_url('admin.php')));
 		exit;
 	}
@@ -3105,7 +3106,7 @@ class Y4APK_App_Updates {
 			<?php elseif (isset($_GET['outside'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php echo esc_html($_GET['outside'] === 'back'
 					? sprintf(__('Put back on %s posts.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0)))
-					: sprintf(__('Downloads on other sites taken off %s posts: those with no file of Y4APK’s own wait in Need a new file. Clear the 10Web cache so visitors see it.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0)))); ?></p></div>
+					: sprintf(__('Downloads on other sites taken off %s posts: those with no file of Y4APK’s own wait in Need a new file.', 'y4apk'), number_format_i18n(absint($_GET['n'] ?? 0))) . ' ' . y4apk_cache_note()); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_settings'])) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Settings saved.', 'y4apk'); ?></p></div>
 			<?php elseif (!empty($_GET['y4apk_error'])) : ?>
@@ -3194,7 +3195,7 @@ class Y4APK_App_Updates {
 								<button class="button button-primary" onclick="return confirm(<?php echo esc_attr(wp_json_encode(sprintf(__('Take the downloads on other sites off %s posts? They wait for your files after that.', 'y4apk'), number_format_i18n($os['posts'])))); ?>)"><?php esc_html_e('Take them off', 'y4apk'); ?></button>
 							</form>
 						</div>
-						<p class="au-note"><?php esc_html_e('Take them off: those links leave the posts, and a post with no file of Y4APK’s own left waits for your upload — visitors see no download on it until then. Clear the 10Web cache afterwards.', 'y4apk'); ?></p>
+						<p class="au-note"><?php esc_html_e('Take them off: those links leave the posts, and a post with no file of Y4APK’s own left waits for your upload — visitors see no download on it until then.', 'y4apk'); ?></p>
 					<?php endif; ?>
 					<?php if ($os['back']) : ?>
 						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="au-out-back">

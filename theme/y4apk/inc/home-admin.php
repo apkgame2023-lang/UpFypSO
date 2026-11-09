@@ -191,6 +191,7 @@ class Y4APK_Home_Admin {
 			}
 			set_theme_mod(Y4APK_Home_Rows::MOD, $own);
 		}
+		y4apk_purge_pages();
 		wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG . '&saved=1'));
 		exit;
 	}
@@ -281,7 +282,7 @@ class Y4APK_Home_Admin {
 				'actions' => '<a class="button button-large" href="' . esc_url(home_url('/')) . '" target="_blank" rel="noopener">' . Y4APK_Admin_UI::icon('eye', 16) . ' ' . esc_html__('View the home page', 'y4apk') . '</a>'
 					. '<button class="button button-primary button-large" form="y4hm-form">' . esc_html__('Save', 'y4apk') . '</button>',
 			]); ?>
-			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors see it.', 'y4apk'); ?></p></div><?php endif; ?>
+			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div><?php endif; ?>
 
 			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="y4hm-form">
 				<input type="hidden" name="action" value="y4apk_home_save">
@@ -405,7 +406,7 @@ class Y4APK_Home_Admin {
 
 				<div class="y4ui-savebar">
 					<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
-					<span class="y4ui-hint"><?php esc_html_e('After saving, clear the page cache (10Web ▸ Clear Cache) so visitors see it.', 'y4apk'); ?></span>
+					<span class="y4ui-hint"><?php echo esc_html(y4apk_page_cache() ? __('Saving clears the page cache: visitors see it at once.', 'y4apk') : __('After saving, clear the page cache so visitors see it.', 'y4apk')); ?></span>
 				</div>
 			</form>
 		</div>

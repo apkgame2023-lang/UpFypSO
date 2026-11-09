@@ -541,3 +541,30 @@ function y4apk_scroll_tables($content) {
 	}, $content);
 }
 add_filter('the_content', 'y4apk_scroll_tables', 20);
+
+/**
+ * 2.61: the page cache. The site left 10Web Booster for LiteSpeed Cache, the
+ * plugin of Hostinger's LiteSpeed server; Cloudflare's free plan keeps files
+ * (pictures, CSS, JS), not pages. A change every page shows (the home page,
+ * the language menu, a link in the header) clears the whole page cache from
+ * here, so visitors get it at once instead of after a Purge All by hand.
+ */
+function y4apk_page_cache() {
+	return defined('LSCWP_V') || has_action('litespeed_purge_all');
+}
+
+/** Clear every cached page; false when there is no page cache this can clear. */
+function y4apk_purge_pages() {
+	if (!y4apk_page_cache()) {
+		return false;
+	}
+	do_action('litespeed_purge_all', 'Y4APK settings');
+	return true;
+}
+
+/** What follows "Saved.": the page cache is cleared, or the owner clears it. */
+function y4apk_cache_note() {
+	return y4apk_page_cache()
+		? __('The page cache is cleared: visitors get it now.', 'y4apk')
+		: __('Clear the page cache so visitors get it.', 'y4apk');
+}

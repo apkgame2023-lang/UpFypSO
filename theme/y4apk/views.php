@@ -2,7 +2,7 @@
 /**
  * Y4APK post views counter (2.37).
  *
- * Most visits get a page from the page cache (10Web, Cloudflare) and never reach
+ * Most visits get a page from the page cache (LiteSpeed Cache) and never reach
  * WordPress, so they were not counted. A small script on each post sends its ID
  * here instead (navigator.sendBeacon) and this adds one to wpb_post_views_count.
  * As cheap as stats.php: WordPress with SHORTINIT (database only), one SELECT and

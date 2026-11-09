@@ -368,6 +368,7 @@ class Y4APK_Direct_Link {
 		], true);
 		self::$settings = null;
 
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'saved' => 1], admin_url('admin.php')));
 		exit;
 	}
@@ -399,7 +400,7 @@ class Y4APK_Direct_Link {
 					. '<button class="button button-primary button-large" form="y4dl-form">' . esc_html__('Save', 'y4apk') . '</button>',
 			]); ?>
 			<?php if (!empty($_GET['saved'])) : ?>
-				<div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors get the change.', 'y4apk'); ?></p></div>
+				<div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div>
 			<?php endif; ?>
 			<?php if ($s['mode'] !== 'off' && !$links) : ?>
 				<div class="notice notice-warning"><p><?php esc_html_e('No link entered, so nothing is shown.', 'y4apk'); ?></p></div>
@@ -507,7 +508,7 @@ class Y4APK_Direct_Link {
 				</div>
 				<div class="y4ui-savebar">
 					<button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button>
-					<span class="y4ui-hint"><?php esc_html_e('After saving, clear the page cache (10Web ▸ Clear Cache) so visitors get the change.', 'y4apk'); ?></span>
+					<span class="y4ui-hint"><?php echo esc_html(y4apk_page_cache() ? __('Saving clears the page cache: visitors see it at once.', 'y4apk') : __('After saving, clear the page cache so visitors see it.', 'y4apk')); ?></span>
 				</div>
 			</form>
 		</div>

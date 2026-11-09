@@ -638,6 +638,27 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## The page cache: LiteSpeed Cache, and Cloudflare of our own (2.61)
+
+The site left 10Web Booster (its Cloudflare Enterprise CDN ran out). Now:
+
+- **DNS and CDN:** y4apk.com is a zone in our own Cloudflare account (Free),
+  next to y4apk.net and R2. `@`, `www` and `files` are A records to the
+  Hostinger server, proxied (orange), so the server's address stays hidden; the
+  mail records (MX, SPF, DMARC, DKIM `hostingermail-*`, `autoconfig`,
+  `autodiscover`) are DNS only. SSL/TLS: Full. Nothing of 10Web's is left
+  (`_cf-custom-hostname`, `_acme-challenge`, its two A records).
+- **Pages:** the **LiteSpeed Cache** plugin (Hostinger's server is LiteSpeed)
+  keeps the pages; Cloudflare's Free plan keeps only files (pictures, CSS, JS).
+  Its JavaScript options (Load JS Deferred, JS Combine) stay off.
+- **Save clears the cache.** Saving Home page, Languages (and a language's
+  texts), Direct Link, Analytics, App, Support pages, hiding or putting back
+  posts from a report, the default executors, and taking downloads on other
+  sites off posts now clear LiteSpeed's whole page cache
+  (`y4apk_purge_pages()` in `inc/core.php`): the notice says *The page cache is
+  cleared: visitors get it now.* Without LiteSpeed Cache it says to clear it by
+  hand, as before. Posts are cleared by LiteSpeed itself when they change.
+
 ## Your own rows on the home page (2.60)
 
 2.60.2 — a member's **banner** may be from **480 × 160** pixels (it was 600 ×

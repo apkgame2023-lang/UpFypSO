@@ -93,6 +93,7 @@ class Y4APK_Stats {
 		check_admin_referer('y4apk-save-stats');
 		update_option('y4apk_stats_on', empty($_POST['on']) ? '0' : '1', true);
 		update_option('y4apk_stats_ga', empty($_POST['ga']) ? '0' : '1', true);
+		y4apk_purge_pages();
 		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'saved' => 1], admin_url('admin.php')));
 		exit;
 	}
@@ -258,7 +259,7 @@ class Y4APK_Stats {
 					<a class="button" href="#y4s-settings"><?php esc_html_e('Settings', 'y4apk'); ?></a>
 				</div>
 			</header>
-			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php esc_html_e('Saved. Clear the page cache (10Web ▸ Clear Cache) so visitors’ pages pick it up.', 'y4apk'); ?></p></div><?php endif; ?>
+			<?php if (!empty($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p><?php echo esc_html(__('Saved.', 'y4apk') . ' ' . y4apk_cache_note()); ?></p></div><?php endif; ?>
 			<?php if (!self::enabled()) : ?><div class="notice notice-warning"><p><?php esc_html_e('Counting is switched off (Settings, below).', 'y4apk'); ?></p></div><?php endif; ?>
 
 			<section class="y4d-kpis">
