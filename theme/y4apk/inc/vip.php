@@ -791,8 +791,8 @@ class Y4APK_VIP {
 									<?php if (Y4APK_Pay::in_config()) : ?>
 										<p class="description"><?php esc_html_e('The keys come from wp-config.php (Y4APK_NOWPAYMENTS_KEY, Y4APK_NOWPAYMENTS_IPN).', 'y4apk'); ?></p>
 									<?php else : ?>
-									<div class="y4ui-field"><label for="np-key"><?php esc_html_e('API key', 'y4apk'); ?></label><input type="password" id="np-key" name="np_key" value="" autocomplete="off" placeholder="<?php echo esc_attr($ps['np_key'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : ''); ?>"></div>
-									<div class="y4ui-field"><label for="np-ipn"><?php esc_html_e('IPN secret', 'y4apk'); ?></label><input type="password" id="np-ipn" name="np_ipn" value="" autocomplete="off" placeholder="<?php echo esc_attr($ps['np_ipn'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : ''); ?>"></div>
+									<div class="y4ui-field"><label for="np-key"><?php esc_html_e('API key', 'y4apk'); ?></label><input type="text" id="np-key" name="np_key" value="" class="y4vip-secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="<?php echo esc_attr($ps['np_key'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : __('Paste it here', 'y4apk')); ?>"><?php if (Y4APK_Pay::tail('np_key') !== '') : ?><p class="description">✓ <?php echo esc_html(sprintf(__('Saved: ends with %s', 'y4apk'), Y4APK_Pay::tail('np_key'))); ?></p><?php endif; ?></div>
+									<div class="y4ui-field"><label for="np-ipn"><?php esc_html_e('IPN secret', 'y4apk'); ?></label><input type="text" id="np-ipn" name="np_ipn" value="" class="y4vip-secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="<?php echo esc_attr($ps['np_ipn'] !== '' ? __('Saved: leave empty to keep it, “-” to remove', 'y4apk') : __('Paste it here', 'y4apk')); ?>"><?php if (Y4APK_Pay::tail('np_ipn') !== '') : ?><p class="description">✓ <?php echo esc_html(sprintf(__('Saved: ends with %s', 'y4apk'), Y4APK_Pay::tail('np_ipn'))); ?></p><?php endif; ?></div>
 									<p class="description"><?php esc_html_e('Kept encrypted. Or put them in wp-config.php as Y4APK_NOWPAYMENTS_KEY and Y4APK_NOWPAYMENTS_IPN.', 'y4apk'); ?></p>
 									<?php endif; ?>
 									<label class="y4ui-opt"><input type="checkbox" name="np_sandbox" value="1" <?php checked(!empty($ps['np_sandbox'])); ?>><span><b><?php esc_html_e('Sandbox (test payments)', 'y4apk'); ?></b><small><?php esc_html_e('With keys from NOWPayments’ sandbox account: no real money moves.', 'y4apk'); ?></small></span></label>
@@ -810,6 +810,7 @@ class Y4APK_VIP {
 				</form>
 			<?php endif; ?>
 		</div>
+		<style>.y4vip-secret{width:100%;-webkit-text-security:disc;font-family:ui-monospace,Menlo,Consolas,monospace}.y4vip-secret:placeholder-shown{-webkit-text-security:none;font-family:inherit}</style>
 		<script>
 		document.querySelectorAll('[data-vip-days]').forEach(function (s) {
 			var other = s.parentNode.querySelector('[data-vip-other]');

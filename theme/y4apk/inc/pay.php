@@ -98,6 +98,12 @@ class Y4APK_Pay {
 		return trim(class_exists('Y4APK_Mail') ? Y4APK_Mail::reveal($v) : $v);
 	}
 
+	/** "…46ZM": the end of a saved key, so the owner can tell which one is stored (2.63.1). */
+	public static function tail($name) {
+		$v = self::secret($name);
+		return $v === '' ? '' : '…' . substr($v, -4);
+	}
+
 	public static function in_config() {
 		return defined('Y4APK_NOWPAYMENTS_KEY') && defined('Y4APK_NOWPAYMENTS_IPN');
 	}
@@ -144,7 +150,7 @@ class Y4APK_Pay {
 		$json = json_decode((string) wp_remote_retrieve_body($r), true);
 		if ($code < 200 || $code >= 300 || !is_array($json)) {
 			$msg = is_array($json) && !empty($json['message']) ? (string) $json['message'] : 'HTTP ' . $code;
-			return new WP_Error('y4apk_np', $msg);
+			return new WP_Error('y4apk_np', $msg, ['code' => $code]);
 		}
 		return $json;
 	}
@@ -283,8 +289,12 @@ class Y4APK_Pay {
 			}
 			$status = sanitize_key((string) ($check['payment_status'] ?? ''));
 			$d = array_merge($d, $check);
-		} elseif (!$signed) {
-			return new WP_REST_Response(['ok' => false], 401);
+		} elseif (!$signed || in_array((int) (($check->get_error_data()['code'] ?? 0)), [400, 401, 403, 404], true)) {
+			return new WP_REST_Response(['ok' => false], 401); // 2.63.1: a payment NOWPayments does not know, signed or not
+		} elseif (in_array($status, self::DONE, true)) {
+			// 2.63.1: "paid" counts only when NOWPayments' API says so; asked to send it again later.
+			self::update($order, 'confirming', $pay_id, '');
+			return new WP_REST_Response(['ok' => false, 'retry' => true], 503);
 		}
 		$same = abs((float) ($d['price_amount'] ?? 0) - (float) $order->amount) < 0.01 && strcasecmp((string) ($d['price_currency'] ?? ''), (string) $order->currency) === 0;
 		if (!$same) {

@@ -669,6 +669,13 @@ and *Test the connection*. Without keys, the page keeps the code box and the
 *Get VIP* link as in 2.62 (shown as *Other ways to pay* when both are there).
 More companies plug into the same orders.
 
+2.63.1 — the key boxes are plain (masked) text boxes the browser's password
+manager leaves alone (Chrome put the saved WordPress password into them), and
+each says what it holds: *Saved: ends with …46ZM*. A notice about a payment
+NOWPayments' API does not know is refused even when signed, and "paid" counts
+only once the API confirms it (otherwise NOWPayments is asked to send it again):
+a leaked IPN secret alone gives nothing.
+
 ## VIP: no ads, no countdown, redeem codes (2.62)
 
 A member can be **VIP** until a date (`inc/vip.php`, usermeta
