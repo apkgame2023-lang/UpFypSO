@@ -691,6 +691,24 @@ members unlock it once and keep it on their account.
 - The `/download/N/` page no longer stops on a script error when there is no
   file at that number.
 
+2.69.1 — **download links that expire** for paid files. When a game/app post
+gets a price, each of its files on R2 is moved to `paid/<random>/<name>` and
+its download folder's page stops pointing at it (it sends to the post), so
+neither the folder page nor the old address leads to the file. The download
+buttons of a paid post (on the post, `/download/N/` and the unlock page) go to
+`/account/unlock/?item=ID&file=N`, which checks the member has it and sends them
+to a link R2 signs for **30 minutes**, made at each tap (it saves under the
+file's name; 60 an hour per member). Anyone else is sent to the unlock page (a
+visitor to sign in). Files up to 300 MB move at once; bigger ones in the
+background, served from where they are until then. Made free again, the files
+go back to their first names and the folder pages point at them. A file
+replaced in App updates on a paid post is hidden again a minute after Save.
+**Once, in Cloudflare:** a WAF custom rule on the files domain
+(`files.y4apk.net`): *URI Path starts with /paid/ → Block*, and R2's r2.dev
+address kept off. Wallet ▸ Sales ▸ *Paid files: links that expire* shows the
+steps and *Check now* (puts a small file in paid/, asks the public address for
+it: Protected when it is refused).
+
 ## Y4 Coins and gifts (2.68)
 
 What members spend is now **coins**, like TikTok coins or Robux: bought in

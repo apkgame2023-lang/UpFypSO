@@ -20,6 +20,13 @@
  * page shows a card with the price instead, so a page kept by the cache for
  * visitors has nothing to copy. Pages of a paid post are not cached for
  * signed-in members (they may hold what was paid for).
+ *
+ * Expiring links (2.69.1): a paid file on R2 moves to paid/<random>/<name>,
+ * and its download folder's page stops pointing at it (it sends to the post).
+ * Whoever has it gets the file through /account/unlock/?item=ID&file=N: a
+ * link R2 signs for 30 minutes, made at each tap. paid/ must not be public on
+ * the files domain (a Cloudflare WAF rule; Wallet ▸ Sales checks it). Free
+ * again, the file goes back where it was and the folder points at it again.
  */
 
 defined('ABSPATH') || exit;
@@ -31,12 +38,18 @@ class Y4APK_Paid {
 	const DBV   = '1';
 	const MIN   = 10;
 	const MAX   = 50000;
+	const FILES = '_y4apk_paid_files'; // 2.69.1: [row => ['key' => hidden R2 key, 'from' => its first key, 'folder' => download folder]]
+	const SYNC  = 'y4apk_paid_sync';   // the background step that hides (or brings back) a post's files
+	const TTL   = 1800;                // seconds a download link works
+	const CHECK = 'y4apk_paid_check';  // is paid/ blocked on the public files domain: ['at', 'open', 'code']
 
 	public static function init() {
 		add_action('init', [__CLASS__, 'setup']);
 		add_action('template_redirect', [__CLASS__, 'no_cache'], 5);
 		add_action('wp_trash_post', [__CLASS__, 'removed']);
 		add_action('before_delete_post', [__CLASS__, 'removed']);
+		add_action(self::SYNC, [__CLASS__, 'sync']);
+		add_action('save_post_post', [__CLASS__, 'saved'], 99);
 	}
 
 	public static function t() {
@@ -207,7 +220,147 @@ class Y4APK_Paid {
 		}
 		clean_post_cache($post_id);
 		do_action('litespeed_purge_post', (int) $post_id); // the page visitors get changes with the price
+		if (self::kind($post_id) === 'file') {
+			self::sync($post_id, true); // 2.69.1: hide its files (or bring them back)
+		}
 		return true;
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Hidden files and links that expire (2.69.1)
+	 * ---------------------------------------------------------------- */
+
+	/** What has been hidden for the post. */
+	public static function files($post_id) {
+		$f = get_post_meta((int) $post_id, self::FILES, true);
+		return is_array($f) ? $f : [];
+	}
+
+	/**
+	 * Hides a paid post's files on R2 (or puts a free one's back): small ones
+	 * at once when $now, big ones in the background (R2 copies a file to move
+	 * it, and a few GB take longer than a page may).
+	 */
+	public static function sync($post_id, $now = false) {
+		$post_id = (int) $post_id;
+		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store() || get_post_type($post_id) !== 'post') {
+			return;
+		}
+		$paid = (int) get_post_meta($post_id, self::PRICE, true) > 0;
+		$files = self::files($post_id);
+		$rows = get_post_meta($post_id, 'repeatable_download_link', true);
+		$later = false;
+		if (!$now) {
+			ignore_user_abort(true);
+			if (function_exists('set_time_limit')) {
+				@set_time_limit(1200); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			}
+		}
+		if ($paid) {
+			foreach (is_array($rows) ? $rows : [] as $i => $row) {
+				$folder = Y4APK_R2::folder_of((string) ($row['download_url'] ?? ''));
+				$key = $folder !== '' ? Y4APK_R2::folder_key($folder) : '';
+				if ($key === '') {
+					continue; // not one of our files, or hidden already (its page points at the post)
+				}
+				$size = Y4APK_R2::size_of($key);
+				if ($now && $size > Y4APK_R2::RENAME_NOW) {
+					$later = true;
+					continue;
+				}
+				$to = strpos($key, 'paid/') === 0 ? $key : 'paid/' . strtolower(wp_generate_password(24, false, false)) . '/' . basename($key);
+				$moved = Y4APK_R2::move($key, $to, $size, false);
+				if (is_wp_error($moved) || is_wp_error(Y4APK_R2::point_folder($folder, get_permalink($post_id)))) {
+					$later = true;
+					continue;
+				}
+				if ($to !== $key) {
+					Y4APK_R2::remove($key);
+				}
+				if (!empty($files[$i]['key']) && $files[$i]['key'] !== $to) {
+					Y4APK_R2::remove($files[$i]['key']); // the file was replaced: the old hidden one goes
+				}
+				$files[$i] = ['key' => $to, 'from' => !empty($files[$i]['from']) && $files[$i]['key'] === $key ? $files[$i]['from'] : $key, 'folder' => $folder];
+				update_post_meta($post_id, self::FILES, $files);
+			}
+		} else {
+			foreach ($files as $i => $f) {
+				$size = Y4APK_R2::size_of($f['key']);
+				if ($size <= 0) {
+					unset($files[$i]); // gone from R2: nothing to bring back
+					continue;
+				}
+				if ($now && $size > Y4APK_R2::RENAME_NOW) {
+					$later = true;
+					continue;
+				}
+				$moved = Y4APK_R2::move($f['key'], $f['from'], $size, false);
+				if (is_wp_error($moved) || is_wp_error(Y4APK_R2::point_folder($f['folder'], Y4APK_R2::public_url($f['from'])))) {
+					$later = true;
+					continue;
+				}
+				Y4APK_R2::remove($f['key']);
+				unset($files[$i]);
+			}
+			$files ? update_post_meta($post_id, self::FILES, $files) : delete_post_meta($post_id, self::FILES);
+		}
+		if ($later && !wp_next_scheduled(self::SYNC, [$post_id])) {
+			wp_schedule_single_event(time() + ($now ? 30 : 10 * MINUTE_IN_SECONDS), self::SYNC, [$post_id]);
+		}
+	}
+
+	/** A paid post saved (a file replaced in App updates puts an R2 address in its folder again): hide it again. */
+	public static function saved($post_id) {
+		if (wp_is_post_revision($post_id) || (!get_post_meta($post_id, self::PRICE, true) && !get_post_meta($post_id, self::FILES, true))) {
+			return;
+		}
+		if (!wp_next_scheduled(self::SYNC, [(int) $post_id])) {
+			wp_schedule_single_event(time() + 60, self::SYNC, [(int) $post_id]);
+		}
+	}
+
+	/** Where a download button of a paid post goes: this site, which hands out a link that expires. */
+	public static function file_link($post_id, $index) {
+		return Y4APK_Members::url('unlock', ['item' => (int) $post_id, 'file' => (int) $index]);
+	}
+
+	/** A link to the file of row $index that works for TTL seconds, or '' (a file elsewhere: its own address). */
+	public static function signed($post_id, $index) {
+		$rows = get_post_meta($post_id, 'repeatable_download_link', true);
+		$row = is_array($rows) && isset($rows[$index]) ? $rows[$index] : null;
+		if (!$row) {
+			return '';
+		}
+		$files = self::files($post_id);
+		$key = $files[$index]['key'] ?? '';
+		if ($key === '' && class_exists('Y4APK_R2')) {
+			$folder = Y4APK_R2::folder_of((string) ($row['download_url'] ?? ''));
+			$key = $folder !== '' ? Y4APK_R2::folder_key($folder) : ''; // not hidden yet
+		}
+		if ($key === '' || !class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			return (string) ($row['download_url'] ?? '');
+		}
+		$name = preg_replace('/[^A-Za-z0-9._-]+/', '-', basename($key));
+		return Y4APK_R2::presign('GET', $key, ['response-content-disposition' => 'attachment; filename="' . $name . '"'], self::TTL);
+	}
+
+	/** Is paid/ blocked on the public files domain? Puts a small file there, asks for it, takes it off. */
+	public static function check_public() {
+		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			return null;
+		}
+		$key = 'paid/check-' . strtolower(wp_generate_password(12, false, false)) . '.txt';
+		$put = Y4APK_R2::put($key, 'y4apk', 'text/plain', 'no-store');
+		if (is_wp_error($put)) {
+			return null;
+		}
+		$r = wp_remote_get(Y4APK_R2::public_url($key), ['timeout' => 15, 'redirection' => 0]);
+		Y4APK_R2::remove($key);
+		$code = is_wp_error($r) ? 0 : (int) wp_remote_retrieve_response_code($r);
+		$open = $code === 200 && trim((string) wp_remote_retrieve_body($r)) === 'y4apk';
+		$c = ['at' => time(), 'open' => $open, 'code' => $code];
+		update_option(self::CHECK, $c, false);
+		return $c;
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -447,6 +600,23 @@ class Y4APK_Paid {
 			return;
 		}
 		$own = (int) $post->post_author === $uid;
+		if (isset($_GET['file'])) { // 2.69.1: a download button: a link that expires, made now
+			if (!self::has($post->ID, $uid) || self::kind($post->ID) !== 'file') {
+				wp_safe_redirect(self::url($post->ID));
+				exit;
+			}
+			if (!Y4APK_Members::hit('paid_dl:' . $uid, 60, HOUR_IN_SECONDS)) {
+				$ctx['errors'][] = __('That is a lot of downloads at once. Try again in a while.', 'y4apk');
+			} else {
+				$to = self::signed($post->ID, absint($_GET['file']));
+				if ($to !== '') {
+					header('Referrer-Policy: no-referrer');
+					wp_redirect($to); // phpcs:ignore WordPress.Security.SafeRedirect -- R2, or the file's own address
+					exit;
+				}
+				$ctx['errors'][] = __('That file is not there any more.', 'y4apk');
+			}
+		}
 		$do = $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['y4_do']) ? sanitize_key(wp_unslash($_POST['y4_do'])) : '';
 		if ($do !== '' && !wp_verify_nonce(isset($_POST['_y4n']) ? sanitize_text_field(wp_unslash($_POST['_y4n'])) : '', 'y4apk_acct_unlock')) {
 			$ctx['errors'][] = __('The page was open too long. Try again.', 'y4apk');

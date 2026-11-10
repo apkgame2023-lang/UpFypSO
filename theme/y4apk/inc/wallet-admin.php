@@ -48,6 +48,9 @@ $notes = [
 	'refund_ok' => __('Refunded: the coins are back with the buyer, the creator’s share left their earnings, and both got an email.', 'y4apk'),
 	'refund_no' => __('Turned down: the buyer keeps it and got an email.', 'y4apk'),
 	'unpriced'  => __('It is free for everyone now.', 'y4apk'),
+	'paidcheck_ok'   => __('Checked: paid files cannot be opened from the public files address. Only links the site signs work.', 'y4apk'),
+	'paidcheck_open' => __('Checked: paid files CAN still be opened from the public files address. Add the Cloudflare rule below, then check again.', 'y4apk'),
+	'paidcheck_err'  => __('Could not check: R2 is not set up or did not answer (App updates ▸ Settings ▸ Cloudflare R2).', 'y4apk'),
 	'geo_saved'   => __('Saved.', 'y4apk'),
 	'geo_csv'     => __('Read: the countries in the file are in the rates now.', 'y4apk'),
 	'geo_fetched' => __('Saved, and Adsterra’s numbers by country are in.', 'y4apk'),
@@ -75,7 +78,7 @@ $member = function ($id) {
 		'actions' => '<a class="button button-large" href="' . esc_url(Y4APK_Members::url('wallet')) . '" target="_blank">' . esc_html__('View the wallet page', 'y4apk') . '</a>',
 	]); ?>
 	<?php if ($note && isset($notes[$note])) : ?>
-		<div class="notice <?php echo in_array($note, ['nouser', 'noamount', 'gone', 'geo_err'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
+		<div class="notice <?php echo in_array($note, ['nouser', 'noamount', 'gone', 'geo_err', 'paidcheck_open', 'paidcheck_err'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
 	<?php endif; ?>
 
 	<div class="y4ui-kpis">
@@ -305,6 +308,30 @@ $member = function ($id) {
 				</tbody>
 			</table></div>
 			<?php endif; ?>
+		</div>
+		<?php // 2.69.1: paid files on R2, handed out as links that expire
+		$pc = get_option(Y4APK_Paid::CHECK);
+		$hidden = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", Y4APK_Paid::FILES));
+		$fhost = class_exists('Y4APK_R2') ? (string) wp_parse_url(Y4APK_R2::settings()['public'], PHP_URL_HOST) : '';
+		$fpath = (class_exists('Y4APK_R2') ? rtrim((string) wp_parse_url(Y4APK_R2::settings()['public'], PHP_URL_PATH), '/') : '') . '/paid/';
+		?>
+		<div class="y4ui-card" style="margin-top:16px">
+			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Paid files: links that expire', 'y4apk'); ?></h2><p><?php echo esc_html(sprintf(__('A paid file moves to paid/ on R2 (under a random name) and its download folder stops pointing at it. Whoever unlocked it gets a link R2 signs for %s minutes, made at each tap, so a shared link soon stops working.', 'y4apk'), number_format_i18n(Y4APK_Paid::TTL / 60)) . ' ' . sprintf(_n('%s post has hidden files.', '%s posts have hidden files.', $hidden, 'y4apk'), number_format_i18n($hidden))); ?></p></div></div>
+			<div class="y4ui-card-b">
+				<?php if (is_array($pc)) : ?>
+					<p><span class="y4ui-chip <?php echo $pc['open'] ? 'is-red' : 'is-green'; ?>"><?php echo esc_html($pc['open'] ? __('Not protected', 'y4apk') : __('Protected', 'y4apk')); ?></span> <span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('checked %1$s ago (the files address answered %2$s)', 'y4apk'), human_time_diff((int) $pc['at']), $pc['code'] ? (string) $pc['code'] : __('nothing', 'y4apk'))); ?></span></p>
+				<?php else : ?>
+					<p><span class="y4ui-chip is-amber"><?php esc_html_e('Not checked yet', 'y4apk'); ?></span></p>
+				<?php endif; ?>
+				<p><?php esc_html_e('For it to protect anything, paid/ must not open on the public files address. Once, in Cloudflare:', 'y4apk'); ?></p>
+				<ol class="y4wal-how">
+					<li><?php echo esc_html(sprintf(__('Open the zone of %s ▸ Security ▸ WAF ▸ Custom rules ▸ Create rule.', 'y4apk'), $fhost !== '' ? $fhost : 'files')); ?></li>
+					<li><?php echo esc_html(sprintf(__('Name: Paid files. Field: URI Path · Operator: starts with · Value: %s', 'y4apk'), $fpath)); ?></li>
+					<li><?php esc_html_e('Action: Block. Deploy.', 'y4apk'); ?></li>
+					<li><?php esc_html_e('In R2 ▸ the bucket ▸ Settings ▸ Public access, keep the r2.dev address disabled (only the custom domain public).', 'y4apk'); ?></li>
+				</ol>
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:10px"><?php $form('paidcheck', 'sales'); ?><button class="button"><?php esc_html_e('Check now', 'y4apk'); ?></button></form>
+			</div>
 		</div>
 
 	<?php elseif ($tab === 'history') :

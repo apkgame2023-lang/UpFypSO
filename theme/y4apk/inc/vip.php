@@ -468,6 +468,9 @@ class Y4APK_VIP {
 	 * Escaped attributes: href, rel and the rest.
 	 */
 	public static function dl_attrs($post_id, $index, $download) {
+		if (class_exists('Y4APK_Paid') && Y4APK_Paid::price($post_id) > 0) { // 2.69.1: a paid file: a link that expires, made at the tap
+			return 'href="' . esc_url(Y4APK_Paid::file_link($post_id, $index)) . '" rel="nofollow noopener" target="_blank"';
+		}
 		$page = get_permalink($post_id) . 'download/' . (int) $index . '/';
 		$url  = is_array($download) ? trim((string) ($download['download_url'] ?? '')) : '';
 		if ($url === '' || !self::is_vip()) {

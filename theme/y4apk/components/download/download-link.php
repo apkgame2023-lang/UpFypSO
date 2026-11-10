@@ -42,7 +42,7 @@ foreach($download_links as $index => $download) : if ($index === $download_id) :
         </svg>
     </div>
     <div class="p-file-timer-btn" style="opacity:0;pointer-events:none;visibility:hidden;">
-        <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo esc_url(class_exists('Y4APK_VIP') ? Y4APK_VIP::file_url($download['download_url']) : $download['download_url']); ?>" target="_blank">
+        <a class="btn blue-style" id="check" onclick="change_button(<?php echo $download_timer; ?>);" href="<?php echo esc_url(class_exists('Y4APK_Paid') && Y4APK_Paid::price(get_the_ID()) > 0 ? Y4APK_Paid::file_link(get_the_ID(), $index) : (class_exists('Y4APK_VIP') ? Y4APK_VIP::file_url($download['download_url']) : $download['download_url'])); // 2.69.1: a paid file: a link that expires ?>" target="_blank">
 			<?php esc_html_e('Download', 'Y4Apk'); ?><?php echo y4apk_size_label(isset($download['download_size']) ? $download['download_size'] : ''); ?>
 		</a>
     </div>

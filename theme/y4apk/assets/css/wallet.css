@@ -180,3 +180,4 @@
 	.unl-art { width: 5.5rem; height: 3.1rem; }
 	.unl-art.is-icon { width: 3.5rem; height: 3.5rem; }
 }
+.unl-files { display: grid; gap: .6rem; } /* 2.69.1: a buyer's downloads */

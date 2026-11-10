@@ -1255,6 +1255,9 @@ class Y4APK_Wallet {
 			$why = sanitize_text_field(wp_unslash($_POST['why'] ?? ''));
 			$id = absint($_POST['id'] ?? 0);
 			$note = ($do === 'refund_ok' ? Y4APK_Paid::refund($id, $why) : Y4APK_Paid::deny($id, $why)) ? $do : 'gone';
+		} elseif ($do === 'paidcheck' && class_exists('Y4APK_Paid')) { // 2.69.1
+			$c = Y4APK_Paid::check_public();
+			$note = $c === null ? 'paidcheck_err' : ($c['open'] ? 'paidcheck_open' : 'paidcheck_ok');
 		} elseif ($do === 'unprice' && class_exists('Y4APK_Paid')) {
 			delete_post_meta(absint($_POST['post'] ?? 0), Y4APK_Paid::PRICE);
 			do_action('litespeed_purge_post', absint($_POST['post'] ?? 0));

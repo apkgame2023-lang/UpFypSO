@@ -83,7 +83,15 @@ $lock = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" ari
 			<span class="wal-head-i is-green"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg></span>
 			<div><h2><?php esc_html_e('Unlocked', 'y4apk'); ?></h2><p><?php echo esc_html(sprintf(__('You unlocked it on %1$s for %2$s. It stays on your account.', 'y4apk'), wp_date(get_option('date_format'), (int) $row->made), $W::fmt_coins((int) $row->paid))); ?></p></div>
 		</div>
-		<?php if ($link !== '') : ?><a class="acc-btn acc-btn-primary wal-go" href="<?php echo esc_url($link . '#download-now'); ?>"><span><?php echo esc_html($u['kind'] === 'file' ? __('Go to the download', 'y4apk') : __('Go to the script', 'y4apk')); ?></span></a><?php endif; ?>
+		<?php $dl = $u['kind'] === 'file' ? get_post_meta($post->ID, 'repeatable_download_link', true) : []; ?>
+		<?php if ($dl && is_array($dl) && $post->post_status === 'publish') : // 2.69.1: each tap makes a link that expires ?>
+			<div class="unl-files">
+				<?php foreach ($dl as $i => $row) : ?>
+					<a class="acc-btn acc-btn-primary wal-go unl-go" href="<?php echo esc_url(Y4APK_Paid::file_link($post->ID, $i)); ?>" target="_blank" rel="nofollow noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11 4h2v9.2l3.6-3.6L18 11l-6 6-6-6 1.4-1.4 3.6 3.6V4ZM5 19h14v2H5v-2Z"/></svg><span><?php echo esc_html(trim(sprintf(__('Download %s', 'y4apk'), trim(($row['download_name'] ?? '') . ' ' . ($row['download_version'] ?? ''))) . (!empty($row['download_size']) ? ' · ' . $row['download_size'] : ''))); ?></span></a>
+				<?php endforeach; ?>
+				<p class="wal-small"><?php echo esc_html(sprintf(__('Each tap makes a download link that works for %s minutes, for you only: a shared link soon stops working.', 'y4apk'), number_format_i18n(Y4APK_Paid::TTL / 60))); ?></p>
+			</div>
+		<?php elseif ($link !== '') : ?><a class="acc-btn acc-btn-primary wal-go" href="<?php echo esc_url($link . '#download-now'); ?>"><span><?php echo esc_html($u['kind'] === 'file' ? __('Go to the download', 'y4apk') : __('Go to the script', 'y4apk')); ?></span></a><?php endif; ?>
 	</section>
 	<section class="acc-card" id="refund">
 		<h2><?php esc_html_e('Refund', 'y4apk'); ?></h2>
