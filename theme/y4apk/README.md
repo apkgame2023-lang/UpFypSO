@@ -638,6 +638,11 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+2.67.2 — articles fold whenever more than about two lines would be hidden (it
+was more than 120px, so short ones like a three-paragraph article never folded);
+a one-paragraph article still shows whole. The *Show more* button sits in the
+middle. Folding is by height (about 12.5rem shown), not by a number of letters.
+
 ## Download earnings by country (2.67.1)
 
 `inc/wallet-geo.php`. Wallet ▸ Settings ▸ *Pay by country*: what a creator
