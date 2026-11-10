@@ -643,6 +643,54 @@ was more than 120px, so short ones like a three-paragraph article never folded);
 a one-paragraph article still shows whole. The *Show more* button sits in the
 middle. Folding is by height (about 12.5rem shown), not by a number of letters.
 
+## Paid scripts and files (2.69)
+
+`inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;
+members unlock it once and keep it on their account.
+
+- **What can be sold:** a script the creator shared, or a game/app upload of
+  theirs that is **not** on Google Play and not a version of another post (an
+  own app or tool). A Google Play game or app, or a mod of one, cannot be
+  priced: the page says why. Only creators (Wallet ▸ Creators) sell; a post
+  whose maker stops being a creator, or with the wallet off, is free again.
+- **Setting the price:** My uploads has a coin button (*Sell*, or the price) on
+  what the member may sell; it opens `/account/unlock/?item=ID`: *For sale*,
+  the price (10–50,000 coins, with "you get $X a sale · VIP members pay Y"), and
+  a tick that it is their own work (required). Unticking *For sale* makes it
+  free again; buyers keep it.
+- **The page:** where the code or the download buttons were, a gold card:
+  *Paid script · @creator*, the price, the VIP price, *Unlock* (*Sign in to
+  unlock* for visitors) and how many unlocked it. The code, the download
+  buttons, and the `/download/N/` page's file link are **not in the HTML** of
+  anyone who has not unlocked it, so the cached page visitors get has nothing to
+  copy. Pages of a paid post are never cached for signed-in members. The
+  creator, administrators and buyers see it as before (without the Direct Link
+  unlock gate), with a line under it: *Unlocked on …* (and the refund link) or
+  *Your paid post · N sales*.
+- **Buying:** the unlock page shows the price and the member's coins: *Unlock
+  for N* (VIP pays 10% less) or *Get Y4 Coins* (the wallet, with the missing
+  amount filled in). Not from the creator's own connection (one-way hashes, as
+  for gifts); 20 unlocks an hour at most. The creator gets 70% of what was paid
+  in their earnings (*Sale* in the history), held 14 days like gifts; the site
+  keeps 30%. At most one sale email to the creator per 30 minutes.
+- **Refunds:** within 7 days the buyer can ask (*Not working? Ask for a
+  refund*, with what is wrong). Wallet ▸ **Sales** lists every sale, refund
+  requests first (a red count on the tab, and an email to the site's address):
+  *Refund* gives the coins back and takes the creator's share back out of their
+  earnings (still held: refunds end before the hold), *Turn down* keeps it as
+  it is; both email the buyer (and a refund the creator). *Make free* takes a
+  post's price off. A paid post deleted within the 7 days refunds everyone by
+  itself. Editing a paid script (it goes back to review) refunds nobody.
+- **Settings** (Wallet ▸ Settings ▸ Creators): the site's share of a sale
+  (30%), VIP discount (10%), refund days (7, always fewer than the hold days).
+- **Gifts** now give the site 30% too (it was 20%): changed once on update if
+  it was still 20.
+- **Terms:** paid content is a personal licence (no sharing or reselling);
+  refunds within 7 days; creators sell only their own work, never a Google Play
+  game or app or anybody else's script; the site keeps the share shown.
+- The `/download/N/` page no longer stops on a script error when there is no
+  file at that number.
+
 ## Y4 Coins and gifts (2.68)
 
 What members spend is now **coins**, like TikTok coins or Robux: bought in

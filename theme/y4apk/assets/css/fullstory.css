@@ -497,3 +497,25 @@
 .y4-desc-more[hidden] { display: none; }
 /* The heading under the article: two lines on a computer, not three */
 .f-app-main-text h2 { font-size: clamp(1.25rem, .95rem + 1vw, 1.625rem); line-height: 1.35; }
+
+/* 2.69: a paid script or file, in place of the code or the download buttons */
+.y4-paid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .9rem 1rem; margin: 1rem 0; padding: 1.1rem 1.25rem; border-radius: 1.25rem;
+	background: linear-gradient(135deg, #fffaf0, #fff4dc); box-shadow: 0 0 0 1.5px rgba(245, 166, 35, .45), 0 1rem 2rem -1.5rem rgba(224, 142, 11, .6); }
+.y4-paid-lock { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 1rem; background: #f5a623; color: #fff; box-shadow: 0 .5rem 1rem -.5rem rgba(224, 142, 11, .8); }
+.y4-paid-t { min-width: 0; }
+.y4-paid-t b { display: block; color: #2b1a00; font-size: 1rem; font-weight: 800; overflow-wrap: anywhere; }
+.y4-paid-t b a { color: #b06d00; }
+.y4-paid-t small { display: block; margin-top: .15rem; color: #7a5a1e; font-size: .8125rem; line-height: 1.45; }
+.y4-paid-price { display: grid; justify-items: end; gap: .15rem; }
+.y4-paid-price > span { display: inline-flex; align-items: center; gap: .35rem; color: #2b1a00; font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.y4-paid-price small { display: inline-flex; align-items: center; gap: .25rem; color: #b06d00; font-size: .75rem; font-weight: 700; }
+.y4-paid-go { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; min-height: 3rem; border-radius: 999px; background: linear-gradient(135deg, #f5a623, #e08e0b); color: #2b1a00 !important;
+	font-size: 1rem; font-weight: 800; text-decoration: none !important; box-shadow: 0 .75rem 1.5rem -.75rem rgba(224, 142, 11, .8); }
+.y4-paid-go:hover { filter: brightness(1.05); }
+.y4-paid-n { grid-column: 1 / -1; margin: -.3rem 0 0; color: #7a5a1e; font-size: .75rem; text-align: center; }
+.y4-paid-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .35rem; margin: .75rem 0 0; color: #7a5a1e; font-size: .8125rem; }
+.y4-paid-note a { color: #b06d00; font-weight: 700; }
+@media (max-width: 34rem) {
+	.y4-paid { grid-template-columns: auto minmax(0, 1fr); padding: 1rem; }
+	.y4-paid-price { grid-column: 1 / -1; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; gap: .75rem; }
+}

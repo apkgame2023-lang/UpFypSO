@@ -887,3 +887,6 @@
 .acc-gis-btn { display: flex; justify-content: center; min-height: 44px; }
 .acc-gis:not(.is-gis) .acc-gis-btn { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .acc-gis.is-gis > a { display: none; }
+.acc-btn-coin { background: #fff4dc; color: #8a5a00; } /* 2.69: a paid upload's price in My uploads */
+.acc a.acc-btn-coin:hover { background: #ffecc2; color: #8a5a00; }
+.acc-btn-small .y4-coin { flex: none; }

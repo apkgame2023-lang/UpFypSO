@@ -555,6 +555,9 @@ if ($screen === 'login') {
 					<?php elseif ($can_edit || !$sd) : ?>
 					<a class="acc-btn acc-btn-small" href="<?php echo esc_url($M::url('edit/' . $p->ID)); ?>"><?php echo $si('edit'); ?><?php esc_html_e('Edit', 'y4apk'); ?></a>
 					<?php endif; ?>
+					<?php if (class_exists('Y4APK_Paid') && Y4APK_Paid::on() && Y4APK_Wallet::creator_ok($u->ID) && Y4APK_Paid::why_not($p, $u) === '') : $y4_price = (int) get_post_meta($p->ID, Y4APK_Paid::PRICE, true); // 2.69: what they may sell ?>
+					<a class="acc-btn acc-btn-small<?php echo $y4_price ? ' acc-btn-coin' : ''; ?>" href="<?php echo esc_url(Y4APK_Paid::url($p->ID)); ?>"><?php echo Y4APK_Wallet::coin_icon(16); // phpcs:ignore WordPress.Security.EscapeOutput ?><?php echo esc_html($y4_price ? number_format_i18n($y4_price) : __('Sell', 'y4apk')); ?></a>
+					<?php endif; ?>
 					<?php if (!$sd || !$live) : ?>
 					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js($sd ? __('Delete this upload? Its file is deleted too.', 'y4apk') : __('Delete this script?', 'y4apk')); ?>')">
 						<input type="hidden" name="y4_do" value="delete"><input type="hidden" name="id" value="<?php echo esc_attr($p->ID); ?>"><?php echo $M::nonce('delete'); ?>
@@ -780,6 +783,8 @@ if ($screen === 'login') {
 	include locate_template('template/pay.php'); // the payment page (2.65)
 } elseif ($screen === 'messages') {
 	include locate_template('template/messages.php'); // messages between members (2.67)
+} elseif ($screen === 'unlock') {
+	include locate_template('template/unlock.php'); // a paid script or file (2.69)
 } elseif ($screen === 'share_closed') {
 	$shell_open();
 	?>

@@ -12,6 +12,7 @@ $tabs = [
 	'payouts'  => __('Withdrawals', 'y4apk'),
 	'creators' => __('Creators', 'y4apk'),
 	'tips'     => __('Gifts', 'y4apk'),
+	'sales'    => __('Sales', 'y4apk'), // 2.69: paid scripts and files
 	'history'  => __('History', 'y4apk'),
 	'settings' => __('Settings', 'y4apk'),
 ];
@@ -32,16 +33,21 @@ $tips30 = $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS n, SUM(amount) AS a,
 $top30 = (int) $wpdb->get_var($wpdb->prepare("SELECT SUM(credit) FROM $tl WHERE kind = 'topup' AND made > %d", $since));
 $dl30 = (int) $wpdb->get_var($wpdb->prepare("SELECT SUM(n) FROM $tc WHERE day >= %s", wp_date('Y-m-d', $since)));
 $who = sanitize_user(wp_unslash($_GET['who'] ?? '')); // phpcs:ignore WordPress.Security.NonceVerification
+$tu = class_exists('Y4APK_Paid') ? Y4APK_Paid::t() : '';
+$asked = $tu !== '' && get_option('y4apk_paid_db') ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $tu WHERE status = 'asked'") : 0;
 $notes = [
 	'saved'     => __('Saved.', 'y4apk') . (function_exists('y4apk_cache_note') ? ' ' . y4apk_cache_note() : ''),
 	'paid'      => __('Marked paid. The creator got an email.', 'y4apk'),
 	'reject'    => __('Turned down. The money is back in the creator’s earnings, and they got an email.', 'y4apk'),
-	'gone'      => __('That withdrawal was already handled.', 'y4apk'),
+	'gone'      => __('That was already handled.', 'y4apk'),
 	'mode'      => __('Saved.', 'y4apk'),
 	'nouser'    => __('No member with that name or email.', 'y4apk'),
 	'noamount'  => __('Type an amount.', 'y4apk'),
 	'adjusted'  => sprintf(__('Done: @%s’s money was changed.', 'y4apk'), $who),
 	'tiphidden' => __('Saved.', 'y4apk'),
+	'refund_ok' => __('Refunded: the coins are back with the buyer, the creator’s share left their earnings, and both got an email.', 'y4apk'),
+	'refund_no' => __('Turned down: the buyer keeps it and got an email.', 'y4apk'),
+	'unpriced'  => __('It is free for everyone now.', 'y4apk'),
 	'geo_saved'   => __('Saved.', 'y4apk'),
 	'geo_csv'     => __('Read: the countries in the file are in the rates now.', 'y4apk'),
 	'geo_fetched' => __('Saved, and Adsterra’s numbers by country are in.', 'y4apk'),
@@ -76,13 +82,13 @@ $member = function ($id) {
 		<a class="y4ui-kpi<?php echo (int) $wait->n ? ' is-red' : ''; ?>" href="<?php echo esc_url($W::admin_url(['tab' => 'payouts'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Withdrawals waiting', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html(number_format_i18n((int) $wait->n)); ?></span><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s to pay by hand', 'y4apk'), $W::fmt((int) $wait->a))); ?></span></a>
 		<a class="y4ui-kpi" href="<?php echo esc_url($W::admin_url(['tab' => 'creators'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Owed to creators', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html($W::fmt($sum_earned)); ?></span><span class="y4ui-kpi-s"><?php esc_html_e('earnings not withdrawn yet', 'y4apk'); ?></span></a>
 		<a class="y4ui-kpi" href="<?php echo esc_url($W::admin_url(['tab' => 'history'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Members’ balances', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html($W::fmt($sum_credit)); ?></span><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s topped up in 30 days', 'y4apk'), $W::fmt($top30))); ?></span></a>
-		<a class="y4ui-kpi is-green" href="<?php echo esc_url($W::admin_url(['tab' => 'tips'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Tips, 30 days', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html($W::fmt((int) $tips30->a)); ?></span><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%1$s tips · the site kept %2$s', 'y4apk'), number_format_i18n((int) $tips30->n), $W::fmt((int) $tips30->kept))); ?></span></a>
+		<a class="y4ui-kpi is-green" href="<?php echo esc_url($W::admin_url(['tab' => 'tips'])); ?>"><span class="y4ui-kpi-l"><?php esc_html_e('Gifts, 30 days', 'y4apk'); ?></span><span class="y4ui-kpi-n"><?php echo esc_html($W::fmt((int) $tips30->a)); ?></span><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%1$s gifts · the site kept %2$s', 'y4apk'), number_format_i18n((int) $tips30->n), $W::fmt((int) $tips30->kept))); ?></span></a>
 	</div>
 
 	<div class="y4ui-bar-row">
 		<nav class="y4ui-tabs">
 			<?php foreach ($tabs as $k => $label) : ?>
-				<a href="<?php echo esc_url($W::admin_url(['tab' => $k])); ?>" class="<?php echo $tab === $k ? 'is-on' : ''; ?>"><?php echo esc_html($label); ?><?php if ($k === 'payouts' && (int) $wait->n) : ?> <span class="y4ui-chip is-red"><?php echo esc_html(number_format_i18n((int) $wait->n)); ?></span><?php endif; ?></a>
+				<a href="<?php echo esc_url($W::admin_url(['tab' => $k])); ?>" class="<?php echo $tab === $k ? 'is-on' : ''; ?>"><?php echo esc_html($label); ?><?php if ($k === 'payouts' && (int) $wait->n) : ?> <span class="y4ui-chip is-red"><?php echo esc_html(number_format_i18n((int) $wait->n)); ?></span><?php endif; ?><?php if ($k === 'sales' && $asked) : ?> <span class="y4ui-chip is-red"><?php echo esc_html(number_format_i18n($asked)); ?></span><?php endif; ?></a>
 			<?php endforeach; ?>
 		</nav>
 	</div>
@@ -262,6 +268,45 @@ $member = function ($id) {
 			<?php endif; ?>
 		</div>
 
+	<?php elseif ($tab === 'sales') : // 2.69
+		$rows = $tu !== '' && get_option('y4apk_paid_db') ? $wpdb->get_results("SELECT * FROM $tu ORDER BY (status = 'asked') DESC, id DESC LIMIT 150") : [];
+		$s30 = $tu !== '' && get_option('y4apk_paid_db') ? $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS n, SUM(paid) AS a, SUM(paid - net) AS kept FROM $tu WHERE status <> 'refunded' AND made > %d", $since)) : null;
+		$on_sale = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value > 0", Y4APK_Paid::PRICE));
+		$st = ['ok' => [__('Unlocked', 'y4apk'), 'is-green'], 'asked' => [__('Refund asked', 'y4apk'), 'is-red'], 'refunded' => [__('Refunded', 'y4apk'), ''], 'denied' => [__('Refund turned down', 'y4apk'), 'is-amber']];
+		?>
+		<div class="y4ui-card">
+			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Sales', 'y4apk'); ?></h2><p><?php echo esc_html(sprintf(__('Scripts and files creators sell for coins (%1$s on sale). In 30 days: %2$s sales, %3$s paid, the site kept %4$s. A refund asked for waits here: say yes when it does not work or is not the creator’s own work (then take its price off too).', 'y4apk'),
+				number_format_i18n($on_sale), number_format_i18n((int) ($s30->n ?? 0)), $W::fmt_coins((int) ($s30->a ?? 0)), $W::fmt((int) ($s30->kept ?? 0)))); ?></p></div></div>
+			<?php if (!$rows) : ?>
+				<div class="y4ui-empty"><?php esc_html_e('No sales yet.', 'y4apk'); ?></div>
+			<?php else : ?>
+			<div class="y4ui-scroll"><table class="y4ui-table">
+				<thead><tr><th><?php esc_html_e('What', 'y4apk'); ?></th><th><?php esc_html_e('Buyer', 'y4apk'); ?></th><th><?php esc_html_e('Creator', 'y4apk'); ?></th><th><?php esc_html_e('Paid', 'y4apk'); ?></th><th><?php esc_html_e('State', 'y4apk'); ?></th><th><?php esc_html_e('When', 'y4apk'); ?></th><th></th></tr></thead>
+				<tbody>
+				<?php foreach ($rows as $r) : $pt = get_the_title((int) $r->post_id); ?>
+					<tr>
+						<td><?php if ($pt !== '') : ?><a href="<?php echo esc_url(get_permalink((int) $r->post_id)); ?>" target="_blank"><?php echo esc_html(wp_strip_all_tags($pt)); ?></a><?php else : ?><span class="y4ui-kpi-s"><?php esc_html_e('a deleted post', 'y4apk'); ?></span><?php endif; ?>
+							<?php if ((int) get_post_meta((int) $r->post_id, Y4APK_Paid::PRICE, true)) : ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><?php $form('unprice', 'sales'); ?><input type="hidden" name="post" value="<?php echo (int) $r->post_id; ?>"> <button class="button-link" onclick="return confirm('<?php echo esc_js(__('Make it free for everyone? Its creator can put a price on it again.', 'y4apk')); ?>')"><?php esc_html_e('Make free', 'y4apk'); ?></button></form><?php endif; ?></td>
+						<td><?php echo $member($r->user_id); // phpcs:ignore WordPress.Security.EscapeOutput ?></td>
+						<td><?php echo $member($r->creator_id); // phpcs:ignore WordPress.Security.EscapeOutput ?></td>
+						<td><b><?php echo esc_html($W::fmt_coins((int) $r->paid)); ?></b><br><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s to the creator', 'y4apk'), $W::fmt((int) $r->net))); ?></span></td>
+						<td><span class="y4ui-chip <?php echo esc_attr($st[$r->status][1] ?? ''); ?>"><?php echo esc_html($st[$r->status][0] ?? $r->status); ?></span><?php if ($r->reason !== '') : ?><br><span class="y4ui-kpi-s">“<?php echo esc_html($r->reason); ?>”</span><?php endif; ?></td>
+						<td><span class="y4ui-kpi-s"><?php echo esc_html(wp_date(get_option('date_format') . ' H:i', (int) $r->made)); ?></span></td>
+						<td><?php if (in_array($r->status, ['ok', 'asked', 'denied'], true)) : ?>
+							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4wal-act">
+								<?php $form('refund_ok', 'sales'); ?><input type="hidden" name="id" value="<?php echo (int) $r->id; ?>">
+								<input type="text" name="why" maxlength="190" placeholder="<?php esc_attr_e('Note to the buyer (optional)', 'y4apk'); ?>">
+								<button class="button<?php echo $r->status === 'asked' ? ' button-primary' : ''; ?>" onclick="return confirm('<?php echo esc_js(__('Give the buyer their coins back?', 'y4apk')); ?>')"><?php esc_html_e('Refund', 'y4apk'); ?></button>
+								<?php if ($r->status === 'asked') : ?><button class="button" name="do" value="refund_no"><?php esc_html_e('Turn down', 'y4apk'); ?></button><?php endif; ?>
+							</form>
+						<?php endif; ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table></div>
+			<?php endif; ?>
+		</div>
+
 	<?php elseif ($tab === 'history') :
 		$fu = $who !== '' ? get_user_by('login', $who) : null;
 		$list = $fu ? $wpdb->get_results($wpdb->prepare("SELECT * FROM $tl WHERE user_id = %d ORDER BY id DESC LIMIT 200", $fu->ID)) : $wpdb->get_results("SELECT * FROM $tl ORDER BY id DESC LIMIT 100");
@@ -334,7 +379,8 @@ $member = function ($id) {
 						<div class="y4ui-card-b y4ui-fields">
 							<div class="y4ui-field"><label for="ws-fol"><?php esc_html_e('Followers needed', 'y4apk'); ?></label><input type="number" id="ws-fol" name="followers" min="0" value="<?php echo esc_attr($s['followers']); ?>" style="width:120px"></div>
 							<div class="y4ui-field"><label for="ws-share"><?php esc_html_e('The site’s share of a gift to a creator', 'y4apk'); ?></label><span><input type="text" id="ws-share" name="share" value="<?php echo esc_attr($s['share']); ?>" style="width:70px"> %</span><p class="description"><?php echo esc_html(sprintf(__('A 500-coin gift gives the creator %s.', 'y4apk'), $W::fmt((int) floor($W::from_coins(500) * (100 - (float) $s['share']) / 100)))); ?></p></div>
-							<div class="y4ui-field"><label for="ws-hold"><?php esc_html_e('Days a gift waits before it can be withdrawn', 'y4apk'); ?></label><input type="number" id="ws-hold" name="hold_days" min="0" max="90" value="<?php echo esc_attr($s['hold_days']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Time to catch stolen cards and charge-backs before money leaves. Download earnings are not held.', 'y4apk'); ?></p></div>
+							<div class="y4ui-field"><label for="ws-sale"><?php esc_html_e('Paid scripts and files', 'y4apk'); ?></label><span><?php esc_html_e('The site keeps', 'y4apk'); ?> <input type="text" id="ws-sale" name="sale_share" value="<?php echo esc_attr($s['sale_share']); ?>" style="width:60px"> % · <?php esc_html_e('VIP pay', 'y4apk'); ?> <input type="text" name="vip_off" value="<?php echo esc_attr($s['vip_off']); ?>" style="width:60px"> % <?php esc_html_e('less', 'y4apk'); ?> · <?php esc_html_e('refunds within', 'y4apk'); ?> <input type="number" name="refund_days" min="0" max="30" value="<?php echo esc_attr($s['refund_days']); ?>" style="width:60px"> <?php esc_html_e('days', 'y4apk'); ?></span><p class="description"><?php esc_html_e('Creators sell their own scripts, apps and tools for coins (never a game or app from Google Play). Refunds end before the hold does, so a refund can always take the creator’s share back.', 'y4apk'); ?></p></div>
+							<div class="y4ui-field"><label for="ws-hold"><?php esc_html_e('Days a gift waits before it can be withdrawn', 'y4apk'); ?></label><input type="number" id="ws-hold" name="hold_days" min="0" max="90" value="<?php echo esc_attr($s['hold_days']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Gifts and sales. Time to catch stolen cards, charge-backs and refunds before money leaves. Download earnings are not held.', 'y4apk'); ?></p></div>
 							<div class="y4ui-field"><label for="ws-rate"><?php esc_html_e('Paid per 1,000 downloads (average)', 'y4apk'); ?></label><input type="text" id="ws-rate" name="dl_rate" value="<?php echo esc_attr($s['dl_rate']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Of a creator’s games and apps, once a day per device. 0: downloads earn nothing (tips still work). A change applies from the day not yet added.', 'y4apk'); ?></p></div>
 							<div class="y4ui-field"><label for="ws-minout"><?php esc_html_e('Smallest withdrawal', 'y4apk'); ?></label><input type="text" id="ws-minout" name="min_payout" value="<?php echo esc_attr($s['min_payout']); ?>" style="width:120px"></div>
 							<div class="y4ui-field"><label><?php esc_html_e('Ways you pay creators', 'y4apk'); ?></label>

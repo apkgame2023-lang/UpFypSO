@@ -711,7 +711,7 @@ class Y4APK_Members {
 		if ($view === '') {
 			return;
 		}
-		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay', 'google', 'discord', 'messages'];
+		$views = ['home', 'login', 'register', 'forgot', 'reset', 'verify', 'submit', 'edit', 'settings', 'logout', 'profile', 'customize', 'following', 'share', 'vip', 'wallet', 'pay', 'google', 'discord', 'messages', 'unlock'];
 		global $wp_query;
 		if (!in_array($view, $views, true)) {
 			$wp_query->set_404(); // /account/anything-else/ does not exist
@@ -766,7 +766,7 @@ class Y4APK_Members {
 			}
 		}
 		$guest_only = ['login', 'register', 'forgot', 'reset'];
-		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay', 'messages'];
+		$members_only = ['home', 'submit', 'edit', 'settings', 'customize', 'following', 'share', 'wallet', 'pay', 'messages', 'unlock'];
 		if ($ctx['user'] && in_array($view, $guest_only, true)) {
 			wp_safe_redirect(self::url());
 			exit;
@@ -820,6 +820,10 @@ class Y4APK_Members {
 		}
 		if ($view === 'pay' && class_exists('Y4APK_Pay')) { // 2.65: the payment page, on the site
 			Y4APK_Pay::route($ctx);
+			return;
+		}
+		if ($view === 'unlock' && class_exists('Y4APK_Paid')) { // 2.69: unlock a paid script or file, or set its price
+			Y4APK_Paid::route($ctx);
 			return;
 		}
 		if ($view === 'messages' && class_exists('Y4APK_DM')) { // 2.67: messages between members
@@ -888,7 +892,7 @@ class Y4APK_Members {
 		}
 		$names = ['home' => __('My uploads', 'y4apk'), 'share' => get_query_var('y4_kind') === 'app' ? __('Share an app', 'y4apk') : __('Share a game', 'y4apk'), 'login' => __('Sign in', 'y4apk'), 'register' => __('Create an account', 'y4apk'), 'forgot' => __('Reset your password', 'y4apk'),
 			'reset' => __('Choose a new password', 'y4apk'), 'verify' => __('Confirm your email', 'y4apk'), 'submit' => __('Share a script', 'y4apk'), 'edit' => __('Edit your script', 'y4apk'),
-			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk'), 'logout' => __('Sign out', 'y4apk')];
+			'settings' => __('Account settings', 'y4apk'), 'profile' => '', 'customize' => __('Edit profile', 'y4apk'), 'following' => __('Following', 'y4apk'), 'logout' => __('Sign out', 'y4apk'), 'unlock' => __('Unlock', 'y4apk')];
 		$v = self::$ctx['view'];
 		if ($v === 'profile' && !empty(self::$ctx['profile'])) {
 			$p = self::$ctx['profile'];

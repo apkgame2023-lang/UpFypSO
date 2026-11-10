@@ -69,6 +69,14 @@ class Y4APK_Wallet {
 		if (!wp_next_scheduled(self::CRON)) {
 			wp_schedule_event(strtotime('tomorrow 00:20') ?: time() + HOUR_IN_SECONDS, 'daily', self::CRON);
 		}
+		if (!get_option('y4apk_wallet_269')) { // 2.69: the site keeps 30% of a gift, like a sale (it was 20%)
+			$o = get_option(self::OPTION);
+			if (is_array($o) && isset($o['share']) && (float) $o['share'] === 20.0) {
+				$o['share'] = '30';
+				update_option(self::OPTION, $o, false);
+			}
+			update_option('y4apk_wallet_269', 1, false);
+		}
 		if (!get_option('y4apk_wallet_2681')) { // 2.68.1: coins are bought from $12.49
 			$o = get_option(self::OPTION);
 			if (is_array($o) && isset($o['min_topup']) && (float) $o['min_topup'] < 12.49) {
@@ -174,7 +182,7 @@ class Y4APK_Wallet {
 			'site_tips'  => '1, 2, 5, 10, 20, 50',
 			'tips'       => '0.5, 1, 2, 5, 10',
 			'min_tip'    => '0.5',
-			'share'      => '20',     // % of a tip to a creator the site keeps
+			'share'      => '30',     // % of a gift to a creator the site keeps (2.69: 30, like a sale)
 			'followers'  => '300',
 			'dl_rate'    => '0',      // per 1,000 downloads; 0: downloads earn nothing
 			'min_payout' => '10',
@@ -186,6 +194,10 @@ class Y4APK_Wallet {
 			'gifts'      => ['rose' => 10, 'fire' => 50, 'diamond' => 500, 'crown' => 2000], // coins; 0 hides one
 			'gift_day'   => '10000',  // coins one member may give away in 24 hours
 			'hold_days'  => '14',     // days a gift waits before it can be withdrawn
+			// 2.69: paid scripts and files
+			'sale_share' => '30',     // % of a sale the site keeps
+			'vip_off'    => '10',     // % less VIP members pay
+			'refund_days' => '7',     // days a buyer can ask for their coins back
 		];
 	}
 
@@ -254,7 +266,11 @@ class Y4APK_Wallet {
 			'gifts'      => array_map(function ($k) use ($in) { return min(1000000, absint($in['gift_' . $k] ?? 0)); }, array_combine(array_keys(self::GIFTS), array_keys(self::GIFTS))),
 			'gift_day'   => (string) absint($in['gift_day'] ?? 10000),
 			'hold_days'  => (string) min(90, absint($in['hold_days'] ?? 14)),
+			'sale_share' => $num('sale_share', 90),
+			'vip_off'    => $num('vip_off', 50),
+			'refund_days' => (string) min(30, absint($in['refund_days'] ?? 7)),
 		];
+		$o['refund_days'] = (string) min((int) $o['refund_days'], max(0, (int) $o['hold_days'] - 1)); // refunds end before the money can leave
 		// 2.68: the dollar amounts of top-ups and tips are no longer asked; kept for orders made before
 		foreach (['topups', 'bonus_from', 'bonus_pct', 'site_tips', 'tips', 'min_tip'] as $k) {
 			if (!isset($in[$k])) {
@@ -455,7 +471,7 @@ class Y4APK_Wallet {
 	}
 
 	/** Runs $fn in a database transaction: kept when it returns anything but false. */
-	private static function tx($fn) {
+	public static function tx($fn) {
 		global $wpdb;
 		$wpdb->query('START TRANSACTION');
 		try {
@@ -497,6 +513,19 @@ class Y4APK_Wallet {
 		return ['credit' => $c, 'earned' => $e];
 	}
 
+	/** 2.69: for paid unlocks (Y4APK_Paid), inside tx(). */
+	public static function take_coins($user_id, $amount, $kind, $ref = '', $other = 0) {
+		return self::take($user_id, $amount, $kind, $ref, $other, '', 'credit');
+	}
+
+	public static function credit($user_id, $credit, $earned, $kind, $ref = '', $other = 0, $note = '') {
+		self::add($user_id, $credit, $earned, $kind, $ref, $other, $note);
+	}
+
+	public static function mail_to($user, $title, $lines, $why) {
+		self::mail_member($user, $title, $lines, $why);
+	}
+
 	/** A member's history, newest first. */
 	public static function history($user_id, $limit = 40) {
 		global $wpdb;
@@ -532,8 +561,21 @@ class Y4APK_Wallet {
 				return sprintf(__('Withdrawal #%s returned', 'y4apk'), $row->ref) . ($row->note !== '' ? ': ' . $row->note : '');
 			case 'adjust':
 				return __('From the site', 'y4apk') . ($row->note !== '' ? ': ' . $row->note : '');
+			case 'unlock': // 2.69
+				return sprintf(__('Unlocked “%s”', 'y4apk'), self::post_name($row->ref));
+			case 'sale':
+				return sprintf(__('Sale: “%1$s” to %2$s', 'y4apk'), self::post_name($row->ref), $who($row->other_id));
+			case 'refund':
+				return sprintf(__('Refund: “%s”', 'y4apk'), self::post_name($row->ref));
+			case 'sale_back':
+				return sprintf(__('Refunded sale: “%s”', 'y4apk'), self::post_name($row->ref));
 		}
 		return $row->kind;
+	}
+
+	private static function post_name($id) {
+		$t = (int) $id ? wp_strip_all_tags(get_the_title((int) $id)) : '';
+		return $t !== '' ? $t : __('a deleted post', 'y4apk');
 	}
 
 	/** "🌹 Rose" for a gift's key, '' for none (tips before 2.68). */
@@ -704,13 +746,17 @@ class Y4APK_Wallet {
 		if (!$u || time() - (int) strtotime($u->user_registered . ' UTC') < DAY_IN_SECONDS) {
 			return __('New accounts can send gifts to creators after their first day.', 'y4apk');
 		}
-		$now = Y4APK_Members::ip_hash();
-		$theirs = array_filter([(string) get_user_meta($to, 'y4apk_ip', true), (string) get_user_meta($to, self::IP_LAST, true)]);
-		$mine = array_filter([$now, (string) get_user_meta($from, 'y4apk_ip', true)]);
-		if (array_intersect($mine, $theirs)) {
+		if (self::same_connection($from, $to)) {
 			return __('Gifts cannot be sent between accounts on the same connection.', 'y4apk');
 		}
 		return '';
+	}
+
+	/** The member here now (or when they joined) is on a connection the creator joined or last opened their wallet from (one-way hashes). */
+	public static function same_connection($from, $to) {
+		$theirs = array_filter([(string) get_user_meta($to, 'y4apk_ip', true), (string) get_user_meta($to, self::IP_LAST, true)]);
+		$mine = array_filter([Y4APK_Members::ip_hash(), (string) get_user_meta($from, 'y4apk_ip', true)]);
+		return (bool) array_intersect($mine, $theirs);
 	}
 
 	/** Coins (micro) a member gave away in the last 24 hours. */
@@ -761,7 +807,7 @@ class Y4APK_Wallet {
 			return ['free' => $earned, 'held' => 0, 'next' => 0];
 		}
 		$since = time() - $days * DAY_IN_SECONDS;
-		$r = $wpdb->get_row($wpdb->prepare('SELECT SUM(earned) AS a, MIN(made) AS first FROM ' . self::t('ledger') . " WHERE user_id = %d AND kind = 'tip_in' AND made > %d", (int) $user_id, $since));
+		$r = $wpdb->get_row($wpdb->prepare('SELECT SUM(earned) AS a, MIN(made) AS first FROM ' . self::t('ledger') . " WHERE user_id = %d AND kind IN ('tip_in', 'sale', 'sale_back') AND made > %d", (int) $user_id, $since)); // 2.69: sales wait too
 		$held = min($earned, max(0, (int) ($r->a ?? 0)));
 		return ['free' => $earned - $held, 'held' => $held, 'next' => $held ? (int) $r->first + $days * DAY_IN_SECONDS : 0];
 	}
@@ -1205,6 +1251,14 @@ class Y4APK_Wallet {
 				$note = 'adjusted';
 				$extra = ['who' => $u->user_login];
 			}
+		} elseif (($do === 'refund_ok' || $do === 'refund_no') && class_exists('Y4APK_Paid')) { // 2.69
+			$why = sanitize_text_field(wp_unslash($_POST['why'] ?? ''));
+			$id = absint($_POST['id'] ?? 0);
+			$note = ($do === 'refund_ok' ? Y4APK_Paid::refund($id, $why) : Y4APK_Paid::deny($id, $why)) ? $do : 'gone';
+		} elseif ($do === 'unprice' && class_exists('Y4APK_Paid')) {
+			delete_post_meta(absint($_POST['post'] ?? 0), Y4APK_Paid::PRICE);
+			do_action('litespeed_purge_post', absint($_POST['post'] ?? 0));
+			$note = 'unpriced';
 		} elseif ($do === 'hide_tip') {
 			global $wpdb;
 			$wpdb->query($wpdb->prepare('UPDATE ' . self::t('tips') . ' SET hidden = 1 - hidden WHERE id = %d', absint($_POST['id'] ?? 0)));

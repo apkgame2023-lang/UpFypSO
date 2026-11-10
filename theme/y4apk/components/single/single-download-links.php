@@ -1,5 +1,11 @@
 <?php
 $download_links = get_post_meta(get_the_ID(), 'repeatable_download_link', true);
+// 2.69: a paid file: no download button (nor its address) in the page of someone who has not unlocked it
+$y4_paid = class_exists('Y4APK_Paid') && Y4APK_Paid::price(get_the_ID()) > 0;
+$y4_locked = $y4_paid && Y4APK_Paid::locked(get_the_ID());
+if ($y4_locked) {
+	$download_links = [];
+}
 
 $hasApk = false; // Variable to track if APK downloads exist
 $hasObb = false; // Variable to track if OBB downloads exist
@@ -40,6 +46,7 @@ $y4dl_badge = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColo
 ?>
 <div class="f-app-download" id="download-now">
     <?php if (class_exists('Y4APK_Scripts')) Y4APK_Scripts::render(get_the_ID()); // Script Code (2.31): what a script post offers, before any download ?>
+    <?php if ($y4_locked && !(class_exists('Y4APK_Scripts') && Y4APK_Scripts::get(get_the_ID()))) { echo Y4APK_Paid::card(get_the_ID(), 'file'); } // phpcs:ignore WordPress.Security.EscapeOutput -- 2.69 ?>
     <?php if (class_exists('Y4APK_Share') && Y4APK_Share::is_share(get_the_ID()) && ($y4_by = Y4APK_Members::author(get_the_ID()))) : // a member's game or app (2.44) ?>
     <div class="y4-shared-row">
     <a class="y4-shared" href="<?php echo esc_url(Y4APK_Members::profile_url($y4_by)); ?>"><?php echo Y4APK_Social::avatar($y4_by, 36); ?><span><small><?php esc_html_e('Shared by', 'y4apk'); ?></small><b><?php echo esc_html(Y4APK_Social::name($y4_by)); ?></b></span></a>
@@ -94,5 +101,6 @@ $y4dl_badge = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColo
         </div>
         <?php endif; endif; endif; ?>
     </div>
+    <?php if ($y4_paid && !$y4_locked && !(class_exists('Y4APK_Scripts') && Y4APK_Scripts::get(get_the_ID()))) { echo Y4APK_Paid::note(get_the_ID()); } // phpcs:ignore WordPress.Security.EscapeOutput -- 2.69 ?>
     <?php do_action('y4apk_after_download_links', get_the_ID()); ?>
 </div>

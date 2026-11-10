@@ -6,6 +6,10 @@ $app_name = get_post_meta( $post->ID, 'wp_title_GP', true );
 $app_name = $app_name ?: get_the_title();
 $download_links = get_post_meta(get_the_ID(), 'repeatable_download_link', true);
 $download_links = is_array($download_links) ? $download_links : []; // a post without download links stores ''
+if (class_exists('Y4APK_Paid') && Y4APK_Paid::locked(get_the_ID())) { // 2.69: a paid file, not unlocked
+	echo Y4APK_Paid::card(get_the_ID(), 'file'); // phpcs:ignore WordPress.Security.EscapeOutput
+	$download_links = [];
+}
 $download_timer = function_exists('y4apk_is_vip') && y4apk_is_vip() ? 1 : get_theme_mod('download_timer', 7); // VIP (2.62): no countdown
 
 foreach($download_links as $index => $download) : if ($index === $download_id) : ?>

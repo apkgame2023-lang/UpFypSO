@@ -151,8 +151,14 @@ class Y4APK_Scripts {
 		if (!$rows) {
 			return;
 		}
-		// The unlock gate (Y4APK ▸ Direct Link ▸ Lock the script): tap the ad once, then the code shows.
-		$gate = class_exists('Y4APK_Direct_Link') ? Y4APK_Direct_Link::script_gate() : null;
+		// 2.69: a paid script: the code is only in the page of someone who has it
+		$paid = class_exists('Y4APK_Paid') && Y4APK_Paid::price($post_id) > 0;
+		if ($paid && Y4APK_Paid::locked($post_id)) {
+			echo Y4APK_Paid::card($post_id, 'script'); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+			return;
+		}
+		// The unlock gate (Y4APK ▸ Direct Link ▸ Lock the script): tap the ad once, then the code shows (not when it was paid for).
+		$gate = !$paid && class_exists('Y4APK_Direct_Link') ? Y4APK_Direct_Link::script_gate() : null;
 		$locked = $gate ? ' is-locked' : '';
 		$rbx = class_exists('Y4APK_Roblox') && Y4APK_Roblox::is_roblox_post($post_id);
 		$game = $rbx ? Y4APK_Roblox::game_of($post_id) : null;
@@ -219,6 +225,7 @@ class Y4APK_Scripts {
 					<li><b>3</b><span><?php esc_html_e('Paste it and press Execute', 'y4apk'); ?></span></li>
 				</ol>
 				<?php endif; ?>
+				<?php if ($paid) { echo Y4APK_Paid::note($post_id); } // phpcs:ignore WordPress.Security.EscapeOutput -- 2.69: unlocked, the refund ?>
 				<?php if (class_exists('Y4APK_Executors')) { echo Y4APK_Executors::tested_with($post_id); } // the executors it works with (2.44) ?>
 				<?php if (class_exists('Y4APK_Members_Admin') && $rbx) { Y4APK_Members_Admin::report_ui($post_id); } ?>
 			</div>

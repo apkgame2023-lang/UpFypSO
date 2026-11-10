@@ -35,6 +35,7 @@ $download_timer = function_exists('y4apk_is_vip') && y4apk_is_vip() ? 1 : get_th
 </svg>
 <script>
 	function countdown(sec) {
+		if (!document.getElementById("timer")) { return; } // 2.69: no file on the page (a paid one, or none at that number)
 		sec--;
 		if( sec > 0 ) {
 	        document.getElementById("timer").innerHTML = ''+sec+'';
