@@ -11,7 +11,7 @@ $tabs = [
 	'overview' => __('Overview', 'y4apk'),
 	'payouts'  => __('Withdrawals', 'y4apk'),
 	'creators' => __('Creators', 'y4apk'),
-	'tips'     => __('Tips', 'y4apk'),
+	'tips'     => __('Gifts', 'y4apk'),
 	'history'  => __('History', 'y4apk'),
 	'settings' => __('Settings', 'y4apk'),
 ];
@@ -65,7 +65,7 @@ $member = function ($id) {
 		'icon'    => 'wallet',
 		'tint'    => 'green',
 		'title'   => esc_html__('Wallet and creators', 'y4apk'),
-		'sub'     => esc_html__('Members top up a balance (crypto, like VIP) and spend it on VIP and tips of any size. Creators — members with enough followers, or ones you let in — earn from tips and downloads, and ask to withdraw: you pay them by hand and mark it paid here.', 'y4apk'),
+		'sub'     => esc_html__('Members buy coins in packs (crypto, like VIP) and spend them on VIP and gifts. Creators — members with enough followers, or ones you let in — earn from gifts and downloads, and ask to withdraw: you pay them by hand and mark it paid here.', 'y4apk'),
 		'actions' => '<a class="button button-large" href="' . esc_url(Y4APK_Members::url('wallet')) . '" target="_blank">' . esc_html__('View the wallet page', 'y4apk') . '</a>',
 	]); ?>
 	<?php if ($note && isset($notes[$note])) : ?>
@@ -92,9 +92,9 @@ $member = function ($id) {
 		?>
 		<div class="y4ui-cols">
 			<div class="y4ui-card">
-				<div class="y4ui-card-h"><div><h2><?php esc_html_e('Latest money moves', 'y4apk'); ?></h2><p><?php esc_html_e('Every top-up, tip, VIP bought from a balance, day of downloads and withdrawal, newest first.', 'y4apk'); ?></p></div></div>
+				<div class="y4ui-card-h"><div><h2><?php esc_html_e('Latest money moves', 'y4apk'); ?></h2><p><?php esc_html_e('Every coin pack, gift, VIP bought with coins, day of downloads and withdrawal, newest first.', 'y4apk'); ?></p></div></div>
 				<?php if (!$recent) : ?>
-					<div class="y4ui-empty"><?php esc_html_e('Nothing yet. Once members top up or creators earn, it shows here.', 'y4apk'); ?></div>
+					<div class="y4ui-empty"><?php esc_html_e('Nothing yet. Once members buy coins or creators earn, it shows here.', 'y4apk'); ?></div>
 				<?php else : ?>
 				<div class="y4ui-scroll"><table class="y4ui-table">
 					<thead><tr><th><?php esc_html_e('Member', 'y4apk'); ?></th><th><?php esc_html_e('What', 'y4apk'); ?></th><th><?php esc_html_e('Balance', 'y4apk'); ?></th><th><?php esc_html_e('Earnings', 'y4apk'); ?></th><th><?php esc_html_e('When', 'y4apk'); ?></th></tr></thead>
@@ -239,7 +239,7 @@ $member = function ($id) {
 		$list = $wpdb->get_results("SELECT * FROM $tt ORDER BY id DESC LIMIT 100");
 		?>
 		<div class="y4ui-card">
-			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Tips', 'y4apk'); ?></h2><p><?php esc_html_e('To the site and to creators. Tips to the site show with their name and message under “Thanks to” on the wallet page: hide any you do not want there.', 'y4apk'); ?></p></div></div>
+			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Gifts', 'y4apk'); ?></h2><p><?php esc_html_e('To the site and to creators. Gifts to the site show with their name and message under “Thanks to” on the wallet page: hide any you do not want there.', 'y4apk'); ?></p></div></div>
 			<?php if (!$list) : ?>
 				<div class="y4ui-empty"><?php esc_html_e('No tips yet.', 'y4apk'); ?></div>
 			<?php else : ?>
@@ -250,9 +250,9 @@ $member = function ($id) {
 					<tr<?php echo $t->hidden ? ' style="opacity:.55"' : ''; ?>>
 						<td><?php echo $member($t->from_id); // phpcs:ignore WordPress.Security.EscapeOutput ?></td>
 						<td><?php echo (int) $t->to_id ? $member($t->to_id) : '<span class="y4ui-chip is-green">' . esc_html__('The site', 'y4apk') . '</span>'; // phpcs:ignore WordPress.Security.EscapeOutput ?></td>
-						<td><b><?php echo esc_html($W::fmt($t->amount)); ?></b><?php if ((int) $t->to_id) : ?><br><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s to the creator', 'y4apk'), $W::fmt($t->net))); ?></span><?php endif; ?></td>
+						<td><b><?php echo esc_html(trim($W::gift_label($t->gift ?? '') . ' ' . $W::fmt($t->amount))); ?></b><?php if ((int) $t->to_id) : ?><br><span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%s to the creator', 'y4apk'), $W::fmt($t->net))); ?></span><?php endif; ?></td>
 						<td><?php echo esc_html($t->name !== '' ? $t->name : __('Anonymous', 'y4apk')); ?><?php if ($t->msg !== '') : ?><br><span class="y4ui-kpi-s">“<?php echo esc_html($t->msg); ?>”</span><?php endif; ?></td>
-						<td><?php echo esc_html($t->via === 'crypto' ? __('Crypto', 'y4apk') : __('Balance', 'y4apk')); ?></td>
+						<td><?php echo esc_html($t->via === 'crypto' ? __('Crypto', 'y4apk') : __('Coins', 'y4apk')); ?></td>
 						<td><span class="y4ui-kpi-s"><?php echo esc_html(wp_date(get_option('date_format') . ' H:i', (int) $t->made)); ?></span></td>
 						<td><?php if (!(int) $t->to_id) : ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php $form('hide_tip', 'tips'); ?><input type="hidden" name="id" value="<?php echo (int) $t->id; ?>"><button class="button-link"><?php echo esc_html($t->hidden ? __('Show', 'y4apk') : __('Hide', 'y4apk')); ?></button></form><?php endif; ?></td>
 					</tr>
@@ -296,7 +296,7 @@ $member = function ($id) {
 						<?php $form('adjust', 'history'); ?>
 						<div class="y4ui-field"><label for="adj-who"><?php esc_html_e('Member', 'y4apk'); ?></label><input type="text" id="adj-who" name="who" value="<?php echo esc_attr($who !== '' ? '@' . $who : ''); ?>" placeholder="@name" required></div>
 						<div class="y4ui-field"><label for="adj-amount"><?php esc_html_e('Amount', 'y4apk'); ?></label><input type="text" id="adj-amount" name="amount" inputmode="decimal" placeholder="10 or -10" required style="width:140px"></div>
-						<div class="y4ui-field"><label for="adj-which"><?php esc_html_e('Into', 'y4apk'); ?></label><select id="adj-which" name="which"><option value="credit"><?php esc_html_e('Balance (spend on the site)', 'y4apk'); ?></option><option value="earned"><?php esc_html_e('Earnings (can be withdrawn)', 'y4apk'); ?></option></select></div>
+						<div class="y4ui-field"><label for="adj-which"><?php esc_html_e('Into', 'y4apk'); ?></label><select id="adj-which" name="which"><option value="credit"><?php echo esc_html(sprintf(__('%1$s (the amount in dollars: 1 = %2$s coins)', 'y4apk'), $W::coin_name(), number_format_i18n($W::coins_per()))); ?></option><option value="earned"><?php esc_html_e('Earnings (can be withdrawn)', 'y4apk'); ?></option></select></div>
 						<div class="y4ui-field"><label for="adj-why"><?php esc_html_e('Note the member sees', 'y4apk'); ?></label><input type="text" id="adj-why" name="why" maxlength="120" placeholder="<?php esc_attr_e('e.g. Paid by TrueMoney', 'y4apk'); ?>"></div>
 						<button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 					</form>
@@ -310,15 +310,21 @@ $member = function ($id) {
 			<div class="y4ui-cols">
 				<div>
 					<div class="y4ui-card">
-						<div class="y4ui-card-h"><div><h2><?php esc_html_e('Balance and tips', 'y4apk'); ?></h2></div></div>
+						<div class="y4ui-card-h"><div><h2><?php esc_html_e('Coins and gifts', 'y4apk'); ?></h2><p><?php esc_html_e('Members buy coins in packs, then spend them on VIP and on gifts to creators. Coins have no cash value and are never paid out.', 'y4apk'); ?></p></div></div>
 						<div class="y4ui-card-b y4ui-fields">
-							<label class="y4ui-opt"><input type="checkbox" name="on" value="1" <?php checked($s['on']); ?>><span><b><?php esc_html_e('The wallet is on', 'y4apk'); ?></b><small><?php esc_html_e('Off: no topping up, no tips, no new withdrawals; balances are kept.', 'y4apk'); ?></small></span></label>
-							<div class="y4ui-field"><label for="ws-topups"><?php esc_html_e('Top-up amounts offered', 'y4apk'); ?></label><input type="text" id="ws-topups" name="topups" value="<?php echo esc_attr($s['topups']); ?>"><p class="description"><?php esc_html_e('Separated by commas. Ones under the smallest top-up are left out.', 'y4apk'); ?></p></div>
-							<div class="y4ui-field"><label for="ws-min"><?php esc_html_e('Smallest top-up', 'y4apk'); ?></label><input type="text" id="ws-min" name="min_topup" value="<?php echo esc_attr($s['min_topup']); ?>" style="width:120px"><p class="description"><?php esc_html_e('At least the payment company’s smallest payment for the coins people use (VIP ▸ Payments ▸ Check minimums). Tips paid straight away with crypto start here too.', 'y4apk'); ?></p></div>
-							<div class="y4ui-field"><label><?php esc_html_e('Top-up bonus', 'y4apk'); ?></label><span>+ <input type="text" name="bonus_pct" value="<?php echo esc_attr($s['bonus_pct']); ?>" style="width:70px"> % <?php esc_html_e('on top-ups from', 'y4apk'); ?> <input type="text" name="bonus_from" value="<?php echo esc_attr($s['bonus_from']); ?>" style="width:90px"></span><p class="description"><?php esc_html_e('e.g. 10% from 20: a $20 top-up gives $22. 0: no bonus.', 'y4apk'); ?></p></div>
-							<div class="y4ui-field"><label for="ws-sitetips"><?php esc_html_e('Tip us: amounts offered', 'y4apk'); ?></label><input type="text" id="ws-sitetips" name="site_tips" value="<?php echo esc_attr($s['site_tips']); ?>"></div>
-							<div class="y4ui-field"><label for="ws-tips"><?php esc_html_e('Tips to creators: amounts offered', 'y4apk'); ?></label><input type="text" id="ws-tips" name="tips" value="<?php echo esc_attr($s['tips']); ?>"></div>
-							<div class="y4ui-field"><label for="ws-mintip"><?php esc_html_e('Smallest tip', 'y4apk'); ?></label><input type="text" id="ws-mintip" name="min_tip" value="<?php echo esc_attr($s['min_tip']); ?>" style="width:120px"></div>
+							<label class="y4ui-opt"><input type="checkbox" name="on" value="1" <?php checked($s['on']); ?>><span><b><?php esc_html_e('The wallet is on', 'y4apk'); ?></b><small><?php esc_html_e('Off: no buying coins, no gifts, no new withdrawals; coins and earnings are kept.', 'y4apk'); ?></small></span></label>
+							<div class="y4ui-field"><label for="ws-coin"><?php esc_html_e('Name of the coins', 'y4apk'); ?></label><input type="text" id="ws-coin" name="coin_name" maxlength="24" value="<?php echo esc_attr($s['coin_name']); ?>" style="width:220px"></div>
+							<div class="y4ui-field"><label for="ws-per"><?php esc_html_e('Coins in one dollar', 'y4apk'); ?></label><input type="number" id="ws-per" name="coins_per" min="1" max="1000" value="<?php echo esc_attr($s['coins_per']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Sets what VIP costs in coins and what a gift is worth to a creator. Changing it changes what everyone’s coins are worth: set it once.', 'y4apk'); ?></p></div>
+							<div class="y4ui-field"><label for="ws-packs"><?php esc_html_e('Coin packs (price=coins)', 'y4apk'); ?></label><input type="text" id="ws-packs" name="packs" value="<?php echo esc_attr($s['packs']); ?>"><p class="description"><?php echo esc_html(sprintf(__('e.g. 10=1000, 20=2100, 50=5500: a $20 pack gives 2,100 coins (5%% more). Up to 6; ones under the smallest payment (%s) are left out.', 'y4apk'), Y4APK_VIP::money($s['min_topup']))); ?></p></div>
+							<div class="y4ui-field"><label for="ws-min"><?php esc_html_e('Smallest payment', 'y4apk'); ?></label><input type="text" id="ws-min" name="min_topup" value="<?php echo esc_attr($s['min_topup']); ?>" style="width:120px"><p class="description"><?php esc_html_e('At least the payment company’s smallest payment for the coins people use (VIP ▸ Payments ▸ Check minimums).', 'y4apk'); ?></p></div>
+							<div class="y4ui-field"><label><?php esc_html_e('Gifts (coins each; 0 hides one)', 'y4apk'); ?></label>
+								<span style="display:flex;flex-wrap:wrap;gap:10px 16px">
+								<?php foreach ($W::GIFTS as $k => $icon) : ?>
+									<label style="display:inline-flex;align-items:center;gap:6px"><span style="font-size:20px"><?php echo esc_html($icon); ?></span><input type="number" name="gift_<?php echo esc_attr($k); ?>" min="0" value="<?php echo esc_attr((int) ($s['gifts'][$k] ?? 0)); ?>" style="width:90px" aria-label="<?php echo esc_attr($W::gift_label($k)); ?>"></label>
+								<?php endforeach; ?>
+								</span>
+							</div>
+							<div class="y4ui-field"><label for="ws-day"><?php esc_html_e('Coins one member may give a day', 'y4apk'); ?></label><input type="number" id="ws-day" name="gift_day" min="0" value="<?php echo esc_attr($s['gift_day']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Over 24 hours. 0: no limit. Gifts to creators are also refused from accounts less than a day old and from the creator’s own connection.', 'y4apk'); ?></p></div>
 						</div>
 					</div>
 				</div>
@@ -327,7 +333,8 @@ $member = function ($id) {
 						<div class="y4ui-card-h"><div><h2><?php esc_html_e('Creators', 'y4apk'); ?></h2></div></div>
 						<div class="y4ui-card-b y4ui-fields">
 							<div class="y4ui-field"><label for="ws-fol"><?php esc_html_e('Followers needed', 'y4apk'); ?></label><input type="number" id="ws-fol" name="followers" min="0" value="<?php echo esc_attr($s['followers']); ?>" style="width:120px"></div>
-							<div class="y4ui-field"><label for="ws-share"><?php esc_html_e('The site’s share of a tip to a creator', 'y4apk'); ?></label><span><input type="text" id="ws-share" name="share" value="<?php echo esc_attr($s['share']); ?>" style="width:70px"> %</span></div>
+							<div class="y4ui-field"><label for="ws-share"><?php esc_html_e('The site’s share of a gift to a creator', 'y4apk'); ?></label><span><input type="text" id="ws-share" name="share" value="<?php echo esc_attr($s['share']); ?>" style="width:70px"> %</span><p class="description"><?php echo esc_html(sprintf(__('A 500-coin gift gives the creator %s.', 'y4apk'), $W::fmt((int) floor($W::from_coins(500) * (100 - (float) $s['share']) / 100)))); ?></p></div>
+							<div class="y4ui-field"><label for="ws-hold"><?php esc_html_e('Days a gift waits before it can be withdrawn', 'y4apk'); ?></label><input type="number" id="ws-hold" name="hold_days" min="0" max="90" value="<?php echo esc_attr($s['hold_days']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Time to catch stolen cards and charge-backs before money leaves. Download earnings are not held.', 'y4apk'); ?></p></div>
 							<div class="y4ui-field"><label for="ws-rate"><?php esc_html_e('Paid per 1,000 downloads (average)', 'y4apk'); ?></label><input type="text" id="ws-rate" name="dl_rate" value="<?php echo esc_attr($s['dl_rate']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Of a creator’s games and apps, once a day per device. 0: downloads earn nothing (tips still work). A change applies from the day not yet added.', 'y4apk'); ?></p></div>
 							<div class="y4ui-field"><label for="ws-minout"><?php esc_html_e('Smallest withdrawal', 'y4apk'); ?></label><input type="text" id="ws-minout" name="min_payout" value="<?php echo esc_attr($s['min_payout']); ?>" style="width:120px"></div>
 							<div class="y4ui-field"><label><?php esc_html_e('Ways you pay creators', 'y4apk'); ?></label>
@@ -340,7 +347,7 @@ $member = function ($id) {
 					</div>
 				</div>
 			</div>
-			<div class="y4ui-savebar"><span class="y4ui-hint"><?php esc_html_e('Amounts are in the VIP page’s currency.', 'y4apk'); ?></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
+			<div class="y4ui-savebar"><span class="y4ui-hint"><?php esc_html_e('Prices and earnings are in the VIP page’s currency.', 'y4apk'); ?></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
 		</form>
 		<?php if (class_exists('Y4APK_Geo')) : // 2.67.1
 			$gs = Y4APK_Geo::settings();

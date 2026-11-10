@@ -46,6 +46,9 @@
 .vip-plan-n { color: var(--acc-ink); font-size: 1rem; font-weight: 600; }
 .vip-plan-p { color: var(--acc-ink); font-size: 1.75rem; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
 .vip-plan-was { color: var(--acc-mute); font-size: .875rem; }
+.vip-plan-c { display: inline-flex; align-items: center; gap: .25rem; color: #b06d00; font-size: .8125rem; font-weight: 800; } /* 2.68: the plan in coins */
+.vip .vip-pay-wallet span { display: inline-flex; align-items: center; gap: .4rem; }
+.vip .vip-pay-wallet.is-short { opacity: .6; }
 .vip-plan-save { position: absolute; top: -.7rem; left: 50%; transform: translateX(-50%); padding: .2rem .7rem; border-radius: 999px; background: linear-gradient(135deg, #ff8a3d, #ff5e3a);
 	color: #fff; font-size: .75rem; font-weight: 800; white-space: nowrap; box-shadow: 0 .4rem .9rem -.35rem rgba(255, 94, 58, .8); }
 

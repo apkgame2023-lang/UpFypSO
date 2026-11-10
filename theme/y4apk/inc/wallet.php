@@ -2,18 +2,21 @@
 /**
  * The wallet and the creator program (2.64).
  *
- *   Balance   Money a member put in (Top up, paid like VIP: crypto on the
- *             payment company's page) or the site gave. Spent on the site:
- *             VIP, tips. Never paid out.
- *   Earnings  What a creator made: tips from members (less the site's share)
+ *   Coins     (2.68: Y4 Coins, 100 to the dollar by default.) Bought in packs
+ *             (crypto on the payment company's page; bigger packs give more
+ *             coins) or given by the site. Spent on the site: VIP and gifts.
+ *             No cash value: never paid out, never moved to another member
+ *             except as a gift. Kept as `credit`, in micro units like money.
+ *   Earnings  What a creator made: gifts from members (less the site's share)
  *             and downloads of the files they shared (a rate per 1,000).
- *             Spent on the site like a balance, or withdrawn: the creator asks,
- *             the owner pays by hand (crypto, PayPal, TrueMoney…) and marks it
- *             paid. The owner's name is never on the site.
+ *             Withdrawn: the creator asks, the owner pays by hand (crypto,
+ *             PayPal, TrueMoney…) and marks it paid. Gifts wait 14 days before
+ *             they can be withdrawn. The owner's name is never on the site.
  *
- * Small amounts work: a $0.50 tip or a $2.99 VIP comes out of the balance, so
- * the payment company's smallest payment only applies to topping up (or to
- * paying a tip straight away, when it is big enough).
+ * Small amounts work: a 10-coin rose or a 300-coin VIP comes out of the coins,
+ * so the payment company's smallest payment only applies to buying coins.
+ * Gifts to a creator are refused from an account less than a day old or from
+ * the creator's own connection (compared as one-way hashes).
  *
  * Creators are members with enough followers (300 by default), or ones the
  * owner lets in by hand. A download counts once a day per device: what is kept
@@ -31,7 +34,9 @@ defined('ABSPATH') || exit;
 class Y4APK_Wallet {
 
 	const OPTION   = 'y4apk_wallet';
-	const DBV      = '2'; // 2.67.1: downloads by country (y4apk_dl_geo)
+	const DBV      = '3'; // 2.67.1: downloads by country (y4apk_dl_geo); 2.68: tips.gift
+	const IP_LAST  = 'y4apk_ip_last';      // usermeta: a one-way hash of the connection a creator last opened their wallet from
+	const GIFTS    = ['rose' => '🌹', 'fire' => '🔥', 'diamond' => '💎', 'crown' => '👑'];
 	const SLUG     = 'y4apk-wallet';
 	const M        = 1000000;              // micro units in one dollar (or one of the currency)
 	const MODE     = 'y4apk_creator';      // usermeta: '' (by followers), 'on' (let in), 'off' (kept out)
@@ -100,6 +105,7 @@ class Y4APK_Wallet {
 			name varchar(40) NOT NULL DEFAULT '',
 			msg varchar(160) NOT NULL DEFAULT '',
 			via varchar(10) NOT NULL DEFAULT 'wallet',
+			gift varchar(16) NOT NULL DEFAULT '',
 			order_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			hidden tinyint(1) unsigned NOT NULL DEFAULT 0,
 			made int(10) unsigned NOT NULL DEFAULT 0,
@@ -165,6 +171,13 @@ class Y4APK_Wallet {
 			'dl_rate'    => '0',      // per 1,000 downloads; 0: downloads earn nothing
 			'min_payout' => '10',
 			'methods'    => ['usdttrc20', 'usdtbsc', 'binance', 'paypal', 'truemoney', 'promptpay', 'giftcard'],
+			// 2.68: Y4 Coins
+			'coin_name'  => 'Y4 Coins',
+			'coins_per'  => '100',    // coins in one dollar (or one of the currency)
+			'packs'      => '10=1000, 20=2100, 50=5500, 100=12000', // price=coins
+			'gifts'      => ['rose' => 10, 'fire' => 50, 'diamond' => 500, 'crown' => 2000], // coins; 0 hides one
+			'gift_day'   => '10000',  // coins one member may give away in 24 hours
+			'hold_days'  => '14',     // days a gift waits before it can be withdrawn
 		];
 	}
 
@@ -227,8 +240,123 @@ class Y4APK_Wallet {
 			'dl_rate'    => $num('dl_rate', 100),
 			'min_payout' => $num('min_payout', 10000),
 			'methods'    => array_values(array_intersect(array_keys(self::methods()), array_map('sanitize_key', (array) ($in['methods'] ?? [])))),
+			'coin_name'  => mb_substr(sanitize_text_field($in['coin_name'] ?? ''), 0, 24) ?: 'Y4 Coins',
+			'coins_per'  => (string) max(1, min(1000, absint($in['coins_per'] ?? 100))),
+			'packs'      => self::packs_text($in['packs'] ?? ''),
+			'gifts'      => array_map(function ($k) use ($in) { return min(1000000, absint($in['gift_' . $k] ?? 0)); }, array_combine(array_keys(self::GIFTS), array_keys(self::GIFTS))),
+			'gift_day'   => (string) absint($in['gift_day'] ?? 10000),
+			'hold_days'  => (string) min(90, absint($in['hold_days'] ?? 14)),
 		];
+		// 2.68: the dollar amounts of top-ups and tips are no longer asked; kept for orders made before
+		foreach (['topups', 'bonus_from', 'bonus_pct', 'site_tips', 'tips', 'min_tip'] as $k) {
+			if (!isset($in[$k])) {
+				$o[$k] = self::settings()[$k];
+			}
+		}
 		update_option(self::OPTION, $o, false);
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Coins (2.68)
+	 * ---------------------------------------------------------------- */
+
+	/** Coins in one dollar (or one of the currency). */
+	public static function coins_per() {
+		return max(1, min(1000, (int) self::settings()['coins_per']));
+	}
+
+	/** Micro units in one coin. */
+	public static function coin_m() {
+		return intdiv(self::M, self::coins_per());
+	}
+
+	/** Micro units → whole coins (rounded towards zero). */
+	public static function coins($m) {
+		return intdiv((int) $m, self::coin_m());
+	}
+
+	/** Whole coins → micro units. */
+	public static function from_coins($n) {
+		return (int) $n * self::coin_m();
+	}
+
+	public static function coin_name() {
+		$n = (string) self::settings()['coin_name'];
+		return $n !== '' ? $n : 'Y4 Coins';
+	}
+
+	/** "1,250 Y4 Coins" */
+	public static function fmt_coins($m) {
+		$n = self::coins($m);
+		return ($n < 0 ? '−' : '') . number_format_i18n(abs($n)) . ' ' . self::coin_name();
+	}
+
+	/** The coin, drawn: a gold disc with a star. */
+	public static function coin_icon($size = 20) {
+		$s = (int) $size;
+		return '<svg class="y4-coin" viewBox="0 0 24 24" width="' . $s . '" height="' . $s . '" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#f5a623"/><circle cx="12" cy="12" r="8.4" fill="#ffd34d"/><path fill="#e08e0b" d="m12 6.6 1.6 3.3 3.6.5-2.6 2.5.6 3.6L12 14.8l-3.2 1.7.6-3.6-2.6-2.5 3.6-.5L12 6.6Z"/></svg>';
+	}
+
+	/** "10=1000, 20=2100" → the same, cleaned: price=coins pairs, by price, at most 6. */
+	private static function packs_text($text) {
+		$out = [];
+		foreach (preg_split('/[,;\n]+/', (string) $text) as $part) {
+			if (preg_match('/^\s*([0-9]+(?:\.[0-9]{1,2})?)\s*=\s*([0-9]+)\s*$/', $part, $mm) && (float) $mm[1] > 0 && (float) $mm[1] <= 1000 && (int) $mm[2] > 0) {
+				$out[(string) round((float) $mm[1], 2)] = (int) $mm[2];
+			}
+		}
+		ksort($out, SORT_NUMERIC);
+		$out = array_slice($out, 0, 6, true);
+		return implode(', ', array_map(function ($p, $c) { return $p . '=' . $c; }, array_keys($out), $out));
+	}
+
+	/** The coin packs on sale: [['price' => 10.0, 'coins' => 1000, 'extra' => % more than the plain rate], …]. */
+	public static function packs() {
+		$s = self::settings();
+		$out = [];
+		foreach (explode(',', self::packs_text($s['packs'])) as $part) {
+			if (strpos($part, '=') === false) {
+				continue;
+			}
+			list($price, $coins) = array_map('trim', explode('=', $part));
+			$price = (float) $price;
+			if ($price < (float) $s['min_topup']) {
+				continue; // under the payment company's smallest payment
+			}
+			$plain = $price * self::coins_per();
+			$out[] = ['price' => $price, 'coins' => (int) $coins, 'extra' => $plain > 0 ? (int) round(100 * ((int) $coins - $plain) / $plain) : 0];
+		}
+		return $out;
+	}
+
+	/** The pack sold at $price, or null. */
+	public static function pack($price) {
+		foreach (self::packs() as $p) {
+			if (abs($p['price'] - (float) $price) < .001) {
+				return $p;
+			}
+		}
+		return null;
+	}
+
+	/** The gifts on offer: key => ['icon', 'name', 'coins'], cheapest first. */
+	public static function gifts() {
+		$names = ['rose' => __('Rose', 'y4apk'), 'fire' => __('Fire', 'y4apk'), 'diamond' => __('Diamond', 'y4apk'), 'crown' => __('Crown', 'y4apk')];
+		$set = (array) self::settings()['gifts'];
+		$out = [];
+		foreach (self::GIFTS as $k => $icon) {
+			$n = (int) ($set[$k] ?? 0);
+			if ($n > 0) {
+				$out[$k] = ['icon' => $icon, 'name' => $names[$k], 'coins' => $n];
+			}
+		}
+		uasort($out, function ($a, $b) { return $a['coins'] <=> $b['coins']; });
+		return $out;
+	}
+
+	/** What a VIP plan costs in coins. */
+	public static function vip_coins($plan) {
+		return (int) ceil(round((float) $plan['price'] * self::coins_per(), 4));
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -299,11 +427,11 @@ class Y4APK_Wallet {
 	}
 
 	/**
-	 * Takes $amount (micro) from a member: the balance first, then earnings
-	 * ($earned_only: earnings alone, for a withdrawal). Inside tx(). The split
-	 * taken, or false when there is not enough.
+	 * Takes $amount (micro) from a member: $from 'credit' (coins: VIP, gifts) or
+	 * 'earned' (a withdrawal). Inside tx(). The split taken, or false when there
+	 * is not enough.
 	 */
-	private static function take($user_id, $amount, $kind, $ref = '', $other = 0, $note = '', $earned_only = false) {
+	private static function take($user_id, $amount, $kind, $ref = '', $other = 0, $note = '', $from = 'credit') {
 		global $wpdb;
 		$w = self::t('wallets');
 		$r = $wpdb->get_row($wpdb->prepare("SELECT credit, earned FROM $w WHERE user_id = %d FOR UPDATE", (int) $user_id));
@@ -312,9 +440,9 @@ class Y4APK_Wallet {
 		}
 		$have_c = max(0, (int) $r->credit);
 		$have_e = max(0, (int) $r->earned);
-		$c = $earned_only ? 0 : min($have_c, $amount);
-		$e = $amount - $c;
-		if ($e > $have_e) {
+		$c = $from === 'earned' ? 0 : $amount;
+		$e = $from === 'earned' ? $amount : 0;
+		if ($c > $have_c || $e > $have_e) {
 			return false;
 		}
 		// The WHERE holds even without the lock: never below zero.
@@ -341,15 +469,19 @@ class Y4APK_Wallet {
 		};
 		switch ($row->kind) {
 			case 'topup':
-				return sprintf(__('Top-up · order #%s', 'y4apk'), $row->ref);
+				return sprintf(__('Coins bought · order #%s', 'y4apk'), $row->ref);
 			case 'bonus':
-				return __('Top-up bonus', 'y4apk');
+				return __('Bonus coins', 'y4apk');
 			case 'vip':
 				return $row->note === 'gift' ? sprintf(__('VIP gift code · %s', 'y4apk'), Y4APK_VIP::plan_label((int) $row->ref)) : sprintf(__('VIP · %s', 'y4apk'), Y4APK_VIP::plan_label((int) $row->ref));
 			case 'tip_out':
-				return (int) $row->other_id ? sprintf(__('Tip to %s', 'y4apk'), $who($row->other_id)) : sprintf(__('Tip to %s', 'y4apk'), self::site_name());
+				$g = self::gift_label($row->note);
+				return $g !== '' ? sprintf(__('%1$s to %2$s', 'y4apk'), $g, (int) $row->other_id ? $who($row->other_id) : self::site_name())
+					: ((int) $row->other_id ? sprintf(__('Tip to %s', 'y4apk'), $who($row->other_id)) : sprintf(__('Tip to %s', 'y4apk'), self::site_name()));
 			case 'tip_in':
-				return sprintf(__('Tip from %s', 'y4apk'), (int) $row->other_id ? $who($row->other_id) : __('a supporter', 'y4apk'));
+				$g = self::gift_label($row->note);
+				$from = (int) $row->other_id ? $who($row->other_id) : __('a supporter', 'y4apk');
+				return $g !== '' ? sprintf(__('%1$s from %2$s', 'y4apk'), $g, $from) : sprintf(__('Tip from %s', 'y4apk'), $from);
 			case 'downloads':
 				return sprintf(_n('%1$s download on %2$s', '%1$s downloads on %2$s', (int) $row->note, 'y4apk'), number_format_i18n((int) $row->note), mysql2date(get_option('date_format'), $row->ref));
 			case 'payout':
@@ -360,6 +492,16 @@ class Y4APK_Wallet {
 				return __('From the site', 'y4apk') . ($row->note !== '' ? ': ' . $row->note : '');
 		}
 		return $row->kind;
+	}
+
+	/** "🌹 Rose" for a gift's key, '' for none (tips before 2.68). */
+	public static function gift_label($key) {
+		$key = (string) $key;
+		if (!isset(self::GIFTS[$key])) {
+			return '';
+		}
+		$names = ['rose' => __('Rose', 'y4apk'), 'fire' => __('Fire', 'y4apk'), 'diamond' => __('Diamond', 'y4apk'), 'crown' => __('Crown', 'y4apk')];
+		return self::GIFTS[$key] . ' ' . $names[$key];
 	}
 
 	public static function site_name() {
@@ -408,19 +550,19 @@ class Y4APK_Wallet {
 
 	/** ['ok' => true, 'code' => gift code or ''] or ['ok' => false, 'why' => message]. */
 	public static function buy_vip($user_id, $plan, $gift) {
-		$amount = self::to_m($plan['price']);
+		$amount = self::from_coins(self::vip_coins($plan)); // 2.68: paid in coins
 		$days = (int) $plan['days'];
 		$taken = self::tx(function () use ($user_id, $amount, $days, $gift) {
 			return self::take($user_id, $amount, 'vip', (string) $days, 0, $gift ? 'gift' : '');
 		});
 		if (!$taken) {
-			return ['ok' => false, 'why' => __('Not enough in your balance. Top up first.', 'y4apk')];
+			return ['ok' => false, 'why' => sprintf(__('Not enough %s. Buy coins first.', 'y4apk'), self::coin_name())];
 		}
 		$code = '';
 		if ($gift) {
-			$code = Y4APK_VIP::make_one($days, __('Paid from a balance', 'y4apk'));
+			$code = Y4APK_VIP::make_one($days, __('Paid with coins', 'y4apk'));
 		} else {
-			Y4APK_VIP::extend($user_id, $days, 'pay', __('Balance', 'y4apk'));
+			Y4APK_VIP::extend($user_id, $days, 'pay', self::coin_name());
 		}
 		return ['ok' => true, 'code' => $code];
 	}
@@ -442,16 +584,21 @@ class Y4APK_Wallet {
 			if (!$user) {
 				return false;
 			}
+			$meta = Y4APK_Pay::meta($o);
 			$m = self::to_m($o->amount);
-			$bonus = self::bonus($o->amount);
+			if (!empty($meta['coins'])) { // 2.68: a coin pack, its coins as they were when it was ordered
+				$bonus = max(0, self::from_coins((int) $meta['coins']) - $m);
+			} else {
+				$bonus = self::bonus($o->amount); // a top-up ordered before 2.68
+			}
 			self::add($user->ID, $m, 0, 'topup', (string) $o->id);
 			if ($bonus > 0) {
 				self::add($user->ID, $bonus, 0, 'bonus', (string) $o->id);
 			}
-			self::mail_member($user, __('Your top-up is in', 'y4apk'), [
-				sprintf(__('%s has been added to your balance.', 'y4apk'), self::fmt($m + $bonus)),
-				__('Use it for VIP or to tip creators: nothing else to pay.', 'y4apk'),
-			], sprintf(__('You got this email because you topped up your balance (order #%s).', 'y4apk'), $o->id));
+			self::mail_member($user, sprintf(__('Your %s are in', 'y4apk'), self::coin_name()), [
+				sprintf(__('%s have been added to your wallet.', 'y4apk'), self::fmt_coins($m + $bonus)),
+				__('Use them for VIP or to send gifts to creators: nothing else to pay.', 'y4apk'),
+			], sprintf(__('You got this email because you bought coins (order #%s).', 'y4apk'), $o->id));
 			return true;
 		}
 		if ($o->kind === 'tip') {
@@ -467,48 +614,114 @@ class Y4APK_Wallet {
 	 * ---------------------------------------------------------------- */
 
 	/**
-	 * A tip out of the member's balance, to a creator or to the site ($to = 0).
-	 * true, or a WP_Error that says why not.
+	 * 2.68: a gift out of the member's coins, to a creator or to the site
+	 * ($to = 0). true, or a WP_Error that says why not.
 	 */
-	public static function tip($from, $to, $amount, $name, $msg) {
+	public static function gift($from, $to, $key, $name, $msg) {
 		$s = self::settings();
-		if ($amount < self::to_m($s['min_tip']) || $amount > self::to_m(10000)) {
-			return new WP_Error('y4apk_tip', sprintf(__('A tip is at least %s.', 'y4apk'), self::fmt(self::to_m($s['min_tip']))));
+		$gifts = self::gifts();
+		$from = (int) $from;
+		$to = (int) $to;
+		if (!isset($gifts[$key])) {
+			return new WP_Error('y4apk_gift', __('Choose a gift.', 'y4apk'));
 		}
-		if ($to && ((int) $to === (int) $from || !self::creator($to)['ok'])) {
-			return new WP_Error('y4apk_tip', __('This member cannot get tips.', 'y4apk'));
+		if ($to && ($to === $from || !self::creator($to)['ok'])) {
+			return new WP_Error('y4apk_gift', __('This member cannot get gifts.', 'y4apk'));
 		}
-		$ok = self::tx(function () use ($from, $to, $amount) {
-			return self::take($from, $amount, 'tip_out', '', $to);
+		if ($to) {
+			$why = self::self_gift($from, $to);
+			if ($why !== '') {
+				return new WP_Error('y4apk_gift', $why);
+			}
+		}
+		if (!Y4APK_Members::hit('gift:' . $from, 30, 10 * MINUTE_IN_SECONDS)) {
+			return new WP_Error('y4apk_gift', __('That is a lot of gifts at once. Wait a few minutes and try again.', 'y4apk'));
+		}
+		$amount = self::from_coins($gifts[$key]['coins']);
+		$limit = self::from_coins((int) $s['gift_day']);
+		if ($limit > 0 && self::given_today($from) + $amount > $limit) {
+			return new WP_Error('y4apk_gift', sprintf(__('You can give up to %s a day. Try again tomorrow.', 'y4apk'), self::fmt_coins($limit)));
+		}
+		$ok = self::tx(function () use ($from, $to, $amount, $key) {
+			return self::take($from, $amount, 'tip_out', '', $to, $key);
 		});
 		if (!$ok) {
-			return new WP_Error('y4apk_tip', __('Not enough in your balance. Top up first.', 'y4apk'));
+			return new WP_Error('y4apk_gift', sprintf(__('Not enough %s. Buy coins first.', 'y4apk'), self::coin_name()));
 		}
-		self::give_tip($from, $to, $amount, $name, $msg, 'wallet', 0);
+		self::give_tip($from, $to, $amount, $name, $msg, 'wallet', 0, $key);
 		return true;
 	}
 
-	/** The receiving side of a tip (paid from a balance or on the payment page). */
-	private static function give_tip($from, $to, $amount, $name, $msg, $via, $order_id) {
+	/**
+	 * Why $from may not send a creator a gift ('' when they may): an account
+	 * less than a day old, or the creator's own connection. Only one-way hashes
+	 * of connections are compared, the same kind registration keeps.
+	 */
+	public static function self_gift($from, $to) {
+		$u = get_userdata((int) $from);
+		if (!$u || time() - (int) strtotime($u->user_registered . ' UTC') < DAY_IN_SECONDS) {
+			return __('New accounts can send gifts to creators after their first day.', 'y4apk');
+		}
+		$now = Y4APK_Members::ip_hash();
+		$theirs = array_filter([(string) get_user_meta($to, 'y4apk_ip', true), (string) get_user_meta($to, self::IP_LAST, true)]);
+		$mine = array_filter([$now, (string) get_user_meta($from, 'y4apk_ip', true)]);
+		if (array_intersect($mine, $theirs)) {
+			return __('Gifts cannot be sent between accounts on the same connection.', 'y4apk');
+		}
+		return '';
+	}
+
+	/** Coins (micro) a member gave away in the last 24 hours. */
+	public static function given_today($user_id) {
+		global $wpdb;
+		return -(int) $wpdb->get_var($wpdb->prepare('SELECT SUM(credit) FROM ' . self::t('ledger') . " WHERE user_id = %d AND kind = 'tip_out' AND made > %d", (int) $user_id, time() - DAY_IN_SECONDS));
+	}
+
+	/** The receiving side of a gift or tip (from coins, or a tip paid on the payment page before 2.68). */
+	private static function give_tip($from, $to, $amount, $name, $msg, $via, $order_id, $gift = '') {
 		global $wpdb;
 		$share = (float) self::settings()['share'];
 		$net = $to ? (int) floor($amount * (100 - $share) / 100) : 0;
 		$wpdb->insert(self::t('tips'), [
 			'from_id' => (int) $from, 'to_id' => (int) $to, 'amount' => (int) $amount, 'net' => $net,
 			'name' => mb_substr(sanitize_text_field($name), 0, 40), 'msg' => mb_substr(sanitize_text_field($msg), 0, 160),
-			'via' => $via, 'order_id' => (int) $order_id, 'made' => time(),
-		], ['%d', '%d', '%d', '%d', '%s', '%s', '%s', '%d', '%d']);
+			'via' => $via, 'gift' => (string) $gift, 'order_id' => (int) $order_id, 'made' => time(),
+		], ['%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%d']);
 		if ($to && $net > 0) {
-			self::add($to, 0, $net, 'tip_in', (string) $wpdb->insert_id, $from);
+			self::add($to, 0, $net, 'tip_in', (string) $wpdb->insert_id, $from, (string) $gift);
 			$creator = get_userdata($to);
-			if ($creator) {
-				$lines = [sprintf(__('%1$s sent you a tip of %2$s. %3$s is in your earnings.', 'y4apk'), $name !== '' ? $name : __('Someone', 'y4apk'), self::fmt($amount), self::fmt($net))];
+			// One email in 30 minutes at most: a fan sending ten roses is one email
+			if ($creator && !get_transient('y4apk_giftmail_' . $to)) {
+				set_transient('y4apk_giftmail_' . $to, 1, 30 * MINUTE_IN_SECONDS);
+				$what = $gift !== '' ? self::gift_label($gift) : self::fmt($amount);
+				$lines = [sprintf(__('%1$s sent you %2$s. %3$s is in your earnings.', 'y4apk'), $name !== '' ? $name : __('Someone', 'y4apk'), $what, self::fmt($net))];
 				if ($msg !== '') {
 					$lines[] = '“' . $msg . '”';
 				}
-				self::mail_member($creator, __('You got a tip', 'y4apk'), $lines, __('You got this email because you are a creator on the site.', 'y4apk'));
+				$hold = (int) self::settings()['hold_days'];
+				if ($hold > 0) {
+					$lines[] = sprintf(_n('Gifts can be withdrawn %s day after they are sent.', 'Gifts can be withdrawn %s days after they are sent.', $hold, 'y4apk'), number_format_i18n($hold));
+				}
+				self::mail_member($creator, __('You got a gift', 'y4apk'), $lines, __('You got this email because you are a creator on the site.', 'y4apk'));
 			}
 		}
+	}
+
+	/**
+	 * A creator's earnings, split: ['free' => withdrawable now, 'held' => gifts
+	 * from the last hold_days days, 'next' => when the oldest held one frees].
+	 */
+	public static function hold($user_id) {
+		global $wpdb;
+		$earned = max(0, self::balance($user_id)['earned']);
+		$days = (int) self::settings()['hold_days'];
+		if ($days <= 0 || $earned <= 0) {
+			return ['free' => $earned, 'held' => 0, 'next' => 0];
+		}
+		$since = time() - $days * DAY_IN_SECONDS;
+		$r = $wpdb->get_row($wpdb->prepare('SELECT SUM(earned) AS a, MIN(made) AS first FROM ' . self::t('ledger') . " WHERE user_id = %d AND kind = 'tip_in' AND made > %d", (int) $user_id, $since));
+		$held = min($earned, max(0, (int) ($r->a ?? 0)));
+		return ['free' => $earned - $held, 'held' => $held, 'next' => $held ? (int) $r->first + $days * DAY_IN_SECONDS : 0];
 	}
 
 	/** Tips to the site, newest first, for the supporters list. */
@@ -682,12 +895,18 @@ class Y4APK_Wallet {
 		if (self::open_payout($user_id)) {
 			return new WP_Error('y4apk_payout', __('You already have a withdrawal waiting. It is paid by hand, usually within a few days.', 'y4apk'));
 		}
+		$h = self::hold($user_id); // 2.68: gifts wait before they can be withdrawn
+		if ($amount > $h['free']) {
+			return new WP_Error('y4apk_payout', $h['held'] > 0
+				? sprintf(__('You can withdraw %1$s now. %2$s from recent gifts frees up on %3$s.', 'y4apk'), self::fmt($h['free']), self::fmt($h['held']), wp_date(get_option('date_format'), $h['next']))
+				: __('Not enough in your earnings.', 'y4apk'));
+		}
 		$details = Y4APK_Mail::hide(wp_json_encode(['method' => $method, 'to' => $to]));
 		$id = self::tx(function () use ($wpdb, $user_id, $amount, $method, $details) {
 			$wpdb->insert(self::t('payouts'), ['user_id' => (int) $user_id, 'amount' => (int) $amount, 'method' => $method, 'details' => $details, 'status' => 'requested', 'made' => time()],
 				['%d', '%d', '%s', '%s', '%s', '%d']);
 			$id = (int) $wpdb->insert_id;
-			return $id && self::take($user_id, $amount, 'payout', (string) $id, 0, $method, true) ? $id : false;
+			return $id && self::take($user_id, $amount, 'payout', (string) $id, 0, $method, 'earned') ? $id : false;
 		});
 		if (!$id) {
 			return new WP_Error('y4apk_payout', __('Not enough in your earnings.', 'y4apk'));
@@ -788,15 +1007,21 @@ class Y4APK_Wallet {
 			$tu = get_user_by('login', $to_name);
 			$to = $tu && $tu->ID !== $uid && self::creator($tu->ID)['ok'] ? $tu : null;
 			if (!$to) {
-				$ctx['errors'][] = __('This member cannot get tips.', 'y4apk');
+				$ctx['errors'][] = __('This member cannot get gifts.', 'y4apk');
+			}
+		}
+		if (self::creator($uid)['ok']) { // 2.68: so a fan account on the creator's own connection cannot gift them (a hash, not the address)
+			$ih = Y4APK_Members::ip_hash();
+			if (get_user_meta($uid, self::IP_LAST, true) !== $ih) {
+				update_user_meta($uid, self::IP_LAST, $ih);
 			}
 		}
 		if ($do === 'wallet_topup') {
-			$amount = self::money_in('amount') ?: self::money_in('amount_pick');
-			if ($amount < (float) $s['min_topup'] || $amount > 1000) {
-				$ctx['errors'][] = sprintf(__('Top up between %1$s and %2$s.', 'y4apk'), Y4APK_VIP::money($s['min_topup']), Y4APK_VIP::money(1000));
+			$pack = self::pack(self::money_in('pack'));
+			if (!$pack) {
+				$ctx['errors'][] = __('Choose a coin pack.', 'y4apk');
 			} else {
-				$go = Y4APK_Pay::create($uid, 'topup', $amount, [], 'Balance top-up');
+				$go = Y4APK_Pay::create($uid, 'topup', $pack['price'], ['meta' => ['coins' => $pack['coins']]], 'Coins');
 				if (is_wp_error($go)) {
 					$ctx['errors'][] = $go->get_error_message();
 				} else {
@@ -805,32 +1030,17 @@ class Y4APK_Wallet {
 				}
 			}
 		}
-		if ($do === 'wallet_tip') {
-			$amount = self::money_in('amount') ?: self::money_in('amount_pick');
+		if ($do === 'wallet_tip') { // 2.68: a gift, from coins
+			$key = isset($_POST['gift']) ? sanitize_key(wp_unslash($_POST['gift'])) : '';
 			$name = isset($_POST['name']) ? mb_substr(sanitize_text_field(wp_unslash($_POST['name'])), 0, 40) : '';
 			$msg = isset($_POST['msg']) ? mb_substr(sanitize_text_field(wp_unslash($_POST['msg'])), 0, 160) : '';
-			$ctx['old'] += ['amount' => $amount, 'name' => $name, 'msg' => $msg];
-			$to_id = $to ? (int) $to->ID : 0;
-			if ($to_name !== '' && $to_name !== 'site' && !$to) {
-				// said above
-			} elseif (isset($_POST['via']) && $_POST['via'] === 'crypto') {
-				if ($amount < max((float) $s['min_topup'], (float) $s['min_tip'])) {
-					$ctx['errors'][] = sprintf(__('Paying a tip straight away works from %s. Smaller tips: top up, then tip from your balance.', 'y4apk'), Y4APK_VIP::money($s['min_topup']));
-				} else {
-					$go = Y4APK_Pay::create($uid, 'tip', $amount, ['meta' => ['to' => $to_id, 'name' => $name, 'msg' => $msg]], $to ? 'Tip to a creator' : 'Tip');
-					if (is_wp_error($go)) {
-						$ctx['errors'][] = $go->get_error_message();
-					} else {
-						wp_redirect($go);
-						exit;
-					}
-				}
-			} else {
-				$r = self::tip($uid, $to_id, self::to_m($amount), $name, $msg);
+			$ctx['old'] += ['gift' => $key, 'name' => $name, 'msg' => $msg];
+			if ($to_name === '' || $to_name === 'site' || $to) {
+				$r = self::gift($uid, $to ? (int) $to->ID : 0, $key, $name, $msg);
 				if (is_wp_error($r)) {
 					$ctx['errors'][] = $r->get_error_message();
 				} else {
-					wp_safe_redirect(self::url(['ok' => 'tipped', 'to' => $to ? $to->user_login : 'site']) . '#tip');
+					wp_safe_redirect(self::url(['ok' => 'tipped', 'g' => $key, 'to' => $to ? $to->user_login : 'site']) . '#tip');
 					exit;
 				}
 			}
@@ -859,6 +1069,9 @@ class Y4APK_Wallet {
 		$ctx['wallet'] = [
 			'set'     => $s,
 			'bal'     => self::balance($uid),
+			'hold'    => self::hold($uid),
+			'packs'   => self::packs(),
+			'gifts'   => self::gifts(),
 			'creator' => self::creator($uid),
 			'dl'      => self::dl_on() ? self::dl_stats($uid) : null,
 			'log'     => self::history($uid),

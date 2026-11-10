@@ -27,7 +27,7 @@ class Y4APK_Help {
 	const CPT     = 'y4apk_ticket';
 	const MAP     = 'y4apk_help_pages';  // [key => page ID]
 	const OWN     = 'y4apk_help_own';    // [key => 1]: that page shows its own text
-	const UPDATED = '2026-11-07';         // the legal pages' "Last updated"
+	const UPDATED = '2026-11-10';         // the legal pages' "Last updated"
 	const SLUG    = 'y4apk-support';
 	const PRE     = '_y4t_';             // a message's details (post meta)
 	const HIDDEN  = '_y4apk_dmca_hidden'; // on a post hidden for a copyright notice: [ticket, status before]

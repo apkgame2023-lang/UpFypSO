@@ -351,7 +351,8 @@ class Y4APK_Pay {
 	/** What an order is for, in plain ASCII for the payment company (its signature is made over it). */
 	public static function description($o) {
 		if ($o->kind === 'topup') {
-			return 'Balance top-up';
+			$n = (int) (self::meta($o)['coins'] ?? 0);
+			return $n ? $n . ' coins' : 'Balance top-up'; // 2.68: a coin pack
 		}
 		if ($o->kind === 'tip') {
 			return !empty(self::meta($o)['to']) ? 'Tip to a creator' : 'Tip';
@@ -522,7 +523,7 @@ class Y4APK_Pay {
 	public static function status_text($o) {
 		if (in_array($o->status, self::DONE, true)) {
 			if ($o->kind === 'topup') {
-				return __('Paid · added to your balance', 'y4apk');
+				return __('Paid · coins added', 'y4apk');
 			}
 			if ($o->kind === 'tip') {
 				return __('Paid · tip sent', 'y4apk');
@@ -678,7 +679,8 @@ class Y4APK_Pay {
 	/** What the order buys, for the member. */
 	public static function what($o) {
 		if ($o->kind === 'topup') {
-			return __('Balance top-up', 'y4apk');
+			$n = (int) (self::meta($o)['coins'] ?? 0); // 2.68
+			return $n && class_exists('Y4APK_Wallet') ? Y4APK_Wallet::fmt_coins(Y4APK_Wallet::from_coins($n)) : __('Balance top-up', 'y4apk');
 		}
 		if ($o->kind === 'tip') {
 			$to = (int) (self::meta($o)['to'] ?? 0);

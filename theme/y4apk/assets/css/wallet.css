@@ -1,4 +1,4 @@
-/* The wallet (2.64): /account/wallet/ — balance, top-ups, tips, creator earnings, withdrawals, history. */
+/* The wallet (2.64): /account/wallet/ — coins (2.68), coin packs, gifts, creator earnings, withdrawals, history. */
 
 .wal { max-width: 46rem; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; } /* 2.66.2: a long word (Thai has no spaces) no longer widens every card past the screen */
 .wal > *, .wal-hero > *, .wal-hbtn span { min-width: 0; overflow-wrap: anywhere; }
@@ -10,11 +10,15 @@
 	background: radial-gradient(120% 140% at 100% 0%, rgba(31, 209, 178, .3), transparent 55%), radial-gradient(90% 120% at 0% 100%, rgba(41, 177, 216, .25), transparent 60%), linear-gradient(135deg, #1b2327, #2c3840);
 	box-shadow: 0 1.25rem 2.5rem -1.25rem rgba(27, 35, 39, .6); }
 .wal-hero-t small { display: block; font-size: .8125rem; opacity: .75; }
-.wal-total { display: block; margin-top: .2rem; font-size: 2.5rem; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.wal-total { display: flex; align-items: center; gap: .6rem; margin-top: .3rem; font-size: 2.5rem; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.wal-total .y4-coin { flex: none; filter: drop-shadow(0 .3rem .6rem rgba(245, 166, 35, .45)); }
+.wal-total span { min-width: 0; }
+.y4-coin { flex: none; vertical-align: -.15em; }
 .wal-split { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin-top: .6rem; font-size: .875rem; opacity: .9; }
 .wal-split span { display: inline-flex; align-items: center; gap: .45rem; }
 .wal-split i { width: .6rem; height: .6rem; border-radius: 50%; background: #29b1d8; }
 .wal-split i.is-earned { background: #3fc35a; }
+.wal-split i.is-held { background: #f0a020; }
 .wal-hero-acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
 .acc a.wal-hbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem; min-height: 4rem; padding: .6rem .4rem; border-radius: 1rem;
 	background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); color: #fff; font-size: .8125rem; font-weight: 700; text-align: center; text-decoration: none; transition: background-color .15s; }
@@ -31,23 +35,45 @@
 .wal-head-i { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: .9rem; background: rgba(41, 177, 216, .12); color: var(--acc-blue); }
 .wal-head-i.is-red { background: rgba(229, 72, 77, .12); color: var(--acc-red); }
 .wal-head-i.is-green { background: rgba(63, 195, 90, .14); color: #1f9a3a; }
+.wal-head-i.is-gold { background: rgba(245, 166, 35, .14); }
 .wal-tip.is-open { box-shadow: 0 0 0 2px rgba(229, 72, 77, .35), 0 1rem 2rem -1.25rem rgba(229, 72, 77, .5); }
 
 /* Amounts */
 .wal-form, .wal-acts { display: grid; grid-template-columns: minmax(0, 1fr); gap: .9rem; }
 .wal-form > * { min-width: 0; }
-.wal-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .5rem; }
-.wal-chip { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 3.25rem; padding: .4rem; border-radius: .9rem; background: #fff;
-	box-shadow: 0 0 0 1.5px var(--acc-line); color: var(--acc-ink); font-weight: 800; font-size: 1.0625rem; cursor: pointer; transition: box-shadow .15s, transform .1s; }
-.wal-chip:hover { box-shadow: 0 0 0 1.5px rgba(41, 177, 216, .5); }
-.wal-chip:has(input[type=radio]:checked) { box-shadow: 0 0 0 2.5px #1fd1b2, 0 .75rem 1.5rem -1rem rgba(31, 209, 178, .7); background: #f2fdfa; }
-.wal-chip:active { transform: scale(.97); }
-.wal-chip input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
-.wal-chip em { font-style: normal; font-size: .6875rem; font-weight: 700; color: #1f9a3a; }
-.wal-chip-other { flex-direction: row; gap: .2rem; padding: 0 .6rem; cursor: text; grid-column: span 2; }
-.wal-chip-other:focus-within { box-shadow: 0 0 0 2.5px var(--acc-blue); }
-.wal-cur { color: var(--acc-mute); font-weight: 700; }
-.wal-chip-other input { width: 100%; min-width: 0; height: 2.5rem; border: 0; outline: 0; background: none; font: inherit; color: var(--acc-ink); }
+/* Gifts (2.68) */
+.wal-gifts { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: .6rem; }
+.wal-gift { position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .8rem .4rem .7rem; border-radius: 1rem; background: #fff;
+	box-shadow: 0 0 0 1.5px var(--acc-line); color: var(--acc-ink); text-align: center; cursor: pointer; transition: box-shadow .15s, transform .1s; }
+.wal-gift:hover { box-shadow: 0 0 0 1.5px rgba(229, 72, 77, .45); }
+.wal-gift:has(input:checked) { box-shadow: 0 0 0 2.5px #e5484d, 0 .75rem 1.5rem -1rem rgba(229, 72, 77, .7); background: #fff6f6; }
+.wal-gift:has(input:focus-visible) { outline: 2px solid var(--acc-blue); outline-offset: 2px; }
+.wal-gift:active { transform: scale(.97); }
+.wal-gift input { position: absolute; opacity: 0; pointer-events: none; }
+.wal-gift-i { font-size: 2.25rem; line-height: 1.15; transition: transform .2s; }
+.wal-gift:has(input:checked) .wal-gift-i { transform: scale(1.15); }
+.wal-gift b { font-size: .875rem; font-weight: 700; overflow-wrap: anywhere; }
+.wal-gift small { display: inline-flex; align-items: center; gap: .25rem; color: #b06d00; font-size: .8125rem; font-weight: 800; }
+.wal-gift.is-short { opacity: .55; }
+.wal .wal-go small { font-weight: 600; opacity: .85; font-size: .8125rem; }
+.wal .wal-go small:empty { display: none; }
+
+/* Coin packs (2.68) */
+.wal-packs { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: .6rem; }
+.wal-pack { position: relative; display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: 1rem .5rem .8rem; border-radius: 1rem; background: #fff;
+	box-shadow: 0 0 0 1.5px var(--acc-line); cursor: pointer; transition: box-shadow .15s, transform .1s; }
+.wal-pack:hover { box-shadow: 0 0 0 1.5px rgba(245, 166, 35, .6); }
+.wal-pack:has(input:checked) { box-shadow: 0 0 0 2.5px #f5a623, 0 .75rem 1.5rem -1rem rgba(245, 166, 35, .8); background: #fffaf0; }
+.wal-pack:has(input:focus-visible) { outline: 2px solid var(--acc-blue); outline-offset: 2px; }
+.wal-pack:active { transform: scale(.97); }
+.wal-pack input { position: absolute; opacity: 0; pointer-events: none; }
+.wal-pack em { position: absolute; top: -.55rem; right: .5rem; padding: .1rem .45rem; border-radius: 999px; background: #3fc35a; color: #fff; font-style: normal; font-size: .6875rem; font-weight: 800; }
+.wal-pack-n { display: inline-flex; align-items: center; gap: .35rem; color: var(--acc-ink); }
+.wal-pack-n b { font-size: 1.375rem; font-weight: 800; letter-spacing: -.01em; }
+.wal-pack-p { color: var(--acc-mute); font-size: .875rem; font-weight: 700; }
+.wal-topup .wal-go { background: linear-gradient(135deg, #f5a623, #e08e0b); color: #2b1a00; box-shadow: 0 .75rem 1.5rem -.75rem rgba(224, 142, 11, .7); }
+.wal-topup .wal-go:hover { background: linear-gradient(135deg, #f0a020, #d48508); color: #2b1a00; }
+.wal-terms { font-size: .75rem; }
 .wal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .wal-row .acc-field { margin: 0; }
 .wal-form > .acc-field { margin: 0; }
@@ -109,8 +135,12 @@
 @media (max-width: 34rem) {
 	.wal-total { font-size: 2rem; }
 	.wal-row { grid-template-columns: minmax(0, 1fr); }
-	.wal-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-	.wal-chip-other { grid-column: span 3; }
+	.wal-total .y4-coin { width: 32px; height: 32px; }
+	.wal-gifts { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .4rem; }
+	.wal-gift { padding: .65rem .2rem .55rem; }
+	.wal-gift-i { font-size: 1.85rem; }
+	.wal-gift b { font-size: .75rem; }
+	.wal-packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.wal-list li, .wal-earn .wal-list li { grid-template-columns: minmax(0, 1fr) auto; }
 	.wal-list li time { grid-column: 1 / -1; }
 }

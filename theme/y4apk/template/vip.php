@@ -33,7 +33,8 @@ $perks = [
 ];
 $added = (int) $vp['added'];
 $wal = $vp['wallet'] ?? null; // 2.64: the member's balance, when the wallet is on
-$form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
+$have = $wal !== null ? Y4APK_Wallet::coins($wal['credit']) : 0; // 2.68: VIP from coins
+$form = $vp['pay'] || $have > 0;
 ?>
 <div class="vip">
 	<section class="vip-hero<?php echo $on ? ' is-on' : ''; ?>">
@@ -117,11 +118,12 @@ $form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
 		<div class="vip-plans">
 			<?php foreach ($plans as $i => $p) : $save = Y4APK_VIP::saving($p); ?>
 				<label class="vip-plan">
-					<input type="radio" name="vip_plan" value="<?php echo (int) $p['days']; ?>" <?php checked($i, $pick); ?> data-label="<?php echo esc_attr(Y4APK_VIP::money($p['price']) . ' / ' . Y4APK_VIP::plan_label($p['days'])); ?>">
+					<input type="radio" name="vip_plan" value="<?php echo (int) $p['days']; ?>" <?php checked($i, $pick); ?> data-label="<?php echo esc_attr(Y4APK_VIP::money($p['price']) . ' / ' . Y4APK_VIP::plan_label($p['days'])); ?>"<?php if ($wal !== null) : ?> data-coins="<?php echo (int) Y4APK_Wallet::vip_coins($p); ?>"<?php endif; ?>>
 					<?php if ($save !== '') : ?><span class="vip-plan-save"><?php echo esc_html($save); ?></span><?php endif; ?>
 					<span class="vip-plan-n"><?php echo esc_html(Y4APK_VIP::plan_label($p['days'])); ?></span>
 					<span class="vip-plan-p"><?php echo esc_html(Y4APK_VIP::money($p['price'])); ?></span>
 					<?php if ($p['was'] !== '') : ?><s class="vip-plan-was"><?php echo esc_html(Y4APK_VIP::money($p['was'])); ?></s><?php endif; ?>
+					<?php if ($wal !== null) : ?><span class="vip-plan-c"><?php echo Y4APK_Wallet::coin_icon(14); // phpcs:ignore WordPress.Security.EscapeOutput ?><?php echo esc_html(number_format_i18n(Y4APK_Wallet::vip_coins($p))); ?></span><?php endif; ?>
 				</label>
 			<?php endforeach; ?>
 		</div>
@@ -129,19 +131,19 @@ $form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
 			<label class="vip-gift"><input type="checkbox" name="gift" value="1"><span><b><?php esc_html_e('Buy as a gift', 'y4apk'); ?></b><small><?php esc_html_e('You get a code to give to a friend; nothing is added to your account.', 'y4apk'); ?></small></span></label>
 			<div class="vip-pay-bar">
 				<?php if ($me) : ?>
-				<?php if ($wal !== null && $wal['total'] > 0) : // 2.64: at once, from the balance ?>
-				<button class="acc-btn acc-btn-primary vip-pay vip-pay-wallet" type="submit" name="pay_with" value="wallet" data-vip-wallet="<?php echo esc_attr(Y4APK_Wallet::plain($wal['total'])); ?>">
-					<span><?php esc_html_e('Pay from your balance', 'y4apk'); ?></span>
-					<small><?php echo esc_html(sprintf(__('You have %s', 'y4apk'), Y4APK_Wallet::fmt($wal['total']))); ?></small>
+				<?php if ($have > 0) : // 2.64: at once, from the balance (2.68: in coins) ?>
+				<button class="acc-btn acc-btn-primary vip-pay vip-pay-wallet" type="submit" name="pay_with" value="wallet" data-vip-wallet="<?php echo (int) $have; ?>">
+				<span><?php echo Y4APK_Wallet::coin_icon(18); // phpcs:ignore WordPress.Security.EscapeOutput ?><?php echo esc_html(sprintf(__('Pay with %s', 'y4apk'), Y4APK_Wallet::coin_name())); ?></span>
+				<small data-vip-coins="<?php echo esc_attr__('%1$s · you have %2$s', 'y4apk'); ?>" data-have="<?php echo esc_attr(number_format_i18n($have)); ?>"><?php echo esc_html(sprintf(__('You have %s', 'y4apk'), Y4APK_Wallet::fmt_coins($wal['credit']))); ?></small>
 				</button>
 				<?php endif; ?>
 				<?php if ($vp['pay']) : ?>
-				<button class="acc-btn acc-btn-primary vip-pay<?php echo $wal !== null && $wal['total'] > 0 ? ' acc-btn-ghost' : ''; ?>" type="submit" name="pay_with" value="crypto">
+				<button class="acc-btn acc-btn-primary vip-pay<?php echo $have > 0 ? ' acc-btn-ghost' : ''; ?>" type="submit" name="pay_with" value="crypto">
 					<span><?php esc_html_e('Pay now', 'y4apk'); ?></span>
 					<small data-vip-price><?php echo esc_html(isset($plans[$pick]) ? Y4APK_VIP::money($plans[$pick]['price']) . ' / ' . Y4APK_VIP::plan_label($plans[$pick]['days']) : ''); ?></small>
 				</button>
 				<?php endif; ?>
-				<?php if ($wal !== null && $vp['pay']) : ?><p class="vip-pay-note"><a href="<?php echo esc_url(Y4APK_Wallet::url()); ?>#topup"><?php echo esc_html($wal['total'] > 0 ? __('Top up your balance', 'y4apk') : __('Or top up your balance once and pay any plan from it', 'y4apk')); ?></a></p><?php endif; ?>
+				<?php if ($wal !== null && $vp['pay']) : ?><p class="vip-pay-note"><a href="<?php echo esc_url(Y4APK_Wallet::url()); ?>#topup"><?php echo esc_html($have > 0 ? sprintf(__('Buy more %s', 'y4apk'), Y4APK_Wallet::coin_name()) : sprintf(__('Or buy %s once and pay any plan with them', 'y4apk'), Y4APK_Wallet::coin_name())); ?></a></p><?php endif; ?>
 				<?php else : ?>
 				<a class="acc-btn acc-btn-primary vip-pay" href="<?php echo esc_url($M::url('login')); ?>"><span><?php esc_html_e('Sign in to pay', 'y4apk'); ?></span><small><?php esc_html_e('VIP is kept with your account', 'y4apk'); ?></small></a>
 				<?php endif; ?>
@@ -217,7 +219,7 @@ $form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
 	<?php if (class_exists('Y4APK_Wallet') && Y4APK_Wallet::on()) : // 2.64 ?>
 	<a class="acc-card vip-tipus" href="<?php echo esc_url($me ? Y4APK_Wallet::tip_url() : $M::url('login')); ?>">
 		<span class="vip-perk-i" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg></span>
-		<span class="vip-perk-t"><b><?php esc_html_e('Tip us', 'y4apk'); ?></b><small><?php esc_html_e('Not after VIP? A tip of any size keeps the files coming.', 'y4apk'); ?></small></span>
+		<span class="vip-perk-t"><b><?php esc_html_e('Gift us', 'y4apk'); ?></b><small><?php esc_html_e('Not after VIP? A gift of any size keeps the files coming.', 'y4apk'); ?></small></span>
 		<span class="vip-tipus-go" aria-hidden="true">→</span>
 	</a>
 	<?php endif; ?>
@@ -230,9 +232,16 @@ $form = $vp['pay'] || ($wal !== null && $wal['total'] > 0);
 </div>
 <script>
 (function () {
-	var price = document.querySelector('[data-vip-price]');
+	var price = document.querySelector('[data-vip-price]'), coins = document.querySelector('[data-vip-coins]');
+	var coinsFor = function (r) {
+		if (!coins || !r.getAttribute('data-coins')) { return; }
+		var n = +r.getAttribute('data-coins'), have = +document.querySelector('[data-vip-wallet]').getAttribute('data-vip-wallet');
+		coins.textContent = coins.getAttribute('data-vip-coins').replace('%1$s', n.toLocaleString() + ' ' + <?php echo wp_json_encode(class_exists('Y4APK_Wallet') ? Y4APK_Wallet::coin_name() : ''); ?>).replace('%2$s', coins.getAttribute('data-have'));
+		coins.parentNode.classList.toggle('is-short', n > have);
+	};
 	document.querySelectorAll('.vip-plan input').forEach(function (r) {
-		r.addEventListener('change', function () { if (price && r.checked) { price.textContent = r.getAttribute('data-label'); } });
+		if (r.checked) { coinsFor(r); }
+		r.addEventListener('change', function () { if (price && r.checked) { price.textContent = r.getAttribute('data-label'); } if (r.checked) { coinsFor(r); } });
 	});
 	document.querySelectorAll('[data-vip-copy]').forEach(function (b) {
 		b.addEventListener('click', function () {

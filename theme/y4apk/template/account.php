@@ -1185,7 +1185,7 @@ if ($screen === 'login') {
 						<a class="prf-btn prf-btn-msg" href="<?php echo esc_url($c['user'] ? Y4APK_DM::url(['to' => $u->user_login]) : $M::url('login')); ?>" rel="nofollow"><?php echo $si('chat'); ?><span><?php esc_html_e('Message', 'y4apk'); ?></span></a>
 					<?php endif; ?>
 					<?php if (!$c['own'] && class_exists('Y4APK_Wallet') && Y4APK_Wallet::on() && Y4APK_Wallet::creator($u->ID)['ok']) : // 2.64 ?>
-						<a class="prf-btn prf-btn-tip" href="<?php echo esc_url($c['user'] ? Y4APK_Wallet::tip_url($u) : $M::url('login')); ?>"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg><span><?php esc_html_e('Tip', 'y4apk'); ?></span></a>
+						<a class="prf-btn prf-btn-tip" href="<?php echo esc_url($c['user'] ? Y4APK_Wallet::tip_url($u) : $M::url('login')); ?>"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5A5.5 5.5 0 0 1 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3 5.5 5.5 0 0 1 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg><span><?php esc_html_e('Gift', 'y4apk'); ?></span></a>
 					<?php endif; ?>
 					<button type="button" class="prf-btn" data-open="prf-share"><?php echo $si('share'); ?><span><?php esc_html_e('Share', 'y4apk'); ?></span></button>
 				</div>

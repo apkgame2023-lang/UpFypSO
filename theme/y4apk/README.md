@@ -643,6 +643,50 @@ was more than 120px, so short ones like a three-paragraph article never folded);
 a one-paragraph article still shows whole. The *Show more* button sits in the
 middle. Folding is by height (about 12.5rem shown), not by a number of letters.
 
+## Y4 Coins and gifts (2.68)
+
+What members spend is now **coins**, like TikTok coins or Robux: bought in
+packs, spent on VIP and on gifts to creators. Creator earnings stay money and
+are what gets withdrawn. Settings: Y4APK ▸ Wallet ▸ Settings ▸ *Coins and gifts*.
+
+- **Coins.** *Y4 Coins* by default (the name is a setting), 100 to the dollar
+  (*Coins in one dollar*; set it once, it changes what everyone's coins are
+  worth). Kept where the balance was (`credit`, micro units), so balances
+  carried over by themselves: $12.34 of balance is now 1,234 coins. Coins have
+  no cash value: never paid out, never refunded, never moved to another member
+  except as a gift.
+- **Coin packs** replace the top-up amounts: `price=coins`, up to 6
+  (`10=1000, 20=2100, 50=5500, 100=12000` by default: +5%, +10%, +20%; the badge
+  shows the extra). Packs under *Smallest payment* are left out. The order keeps
+  the pack's coins in its meta, so a pack paid after the setting changed still
+  gives what was shown; the extra is a *Bonus coins* line in the history.
+  Top-ups ordered before 2.68 are still credited the old way.
+- **VIP in coins.** Each plan shows its price in coins (price × coins per
+  dollar, rounded up: $4.99 = 499). *Pay with Y4 Coins* shows what the plan
+  costs and what the member has; crypto stays next to it.
+- **Gifts** replace tips: 🌹 Rose 10, 🔥 Fire 50, 💎 Diamond 500, 👑 Crown 2,000
+  (coins each; 0 hides one). Gift a creator (*Gift* on profiles and posts) or
+  the site (*Gift us*). The creator gets the gift's value less the site's share
+  (still 20%: a 500-coin Diamond is $4.00 to them). Tips paid straight away with
+  crypto are gone; coins are spent only from coins, not from earnings.
+- **Against gifting yourself:** a gift to a creator is refused from an account
+  less than a day old, or when the giver's connection matches the creator's
+  (their registration, or where they last opened their wallet). Only one-way
+  hashes of connections are compared and kept (`y4apk_ip`, `y4apk_ip_last`),
+  like registration already did. A member gives at most *Coins one member may
+  give a day* (10,000) in 24 hours, and 30 gifts in 10 minutes. A creator gets
+  at most one gift email in 30 minutes.
+- **The hold.** Earnings from gifts can be withdrawn after *Days a gift waits*
+  (14): the wallet shows *Ready to withdraw* and *On hold*, and the date the
+  held part frees up. Time to catch stolen cards and charge-backs. Download
+  earnings are not held.
+- **Terms and Privacy** (the *VIP, coins, gifts and creator earnings* section):
+  coins are a limited licence with no cash value; under 18, ask a parent or
+  guardian before buying; gifts cannot be taken back; no gifting yourself; the
+  hold. Privacy says connections are compared as one-way hashes. Last updated
+  10 November 2026.
+- The tips table has a `gift` column (`y4apk_wallet_db` 3).
+
 ## Download earnings by country (2.67.1)
 
 `inc/wallet-geo.php`. Wallet ▸ Settings ▸ *Pay by country*: what a creator
