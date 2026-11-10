@@ -183,6 +183,16 @@ class Y4APK_Members_Admin {
 		if ($why === '') {
 			self::back('y4apk-review', ['msg' => 'noreason']);
 		}
+		self::send_back($id, $why);
+		self::back('y4apk-review', ['msg' => 'rejected']);
+	}
+
+	/** Back to the member with what to change (a draft they can edit), and an email (2.70: also from the AI review). */
+	public static function send_back($id, $why) {
+		$post = get_post($id);
+		if (!$post) {
+			return;
+		}
 		update_post_meta($id, Y4APK_Members::REJECT, wp_slash($why));
 		wp_update_post(['ID' => $id, 'post_status' => 'draft']);
 		$user = get_userdata($post->post_author);
@@ -193,7 +203,6 @@ class Y4APK_Members_Admin {
 			Y4APK_Members::mail($user->user_email, __('Your script needs a change', 'y4apk'),
 				Y4APK_Members::message('changes', ['name' => $user->user_login, 'title' => wp_strip_all_tags(get_the_title($id)), 'why' => $why, 'link' => Y4APK_Members::url('edit/' . $id)]));
 		}
-		self::back('y4apk-review', ['msg' => 'rejected']);
 	}
 
 	public static function review_ban() {
@@ -249,7 +258,10 @@ class Y4APK_Members_Admin {
 		if (!current_user_can('edit_others_posts')) {
 			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'), 403);
 		}
-		$msgs = ['approved' => __('Approved: it is live, and the member was told.', 'y4apk'), 'rejected' => __('Sent back to the member with your note.', 'y4apk'), 'banned' => __('Account closed; what was waiting is removed and what they published is back in review.', 'y4apk'),
+		$msgs = ['approved' => __('Approved: it is live, and the member was told.', 'y4apk'), 'rejected' => __('Sent back to the member with your note.', 'y4apk'),
+			'ai_approve' => __('The AI found it fine: it is live, and the member was told.', 'y4apk'), 'ai_send_back' => __('The AI sent it back to the member with what to change.', 'y4apk'),
+			'ai_unsafe' => __('The AI thinks it is unsafe: it stays here (see its note).', 'y4apk'), 'ai_unsure' => __('The AI is not sure: it stays here for you (see its note).', 'y4apk'),
+			'ai_err' => __('The AI could not answer now (see the note). It tries again by itself.', 'y4apk'), 'banned' => __('Account closed; what was waiting is removed and what they published is back in review.', 'y4apk'),
 			'unbanned' => __('Account allowed again.', 'y4apk'), 'dismissed' => __('Reports cleared.', 'y4apk'), 'rereview' => __('Back in review.', 'y4apk'), 'gone' => __('That script is no longer here.', 'y4apk'),
 			'nogame' => __('Choose the game (or type a new one) before approving.', 'y4apk'), 'noreason' => __('Write what the member should change.', 'y4apk'),
 			'shared' => __('Approved: it is live with its download, and the member was told.', 'y4apk'), 'writing' => __('Approved: Write with AI writes its article, icon and screenshots, then it goes live and the member is told.', 'y4apk'),
@@ -412,6 +424,7 @@ class Y4APK_Members_Admin {
 			</div>
 			<?php if ($desc !== '') : ?><p class="y4rv-desc"><?php echo esc_html($desc); ?></p><?php endif; ?>
 			<?php self::codes($p->ID); ?>
+			<?php if (class_exists('Y4APK_AI_Review')) { echo Y4APK_AI_Review::note($p->ID); } // phpcs:ignore WordPress.Security.EscapeOutput -- 2.70: what the AI said ?>
 			<?php $xs = class_exists('Y4APK_Executors') ? array_filter(array_map('intval', (array) get_post_meta($p->ID, Y4APK_Executors::ON_SCRIPT, true))) : []; if ($xs) : ?><p class="y4rv-hosts"><?php esc_html_e('Works with:', 'y4apk'); ?> <?php echo esc_html(implode(', ', array_map('get_the_title', $xs))); ?></p><?php endif; ?>
 			<div class="y4rv-decide">
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="y4rv-approve">
@@ -451,6 +464,8 @@ class Y4APK_Members_Admin {
 			. '.y4rv-code{margin:10px 0}.y4rv-code span{display:block;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#646970}.y4rv-code pre{margin:0;padding:12px 14px;background:#1d2327;color:#f0f0f1;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px;line-height:1.5}'
 			. '.y4rv-hosts{margin:6px 0 4px;font-size:12px;color:#646970}.y4rv-host{display:inline-flex;align-items:center;height:22px;margin:0 4px 4px 0;padding:0 9px;border-radius:99px;font-weight:600}'
 			. '.y4rv-host.is-ok{background:#e4f7ea;color:#14602a}.y4rv-host.is-new{background:#fff4de;color:#7a4d00}'
+			. '.y4rv-ai{margin:8px 0 4px;padding:8px 12px;border-radius:10px;background:#f0f6fc;color:#1d2327;font-size:13px;line-height:1.5}.y4rv-ai span{color:#646970;font-size:12px}' // 2.70
+			. '.y4rv-ai.is-approve{background:#e4f7ea}.y4rv-ai.is-send_back,.y4rv-ai.is-unsure{background:#fff4de}.y4rv-ai.is-unsafe,.y4rv-ai.is-error{background:#fcf0f1}.y4rv-ai-ask{display:inline-block;margin:2px 0 6px}'
 			. '.y4rv-decide{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;margin:14px -20px -18px;padding:14px 20px;background:#f6f7f7;border-top:1px solid #f0f0f1;border-radius:0 0 14px 14px}'
 			. '.y4rv-approve{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}.y4rv-approve label{display:flex;flex-direction:column;font-size:12px;font-weight:600;gap:4px}.y4rv-approve select,.y4rv-approve input[type=text]{min-width:200px}'
 			. '.y4rv-reject{display:flex;gap:8px;flex:1 1 320px;min-width:0;max-width:100%}.y4rv-reject input{flex:1;min-width:0}'
@@ -570,6 +585,7 @@ class Y4APK_Members_Admin {
 			'auto_scripts' => empty($in['auto_scripts']) ? 0 : 1,
 			'auto_files'  => empty($in['auto_files']) ? 0 : 1,
 			'auto_after'  => max(0, min(50, (int) (isset($in['auto_after']) ? $in['auto_after'] : 1))),
+			'ai_review'   => empty($in['ai_review']) ? 0 : 1,
 			'notify'      => empty($in['notify']) ? 0 : 1,
 			'early'       => empty($in['early']) ? 0 : 1,
 			'remind'      => empty($in['remind']) ? 0 : 1,
@@ -777,6 +793,9 @@ class Y4APK_Members_Admin {
 						<td><p><label><input type="checkbox" name="auto_scripts" value="1" <?php checked($s['auto_scripts']); ?>> <?php esc_html_e('Scripts whose checks pass go live at once: a game already on the site, code that only loads from your trusted addresses (below), nothing that steals accounts, buys, writes files or hides itself, and no links in the description.', 'y4apk'); ?></label></p>
 							<p><label><input type="checkbox" name="auto_files" value="1" <?php checked($s['auto_files']); ?>> <?php esc_html_e('Games and apps whose checks pass go live at once: the file is read on R2 and is really that app (its package name, from inside the APK, XAPK or OBB, is the Google Play app the member chose, or the main post’s).', 'y4apk'); ?></label></p>
 							<p><label><input type="number" min="0" max="50" name="auto_after" value="<?php echo esc_attr($s['auto_after']); ?>" style="width:5rem"> <?php esc_html_e('of a member’s uploads you approved yourself before theirs can go live at once (0: from their first)', 'y4apk'); ?></label></p>
+							<p><label><input type="checkbox" name="ai_review" value="1" <?php checked(!empty($s['ai_review'])); ?>> <?php echo esc_html(class_exists('Y4APK_Share') && Y4APK_Share::writer_ready()
+								? __('The AI reads every script that waits (and the code it loads): a real, safe script goes live, one that is not a script or needs a change goes back to the member with what to change, and anything that looks unsafe waits for you with what the AI saw. It uses the AI of Write with AI; email addresses are taken out first.', 'y4apk')
+								: __('The AI reads every script that waits and approves or sends it back (needs an AI key in Write with AI ▸ Settings).', 'y4apk')); ?></label></p>
 							<p class="description" style="max-width:720px"><?php esc_html_e('Anything else waits here for you, as before. What went live at once can be reported by visitors, and goes back in review at the number of reports above.', 'y4apk'); ?></p></td></tr>
 					<tr><th scope="row"><label for="y4m-hosts"><?php esc_html_e('Trusted addresses', 'y4apk'); ?></label></th>
 						<td><textarea id="y4m-hosts" name="hosts" rows="6" class="large-text code" style="max-width:420px"><?php echo esc_textarea($s['hosts']); ?></textarea>

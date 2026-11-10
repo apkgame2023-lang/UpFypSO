@@ -174,6 +174,7 @@ class Y4APK_Help_Texts {
 			], 'li' => [
 				__('With service providers that work for us: hosting, content delivery and file storage, email delivery, security and bot checks, and analytics. They may use it only to provide their service to us.', 'y4apk'),
 				__('With AI services that help write the page of an upload, using what you wrote about it; never your email or password.', 'y4apk'),
+				__('With AI services that check a script you share before it goes live (its name, game, description and code, and the code it loads); email addresses are taken out first, and your account details are never sent.', 'y4apk'),
 				__('When the law requires it, or to protect the rights, safety and property of our users, the public or Y4APK.', 'y4apk'),
 				__('If Y4APK is reorganised, merged or sold, as part of that change, under this policy.', 'y4apk'),
 				__('With your permission.', 'y4apk'),

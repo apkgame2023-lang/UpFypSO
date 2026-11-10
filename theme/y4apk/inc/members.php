@@ -101,6 +101,7 @@ class Y4APK_Members {
 			'auto_scripts' => 1,  // 2.50: scripts whose checks pass go live at once
 			'auto_files'  => 1,   // 2.50: games and apps whose file checks pass go live at once
 			'auto_after'  => 1,   // 2.50: uploads the owner approved before a member's go live at once
+			'ai_review'   => 1,   // 2.70: the AI reads scripts that wait: approves, or sends back with what to change
 			'notify'      => 1,   // email the site owner when a script arrives
 			'early'       => 1,   // 2.66: members sign in before confirming their email (sharing, paying and tips wait for it)
 			'remind'      => 1,   // 2.66: the confirmation email again, once, a day after signing up
@@ -1509,6 +1510,20 @@ class Y4APK_Members {
 		if (!$rows) {
 			$err[] = __('Paste the script’s code.', 'y4apk');
 			$step = min($step, 3);
+		}
+		// 2.70: an email address anywhere would be on the page for everyone
+		$mail = '/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i';
+		if (preg_match($mail, $hub . ' ' . $desc . ' ' . implode(' ', array_column($rows, 'code')))) {
+			$err[] = __('Take your email address out: everything here is shown to everyone. Members can message you from your profile.', 'y4apk');
+			$step = min($step, 2);
+		}
+		// 2.70: words, a game's name or a request are not a script
+		foreach ($rows as $row) {
+			if (!preg_match('/\b(?:loadstring|game\s*[:.]|require\s*\(|local\s+[A-Za-z_]|function\b|getgenv|_G\b|print\s*\(|HttpGet|workspace|Instance\.new|task\.|spawn\s*\(|while\s|for\s+[A-Za-z_]|if\s.+\sthen|end\b|return\b|pcall|setclipboard|syn\.|script\.)/i', $row['code'])) {
+				$err[] = __('This is not a Roblox script. Paste the script’s code, like loadstring(game:HttpGet("https://…"))(). Looking for a game or a script? Use the search at the top, or ask on the Contact page.', 'y4apk');
+				$step = min($step, 3);
+				break;
+			}
 		}
 		$hosts = [];
 		$hashes = [];

@@ -43,7 +43,7 @@ class Y4APK_Pictures {
 	/** Posts' own covers (2.55): new ones (to look at) or all. */
 	public static function count_covers($new) {
 		global $wpdb;
-		return class_exists('Y4APK_Cover') ? (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", $new ? Y4APK_Cover::NEW : Y4APK_Cover::META)) : 0;
+		return class_exists('Y4APK_Cover') ? (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} m JOIN {$wpdb->posts} p ON p.ID = m.post_id AND p.post_status <> 'trash' WHERE m.meta_key = %s", $new ? Y4APK_Cover::NEW : Y4APK_Cover::META)) : 0; // 2.70: not the covers of deleted posts
 	}
 
 	public static function menu() {
@@ -169,14 +169,16 @@ class Y4APK_Pictures {
 		$paged = max(1, isset($_GET['paged']) ? (int) $_GET['paged'] : 1);
 		$base = admin_url('admin.php?page=' . self::SLUG);
 		$new_n = self::count_new();
-		$all_n = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s)", Y4APK_Social::PIC, Y4APK_Social::BANNER)) + self::count_covers(false);
+		// 2.70: "All pictures" counts what its list shows (pictures and banners); covers have their own count in the list's menu
+		$all_n = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key IN (%s, %s) AND meta_value <> ''", Y4APK_Social::PIC, Y4APK_Social::BANNER));
 		$covers_new = self::count_covers(true);
+		$covers_all = self::count_covers(false);
 
 		if ($kind === 'cover' && class_exists('Y4APK_Cover')) { // posts' covers: by post meta, newest first
-			$cjoin = '';
+			$cjoin = "JOIN {$wpdb->posts} p ON p.ID = m.post_id AND p.post_status <> 'trash'"; // 2.70: not the covers of deleted posts
 			$cwhere = $wpdb->prepare('m.meta_key = %s', $tab === 'new' ? Y4APK_Cover::NEW : Y4APK_Cover::META);
 			if ($q !== '') {
-				$cjoin = "JOIN {$wpdb->posts} p ON p.ID = m.post_id JOIN {$wpdb->users} u ON u.ID = p.post_author";
+				$cjoin .= " JOIN {$wpdb->users} u ON u.ID = p.post_author";
 				$cwhere .= $wpdb->prepare(' AND u.user_login LIKE %s', $wpdb->esc_like($q) . '%');
 			}
 			$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta} m $cjoin WHERE $cwhere");
@@ -189,7 +191,7 @@ class Y4APK_Pictures {
 		} elseif ($kind === 'banner') {
 			$keys = [$keys[1]];
 		}
-		$where = $wpdb->prepare('m.meta_key IN (' . implode(',', array_fill(0, count($keys), '%s')) . ')', $keys);
+		$where = $wpdb->prepare('m.meta_key IN (' . implode(',', array_fill(0, count($keys), '%s')) . ')', $keys) . " AND m.meta_value <> ''";
 		$join = '';
 		if ($q !== '') {
 			$join = "JOIN {$wpdb->users} u ON u.ID = m.user_id";
@@ -222,7 +224,7 @@ class Y4APK_Pictures {
 					<option value="pic" <?php selected($kind, 'pic'); ?>><?php esc_html_e('Profile pictures', 'y4apk'); ?></option>
 					<option value="banner" <?php selected($kind, 'banner'); ?>><?php esc_html_e('Banners', 'y4apk'); ?></option>
 					<option value="moving" <?php selected($kind, 'moving'); ?>><?php esc_html_e('Moving (GIF)', 'y4apk'); ?></option>
-					<option value="cover" <?php selected($kind, 'cover'); ?>><?php echo esc_html(sprintf(__('Post covers (%s new)', 'y4apk'), number_format_i18n($covers_new))); ?></option>
+					<option value="cover" <?php selected($kind, 'cover'); ?>><?php echo esc_html($tab === 'new' ? sprintf(__('Post covers (%s new)', 'y4apk'), number_format_i18n($covers_new)) : sprintf(__('Post covers (%s)', 'y4apk'), number_format_i18n($covers_all))); ?></option>
 				</select>
 				<input type="search" name="q" value="<?php echo esc_attr($q); ?>" placeholder="<?php esc_attr_e('@name begins with…', 'y4apk'); ?>">
 				<button class="button"><?php esc_html_e('Show', 'y4apk'); ?></button>

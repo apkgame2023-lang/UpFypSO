@@ -643,6 +643,43 @@ was more than 120px, so short ones like a three-paragraph article never folded);
 a one-paragraph article still shows whole. The *Show more* button sits in the
 middle. Folding is by height (about 12.5rem shown), not by a number of letters.
 
+## The AI checks waiting scripts (2.70)
+
+`inc/ai-review.php`. A script that does not pass the checks for going live at
+once (Members ▸ Settings ▸ Publish at once) used to wait for you. Now the
+site's AI (the one Write with AI uses, with its keys and its stand-ins) reads
+it a minute after it is sent — its game, name, description, code, and the
+first 6,000 characters of the code a loadstring loads (fetched by this server
+from public addresses only):
+
+- **Looks fine** → it goes live under its game (a new game is made), the member
+  is told, as if you approved it.
+- **Not a script / needs a change** (words, a request, an email, a link to a
+  page, empty code, the wrong game, spam) → back to the member with what to
+  change, by email, like *Send back*.
+- **Unsafe** (steals accounts or cookies, webhooks, IP loggers, purchases,
+  hidden code) or **not sure** → it waits in Review with what the AI said.
+- Code matching the risky patterns (buys, writes files, loads by number, hides
+  its code) is never published by the AI: it waits, with a note.
+- Email addresses are replaced by `[email]` before anything goes to the AI.
+- The card in Review shows the AI's answer (which AI, when); **Ask the AI**
+  asks again. When the AI is busy it tries again every 15 minutes (6 times).
+- Members ▸ Settings ▸ Publish at once: *The AI reads every script that waits*
+  (on; it needs an AI key in Write with AI).
+
+**The form stops two kinds of mistakes before they are sent:** an email address
+in the name, description or code ("Take your email address out: everything here
+is shown to everyone…"), and code that is not code at all — no Lua in it, like a
+game's name and an email ("This is not a Roblox script… Looking for a game or a
+script? Use the search…").
+
+**Pictures:** *All pictures (N)* counts what its list shows — profile pictures
+and banners (not empty ones); post covers have their own count in the list's
+menu (*Post covers (N)*), and covers of deleted posts are not counted or shown.
+
+Privacy: a line that shared scripts are checked by an AI service, without
+email addresses or account details.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;
