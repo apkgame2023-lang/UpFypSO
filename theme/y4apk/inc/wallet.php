@@ -69,6 +69,14 @@ class Y4APK_Wallet {
 		if (!wp_next_scheduled(self::CRON)) {
 			wp_schedule_event(strtotime('tomorrow 00:20') ?: time() + HOUR_IN_SECONDS, 'daily', self::CRON);
 		}
+		if (!get_option('y4apk_wallet_2681')) { // 2.68.1: coins are bought from $12.49
+			$o = get_option(self::OPTION);
+			if (is_array($o) && isset($o['min_topup']) && (float) $o['min_topup'] < 12.49) {
+				$o['min_topup'] = '12.49';
+				update_option(self::OPTION, $o, false);
+			}
+			update_option('y4apk_wallet_2681', 1, false);
+		}
 		if (get_option('y4apk_wallet_db') === self::DBV) {
 			return;
 		}
@@ -160,7 +168,7 @@ class Y4APK_Wallet {
 		return [
 			'on'         => 1,
 			'topups'     => '5, 10, 20, 50, 100',
-			'min_topup'  => '10',     // the smallest payment the payment company takes, about
+			'min_topup'  => '12.49',  // the smallest payment (2.68.1: also the smallest amount of coins to buy)
 			'bonus_from' => '0',
 			'bonus_pct'  => '0',
 			'site_tips'  => '1, 2, 5, 10, 20, 50',
@@ -174,7 +182,7 @@ class Y4APK_Wallet {
 			// 2.68: Y4 Coins
 			'coin_name'  => 'Y4 Coins',
 			'coins_per'  => '100',    // coins in one dollar (or one of the currency)
-			'packs'      => '10=1000, 20=2100, 50=5500, 100=12000', // price=coins
+			'packs'      => '12.49=1249, 20=2100, 50=5500, 100=12000', // price=coins
 			'gifts'      => ['rose' => 10, 'fire' => 50, 'diamond' => 500, 'crown' => 2000], // coins; 0 hides one
 			'gift_day'   => '10000',  // coins one member may give away in 24 hours
 			'hold_days'  => '14',     // days a gift waits before it can be withdrawn
@@ -339,6 +347,37 @@ class Y4APK_Wallet {
 		return null;
 	}
 
+	/**
+	 * 2.68.1: coins for any amount (dollars): a pack's own coins at its price;
+	 * otherwise the rate of the biggest pack it reaches (so $35 gets the $20
+	 * pack's +5%), or the plain rate below the first pack.
+	 * ['coins' => int, 'extra' => % more than the plain rate].
+	 */
+	public static function coins_for($amount) {
+		$amount = round((float) $amount, 2);
+		$rate = self::coins_per();
+		$extra = 0;
+		foreach (self::packs() as $p) {
+			if (abs($p['price'] - $amount) < .001) {
+				return ['coins' => $p['coins'], 'extra' => $p['extra']];
+			}
+			if ($p['price'] <= $amount && $p['coins'] / $p['price'] > $rate) {
+				$rate = $p['coins'] / $p['price'];
+				$extra = $p['extra'];
+			}
+		}
+		return ['coins' => (int) floor(round($amount * $rate, 4)), 'extra' => $extra];
+	}
+
+	/** The coin rates for the page's live sum: [[from price, coins per dollar, extra %], …]. */
+	public static function rates() {
+		$out = [[0, self::coins_per(), 0]];
+		foreach (self::packs() as $p) {
+			$out[] = [$p['price'], $p['coins'] / $p['price'], $p['extra']];
+		}
+		return $out;
+	}
+
 	/** The gifts on offer: key => ['icon', 'name', 'coins'], cheapest first. */
 	public static function gifts() {
 		$names = ['rose' => __('Rose', 'y4apk'), 'fire' => __('Fire', 'y4apk'), 'diamond' => __('Diamond', 'y4apk'), 'crown' => __('Crown', 'y4apk')];
@@ -354,9 +393,12 @@ class Y4APK_Wallet {
 		return $out;
 	}
 
-	/** What a VIP plan costs in coins. */
+	/** What a VIP plan costs in coins: its own number (2.68.1), or its price × coins in one dollar. */
 	public static function vip_coins($plan) {
-		return (int) ceil(round((float) $plan['price'] * self::coins_per(), 4));
+		if ((int) ($plan['coins'] ?? 0) > 0) {
+			return (int) $plan['coins'];
+		}
+		return (int) ceil(round((float) ($plan['price'] ?? 0) * self::coins_per(), 4));
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -1017,10 +1059,12 @@ class Y4APK_Wallet {
 			}
 		}
 		if ($do === 'wallet_topup') {
-			$pack = self::pack(self::money_in('pack'));
-			if (!$pack) {
-				$ctx['errors'][] = __('Choose a coin pack.', 'y4apk');
+			$amount = self::money_in('amount') ?: self::money_in('pack'); // 2.68.1: any amount, or a pack
+			$ctx['old'] += ['amount' => self::money_in('amount') ?: ''];
+			if ($amount < (float) $s['min_topup'] || $amount > 1000) {
+				$ctx['errors'][] = sprintf(__('Buy coins for %1$s to %2$s.', 'y4apk'), Y4APK_VIP::money($s['min_topup']), Y4APK_VIP::money(1000));
 			} else {
+				$pack = ['price' => $amount] + self::coins_for($amount);
 				$go = Y4APK_Pay::create($uid, 'topup', $pack['price'], ['meta' => ['coins' => $pack['coins']]], 'Coins');
 				if (is_wp_error($go)) {
 					$ctx['errors'][] = $go->get_error_message();

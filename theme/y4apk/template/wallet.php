@@ -30,6 +30,13 @@ if (!isset($gifts[$pick_gift])) {
 $methods = $W::methods_on();
 $pt = $w['pay_to'];
 $terms = class_exists('Y4APK_Help') ? Y4APK_Help::url('terms') . '#wallet' : '';
+// 2.68.1: any amount; from the VIP page (?need=coins) the amount that covers what is missing
+$min_buy = (float) $set['min_topup'];
+$buy_amount = isset($c['old']['amount']) && $c['old']['amount'] !== '' ? (float) $c['old']['amount'] : 0;
+$need = isset($_GET['need']) ? absint($_GET['need']) : 0;
+if (!$buy_amount && $need > $coins) {
+	$buy_amount = max($min_buy, ceil(($need - $coins) * 100 / $W::coins_per()) / 100);
+}
 /** A history line's amount: coins for what was spent or bought, money for earnings. */
 $amount_of = function ($credit, $earned) use ($W) {
 	$out = [];
@@ -135,21 +142,27 @@ $amount_of = function ($credit, $earned) use ($W) {
 	<section class="acc-card wal-topup" id="topup">
 		<div class="wal-head">
 			<span class="wal-head-i is-gold"><?php echo $W::coin_icon(26); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
-			<div><h2><?php echo esc_html(sprintf(__('Buy %s', 'y4apk'), $cname)); ?></h2><p><?php esc_html_e('Spend them on VIP and on gifts to creators. Bigger packs give more coins.', 'y4apk'); ?></p></div>
+			<div><h2><?php echo esc_html(sprintf(__('Buy %s', 'y4apk'), $cname)); ?></h2><p><?php esc_html_e('Spend them on VIP and on gifts to creators. Pick a pack or type any amount: bigger amounts give more coins.', 'y4apk'); ?></p></div>
 		</div>
-		<?php if ($w['pay'] && $packs) : ?>
-		<form method="post" action="<?php echo esc_url($W::url()); ?>#topup" class="wal-form" data-wal-topup>
+		<?php if ($need > $coins) : ?><p class="acc-note"><?php echo esc_html(sprintf(__('You need %1$s more for that VIP plan.', 'y4apk'), number_format_i18n($need - $coins) . ' ' . $cname)); ?></p><?php endif; ?>
+		<?php if ($w['pay']) : ?>
+		<form method="post" action="<?php echo esc_url($W::url()); ?>#topup" class="wal-form" data-wal-topup data-rates="<?php echo esc_attr(wp_json_encode($W::rates())); ?>" data-min="<?php echo esc_attr($min_buy); ?>">
 			<input type="hidden" name="y4_do" value="wallet_topup">
 			<?php echo $M::nonce('wallet'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			<div class="wal-packs">
 				<?php foreach ($packs as $i => $p) : ?>
 					<label class="wal-pack">
-						<input type="radio" name="pack" value="<?php echo esc_attr($p['price']); ?>" data-price="<?php echo esc_attr(Y4APK_VIP::money($p['price'])); ?>" <?php checked($i, min(1, count($packs) - 1)); ?>>
+						<input type="radio" name="pack" value="<?php echo esc_attr($p['price']); ?>" data-price="<?php echo esc_attr(Y4APK_VIP::money($p['price'])); ?>" <?php checked(!$buy_amount && $i === min(1, count($packs) - 1)); ?>>
 						<?php if ($p['extra'] > 0) : ?><em><?php echo esc_html(sprintf(__('+%s%%', 'y4apk'), number_format_i18n($p['extra']))); ?></em><?php endif; ?>
 						<span class="wal-pack-n"><?php echo $coin; // phpcs:ignore WordPress.Security.EscapeOutput ?><b><?php echo esc_html(number_format_i18n($p['coins'])); ?></b></span>
 						<span class="wal-pack-p"><?php echo esc_html(Y4APK_VIP::money($p['price'])); ?></span>
 					</label>
 				<?php endforeach; ?>
+			</div>
+			<div class="wal-own">
+				<label for="wal-amount-in"><?php esc_html_e('Or any amount', 'y4apk'); ?></label>
+				<div class="wal-own-in"><span class="wal-cur"><?php echo esc_html(Y4APK_VIP::currencies()[Y4APK_VIP::settings()['currency']] ?? '$'); ?></span><input type="text" id="wal-amount-in" name="amount" inputmode="decimal" autocomplete="off" placeholder="<?php echo esc_attr(number_format((float) $min_buy, 2, '.', '')); ?>" value="<?php echo $buy_amount ? esc_attr(number_format($buy_amount, 2, '.', '')) : ''; ?>"></div>
+				<span class="wal-own-out" data-wal-gets data-t="<?php echo esc_attr__('= %s coins', 'y4apk'); ?>" data-low="<?php echo esc_attr(sprintf(__('From %s', 'y4apk'), Y4APK_VIP::money($min_buy))); ?>"></span>
 			</div>
 			<button type="submit" class="acc-btn acc-btn-primary wal-go"><span data-wal-label="<?php echo esc_attr__('Pay %s with crypto', 'y4apk'); ?>"><?php esc_html_e('Pay with crypto', 'y4apk'); ?></span></button>
 			<p class="wal-small"><?php esc_html_e('USDT, BTC, ETH and 300 more, on a secure payment page; the coins are added the moment the payment is confirmed.', 'y4apk'); ?></p>
@@ -272,10 +285,28 @@ $amount_of = function ($credit, $earned) use ($W) {
 		tip.addEventListener('change', paint); paint();
 	}
 	var top = document.querySelector('[data-wal-topup]');
-	if (top) {
-		var tl = top.querySelector('[data-wal-label]');
-		var paintTop = function () { var r = top.querySelector('input[name="pack"]:checked'); if (r) { tl.textContent = tl.getAttribute('data-wal-label').replace('%s', r.getAttribute('data-price')); } };
-		top.addEventListener('change', paintTop); paintTop();
+	if (top) { // 2.68.1: a pack, or any amount from the smallest, with the coins it gets
+		var tl = top.querySelector('[data-wal-label]'), own = top.querySelector('input[name="amount"]'), gets = top.querySelector('[data-wal-gets]'), go = top.querySelector('.wal-go');
+		var rates = JSON.parse(top.getAttribute('data-rates') || '[]'), min = parseFloat(top.getAttribute('data-min')) || 0, cur = <?php echo wp_json_encode(Y4APK_VIP::currencies()[Y4APK_VIP::settings()['currency']] ?? '$'); ?>;
+		var money = function (n) { return cur + n.toFixed(2); };
+		var coinsFor = function (a) { var r = rates[0], i; for (i = 1; i < rates.length; i++) { if (rates[i][0] <= a + 1e-9 && rates[i][1] > r[1]) { r = rates[i]; } } return [Math.floor(Math.round(a * r[1] * 10000) / 10000), r[2]]; };
+		var paintTop = function () {
+			var v = own.value.trim() !== '' ? parseFloat(own.value.replace(',', '.')) : NaN;
+			if (!isNaN(v)) {
+				top.querySelectorAll('input[name="pack"]').forEach(function (r) { r.checked = false; });
+				var ok = v >= min - 1e-9 && v <= 1000, c = coinsFor(v);
+				gets.textContent = ok ? gets.getAttribute('data-t').replace('%s', fmt(c[0])) + (c[1] > 0 ? ' (+' + c[1] + '%)' : '') : gets.getAttribute('data-low');
+				gets.classList.toggle('is-low', !ok);
+				tl.textContent = tl.getAttribute('data-wal-label').replace('%s', money(Math.round(v * 100) / 100));
+				go.disabled = !ok;
+				return;
+			}
+			gets.textContent = ''; go.disabled = false;
+			var r = top.querySelector('input[name="pack"]:checked');
+			if (r) { tl.textContent = tl.getAttribute('data-wal-label').replace('%s', r.getAttribute('data-price')); } else { go.disabled = true; }
+		};
+		top.querySelectorAll('input[name="pack"]').forEach(function (r) { r.addEventListener('change', function () { own.value = ''; paintTop(); }); });
+		own.addEventListener('input', paintTop); paintTop();
 	}
 	var out = document.querySelector('[data-wal-out]');
 	if (out) {

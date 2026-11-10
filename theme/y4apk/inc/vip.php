@@ -89,9 +89,9 @@ class Y4APK_VIP {
 	public static function defaults() {
 		return [
 			'plans'     => [
-				['days' => 7, 'price' => '3.99', 'was' => ''],
-				['days' => 30, 'price' => '5.99', 'was' => ''],
-				['days' => 365, 'price' => '59.99', 'was' => '74.99'],
+				['days' => 7, 'price' => '3.99', 'was' => '', 'coins' => '', 'was_coins' => ''],
+				['days' => 30, 'price' => '5.99', 'was' => '', 'coins' => '', 'was_coins' => ''],
+				['days' => 365, 'price' => '59.99', 'was' => '74.99', 'coins' => '', 'was_coins' => ''],
 			],
 			'currency'  => 'USD',
 			'buy_url'   => '',
@@ -103,9 +103,11 @@ class Y4APK_VIP {
 		if (self::$settings === null) {
 			$o = get_option(self::OPTION, []);
 			self::$settings = wp_parse_args(is_array($o) ? $o : [], self::defaults());
-			self::$settings['plans'] = array_values(array_filter((array) self::$settings['plans'], function ($p) {
+			self::$settings['plans'] = array_values(array_map(function ($p) {
+				return $p + ['price' => '', 'was' => '', 'coins' => '', 'was_coins' => '']; // 2.68.1: a price in coins too
+			}, array_filter((array) self::$settings['plans'], function ($p) {
 				return is_array($p) && (int) ($p['days'] ?? 0) > 0;
-			}));
+			})));
 		}
 		return self::$settings;
 	}
@@ -135,10 +137,19 @@ class Y4APK_VIP {
 		return sprintf(_n('%s day', '%s days', $days, 'y4apk'), number_format_i18n($days));
 	}
 
-	/** "Save 20%" from a plan's old price, or ''. */
+	/** 2.68.1: VIP is bought with coins (the wallet is on), not paid for straight away. */
+	public static function in_coins() {
+		return class_exists('Y4APK_Wallet') && Y4APK_Wallet::on();
+	}
+
+	/** "Save 20%" from a plan's old price (in coins, when VIP is bought with coins), or ''. */
 	public static function saving($plan) {
-		$was = (float) ($plan['was'] ?? 0);
-		$now = (float) ($plan['price'] ?? 0);
+		$coins = self::in_coins();
+		$was = (float) ($coins ? ($plan['was_coins'] ?? 0) : ($plan['was'] ?? 0));
+		if ($coins && $was <= 0 && (int) ($plan['coins'] ?? 0) < 1 && (float) ($plan['was'] ?? 0) > 0) {
+			$was = ceil((float) $plan['was'] * Y4APK_Wallet::coins_per()); // both in dollars: the same saving
+		}
+		$now = (float) ($coins ? Y4APK_Wallet::vip_coins($plan) : ($plan['price'] ?? 0));
 		if ($was <= 0 || $now <= 0 || $was <= $now) {
 			return '';
 		}
@@ -331,7 +342,7 @@ class Y4APK_VIP {
 				$ctx['errors'][] = __('Choose a plan.', 'y4apk');
 			} elseif (Y4APK_Members::unconfirmed()) { // 2.66
 				$ctx['errors'][] = __('Confirm your email first: open the link we sent you, then try again.', 'y4apk');
-			} elseif (($_POST['pay_with'] ?? '') === 'wallet' && class_exists('Y4APK_Wallet')) { // 2.64: from the balance, at once
+			} elseif ((($_POST['pay_with'] ?? '') === 'wallet' || self::in_coins()) && class_exists('Y4APK_Wallet')) { // 2.64: from the balance, at once (2.68.1: the only way, in coins)
 				$r = Y4APK_Wallet::buy_vip($uid, $plan, !empty($_POST['gift']));
 				if (!$r['ok']) {
 					$ctx['errors'][] = $r['why'];
@@ -530,11 +541,14 @@ class Y4APK_VIP {
 			foreach ((array) ($in['plans'] ?? []) as $p) {
 				$days = absint($p['days'] ?? 0);
 				$price = preg_replace('/[^0-9.]/', '', (string) ($p['price'] ?? ''));
-				if ($days < 1 || $price === '' || (float) $price <= 0) {
+				$coins = absint($p['coins'] ?? 0); // 2.68.1
+				if ($days < 1 || ((float) $price <= 0 && $coins < 1)) {
 					continue;
 				}
 				$was = preg_replace('/[^0-9.]/', '', (string) ($p['was'] ?? ''));
-				$plans[] = ['days' => min(3650, $days), 'price' => $price, 'was' => (float) $was > (float) $price ? $was : ''];
+				$was_coins = absint($p['was_coins'] ?? 0);
+				$plans[] = ['days' => min(3650, $days), 'price' => (float) $price > 0 ? $price : '', 'was' => (float) $was > (float) $price ? $was : '',
+					'coins' => $coins ? (string) $coins : '', 'was_coins' => $was_coins > $coins && $coins ? (string) $was_coins : ''];
 			}
 			$cur = strtoupper(sanitize_key($in['currency'] ?? 'usd'));
 			update_option(self::OPTION, [
@@ -612,6 +626,18 @@ class Y4APK_VIP {
 			'paykeybad'  => __('NOWPayments answers, but the API key is not accepted. Copy it again from NOWPayments ▸ Store settings ▸ API keys.', 'y4apk'),
 		];
 		$note = isset($_GET['note']) ? sanitize_key($_GET['note']) : '';
+		// 2.68.1: what people pay on the payment page — coin packs (and the smallest amount), or VIP plans when VIP is paid straight away
+		$pay_amounts = [];
+		if (self::in_coins()) {
+			$pay_amounts[] = [__('Smallest', 'y4apk') . ' ' . self::money(Y4APK_Wallet::settings()['min_topup']), (float) Y4APK_Wallet::settings()['min_topup']];
+			foreach (Y4APK_Wallet::packs() as $pk) {
+				$pay_amounts[] = [self::money($pk['price']), (float) $pk['price']];
+			}
+		} else {
+			foreach ($s['plans'] as $p) {
+				$pay_amounts[] = [self::plan_label($p['days']) . ' ' . self::money($p['price']), (float) $p['price']];
+			}
+		}
 		$days_select = function ($name = 'days') use ($s) {
 			echo '<select name="' . esc_attr($name) . '" data-vip-days>';
 			foreach ($s['plans'] as $p) {
@@ -786,13 +812,13 @@ class Y4APK_VIP {
 						<?php if ($mins['error'] !== '') : ?><div class="notice notice-error inline" style="margin:12px 20px"><p><?php echo esc_html($mins['error']); ?></p></div><?php endif; ?>
 						<div class="y4ui-scroll"><table class="y4ui-table">
 							<thead><tr><th><?php esc_html_e('Coin', 'y4apk'); ?></th><th><?php esc_html_e('Smallest payment', 'y4apk'); ?></th>
-							<?php foreach ($s['plans'] as $p) : ?><th><?php echo esc_html(self::plan_label($p['days']) . ' ' . self::money($p['price'])); ?></th><?php endforeach; ?></tr></thead>
+							<?php foreach ($pay_amounts as $pa) : ?><th><?php echo esc_html($pa[0]); ?></th><?php endforeach; ?></tr></thead>
 							<tbody>
 							<?php foreach ($mins['rows'] as $coin => $r) : ?>
 								<tr>
 									<td><b><?php echo esc_html(Y4APK_Pay::POPULAR[$coin] ?? strtoupper($coin)); ?></b></td>
 									<td><?php echo $r['usd'] !== null ? esc_html('$' . number_format_i18n($r['usd'], 2)) : '<span class="y4ui-chip">' . esc_html($r['err'] !== '' ? $r['err'] : '?') . '</span>'; ?></td>
-									<?php foreach ($s['plans'] as $p) : $ok = $r['usd'] !== null && (float) $p['price'] >= $r['usd'] * 1.03; ?>
+									<?php foreach ($pay_amounts as $pa) : $ok = $r['usd'] !== null && $pa[1] >= $r['usd'] * 1.03; ?>
 										<td><?php echo $r['usd'] === null ? '—' : ($ok ? '<span class="y4ui-chip is-green">✓</span>' : '<span class="y4ui-chip is-red">✗</span>'); ?></td>
 									<?php endforeach; ?>
 								</tr>
@@ -806,13 +832,13 @@ class Y4APK_VIP {
 							<p><?php esc_html_e('Most of the minimum is the fee for sending the money on to your payout wallet, so its network matters more than the buyer’s coin. The smallest payment by a buyer paying in USDT (TRC20), for each payout wallet:', 'y4apk'); ?></p>
 							<div class="y4ui-scroll"><table class="y4ui-table">
 								<thead><tr><th><?php esc_html_e('Payout wallet', 'y4apk'); ?></th><th><?php esc_html_e('Smallest payment', 'y4apk'); ?></th>
-								<?php foreach ($s['plans'] as $p) : ?><th><?php echo esc_html(self::plan_label($p['days']) . ' ' . self::money($p['price'])); ?></th><?php endforeach; ?></tr></thead>
+								<?php foreach ($pay_amounts as $pa) : ?><th><?php echo esc_html($pa[0]); ?></th><?php endforeach; ?></tr></thead>
 								<tbody>
 								<?php foreach ($mins['cmp'] as $coin => $r) : ?>
 									<tr>
 										<td><b><?php echo esc_html(Y4APK_Pay::payouts()[$coin] ?? strtoupper($coin)); ?></b><?php if ($coin === $mins['to']) : ?> <span class="y4ui-chip is-blue"><?php esc_html_e('checked above', 'y4apk'); ?></span><?php endif; ?></td>
 										<td><?php echo $r['usd'] !== null ? esc_html('$' . number_format_i18n($r['usd'], 2)) : '<span class="y4ui-chip">' . esc_html(__('not offered', 'y4apk')) . '</span>'; ?></td>
-										<?php foreach ($s['plans'] as $p) : $ok = $r['usd'] !== null && (float) $p['price'] >= $r['usd'] * 1.03; ?>
+										<?php foreach ($pay_amounts as $pa) : $ok = $r['usd'] !== null && $pa[1] >= $r['usd'] * 1.03; ?>
 											<td><?php echo $r['usd'] === null ? '—' : ($ok ? '<span class="y4ui-chip is-green">✓</span>' : '<span class="y4ui-chip is-red">✗</span>'); ?></td>
 										<?php endforeach; ?>
 									</tr>
@@ -854,17 +880,23 @@ class Y4APK_VIP {
 					<?php $form('settings', 'settings'); ?>
 					<div class="y4ui-cols">
 						<div class="y4ui-card">
-							<div class="y4ui-card-h"><div><h2><?php esc_html_e('Plans', 'y4apk'); ?></h2><p><?php esc_html_e('Shown on the VIP page, and the choices for codes. An old price shows crossed out with “Save N%”. Empty a row to drop it.', 'y4apk'); ?></p></div></div>
+							<div class="y4ui-card-h"><div><h2><?php esc_html_e('Plans', 'y4apk'); ?></h2><p><?php echo esc_html(self::in_coins()
+								? __('Shown on the VIP page, and the choices for codes. With the wallet on, VIP is bought with coins: set each plan’s coins (empty: the price in dollars × coins in one dollar). An old price shows crossed out with “Save N%”. Empty a row to drop it.', 'y4apk')
+								: __('Shown on the VIP page, and the choices for codes. An old price shows crossed out with “Save N%”. Empty a row to drop it.', 'y4apk')); ?></p></div></div>
 							<div class="y4ui-scroll"><table class="y4ui-table">
-								<thead><tr><th><?php esc_html_e('Days', 'y4apk'); ?></th><th><?php esc_html_e('Price', 'y4apk'); ?></th><th><?php esc_html_e('Old price', 'y4apk'); ?></th><th><?php esc_html_e('Shows as', 'y4apk'); ?></th></tr></thead>
+								<thead><tr><th><?php esc_html_e('Days', 'y4apk'); ?></th><?php if (class_exists('Y4APK_Wallet')) : ?><th><?php esc_html_e('Coins', 'y4apk'); ?></th><th><?php esc_html_e('Old coins', 'y4apk'); ?></th><?php endif; ?><th><?php esc_html_e('Price', 'y4apk'); ?></th><th><?php esc_html_e('Old price', 'y4apk'); ?></th><th><?php esc_html_e('Shows as', 'y4apk'); ?></th></tr></thead>
 								<tbody>
-								<?php $rows = $s['plans']; while (count($rows) < 4) { $rows[] = ['days' => '', 'price' => '', 'was' => '']; }
+								<?php $rows = $s['plans']; while (count($rows) < 4) { $rows[] = ['days' => '', 'price' => '', 'was' => '', 'coins' => '', 'was_coins' => '']; }
 								foreach ($rows as $i => $p) : ?>
 									<tr>
 										<td><input type="number" name="plans[<?php echo (int) $i; ?>][days]" value="<?php echo esc_attr($p['days']); ?>" min="1" max="3650" style="width:90px"></td>
+										<?php if (class_exists('Y4APK_Wallet')) : ?>
+										<td><input type="number" name="plans[<?php echo (int) $i; ?>][coins]" value="<?php echo esc_attr($p['coins']); ?>" min="1" style="width:100px" placeholder="<?php echo $p['days'] !== '' && (float) $p['price'] > 0 ? esc_attr(number_format_i18n(Y4APK_Wallet::vip_coins(['price' => $p['price']]))) : ''; ?>"></td>
+										<td><input type="number" name="plans[<?php echo (int) $i; ?>][was_coins]" value="<?php echo esc_attr($p['was_coins']); ?>" min="1" style="width:100px"></td>
+										<?php endif; ?>
 										<td><input type="text" name="plans[<?php echo (int) $i; ?>][price]" value="<?php echo esc_attr($p['price']); ?>" inputmode="decimal" style="width:100px"></td>
 										<td><input type="text" name="plans[<?php echo (int) $i; ?>][was]" value="<?php echo esc_attr($p['was']); ?>" inputmode="decimal" style="width:100px"></td>
-										<td><?php echo $p['days'] !== '' ? esc_html(self::plan_label($p['days']) . ' · ' . self::money($p['price'])) . ($p['was'] !== '' ? ' <span class="y4ui-chip is-amber">' . esc_html(self::saving($p)) . '</span>' : '') : '—'; ?></td>
+										<td><?php echo $p['days'] !== '' ? esc_html(self::plan_label($p['days']) . ' · ' . (self::in_coins() ? Y4APK_Wallet::fmt_coins(Y4APK_Wallet::from_coins(Y4APK_Wallet::vip_coins($p))) : self::money($p['price']))) . (self::saving($p) !== '' ? ' <span class="y4ui-chip is-amber">' . esc_html(self::saving($p)) . '</span>' : '') : '—'; ?></td>
 									</tr>
 								<?php endforeach; ?>
 								</tbody>

@@ -687,6 +687,21 @@ are what gets withdrawn. Settings: Y4APK ▸ Wallet ▸ Settings ▸ *Coins and 
   10 November 2026.
 - The tips table has a `gift` column (`y4apk_wallet_db` 3).
 
+2.68.1 — **VIP is bought with coins only** (while the wallet is on): VIP ▸
+Settings ▸ Plans has *Coins* and *Old coins* for each plan (empty coins: the
+dollar price × coins in one dollar; an old dollar price still gives the "Save
+N%" badge). The VIP page shows the plans in coins with one button: *Pay with Y4
+Coins*, or, when the member has too few, *Get Y4 Coins*, which opens the wallet
+with the amount that covers what is missing already typed in. Paying VIP
+straight away with crypto is off (it comes back if the wallet is turned off).
+**Coins for any amount**, from $12.49 (*Smallest amount to buy*; raised to 12.49
+once on update if it was lower) to $1,000: the box shows what it gets as you
+type. A pack's price gets the pack's coins; any other amount gets the rate of
+the biggest pack it reaches ($35 → 3,675 coins, the $20 pack's +5%). The order
+keeps its coins. Packs are quick picks (`12.49=1249, 20=2100, 50=5500,
+100=12000` by default). Wallet ▸ Settings ▸ Check minimums now checks the coin
+amounts.
+
 ## Download earnings by country (2.67.1)
 
 `inc/wallet-geo.php`. Wallet ▸ Settings ▸ *Pay by country*: what a creator

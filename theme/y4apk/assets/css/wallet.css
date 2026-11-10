@@ -74,6 +74,14 @@
 .wal-topup .wal-go { background: linear-gradient(135deg, #f5a623, #e08e0b); color: #2b1a00; box-shadow: 0 .75rem 1.5rem -.75rem rgba(224, 142, 11, .7); }
 .wal-topup .wal-go:hover { background: linear-gradient(135deg, #f0a020, #d48508); color: #2b1a00; }
 .wal-terms { font-size: .75rem; }
+.wal-own { display: grid; grid-template-columns: auto minmax(0, 12rem) minmax(0, 1fr); align-items: center; gap: .5rem .75rem; } /* 2.68.1: any amount */
+.wal-own label { color: var(--acc-ink); font-size: .875rem; font-weight: 700; }
+.wal-own-in { display: flex; align-items: center; gap: .25rem; height: 3rem; padding: 0 .9rem; border-radius: .9rem; background: #fff; box-shadow: 0 0 0 1.5px var(--acc-line); }
+.wal-own-in:focus-within { box-shadow: 0 0 0 2.5px #f5a623; }
+.wal-own-in input { width: 100%; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font: inherit; font-weight: 700; color: var(--acc-ink); }
+.wal-cur { color: var(--acc-mute); font-weight: 700; }
+.wal-own-out { color: #b06d00; font-size: .9375rem; font-weight: 800; }
+.wal-own-out.is-low { color: var(--acc-red); font-weight: 700; }
 .wal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .wal-row .acc-field { margin: 0; }
 .wal-form > .acc-field { margin: 0; }
@@ -141,6 +149,8 @@
 	.wal-gift-i { font-size: 1.85rem; }
 	.wal-gift b { font-size: .75rem; }
 	.wal-packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.wal-own { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+	.wal-own label { grid-column: 1 / -1; }
 	.wal-list li, .wal-earn .wal-list li { grid-template-columns: minmax(0, 1fr) auto; }
 	.wal-list li time { grid-column: 1 / -1; }
 }
