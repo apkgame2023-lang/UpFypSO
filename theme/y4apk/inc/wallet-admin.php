@@ -42,6 +42,10 @@ $notes = [
 	'noamount'  => __('Type an amount.', 'y4apk'),
 	'adjusted'  => sprintf(__('Done: @%s’s money was changed.', 'y4apk'), $who),
 	'tiphidden' => __('Saved.', 'y4apk'),
+	'geo_saved'   => __('Saved.', 'y4apk'),
+	'geo_csv'     => __('Read: the countries in the file are in the rates now.', 'y4apk'),
+	'geo_fetched' => __('Saved, and Adsterra’s numbers by country are in.', 'y4apk'),
+	'geo_err'     => (string) get_transient('y4apk_geo_err'),
 ];
 $note = isset($_GET['note']) ? sanitize_key($_GET['note']) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 $form = function ($do, $tab) {
@@ -65,7 +69,7 @@ $member = function ($id) {
 		'actions' => '<a class="button button-large" href="' . esc_url(Y4APK_Members::url('wallet')) . '" target="_blank">' . esc_html__('View the wallet page', 'y4apk') . '</a>',
 	]); ?>
 	<?php if ($note && isset($notes[$note])) : ?>
-		<div class="notice <?php echo in_array($note, ['nouser', 'noamount', 'gone'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
+		<div class="notice <?php echo in_array($note, ['nouser', 'noamount', 'gone', 'geo_err'], true) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div>
 	<?php endif; ?>
 
 	<div class="y4ui-kpis">
@@ -112,7 +116,7 @@ $member = function ($id) {
 						<ol class="y4wal-how">
 							<li><?php esc_html_e('A member tops up once (crypto, through NOWPayments: set up in VIP ▸ Plans and settings). Small payments then work: VIP at any price, tips from 50¢.', 'y4apk'); ?></li>
 							<li><?php echo esc_html(sprintf(__('Members with %s followers or more are creators (or ones you let in, in Creators): a Tip button shows on their profile and on the games and apps they share.', 'y4apk'), number_format_i18n((int) $s['followers']))); ?></li>
-							<li><?php echo esc_html((float) $s['dl_rate'] > 0 ? sprintf(__('Each download of a creator’s file earns them %s per 1,000, counted once a day per device, and added the day after.', 'y4apk'), Y4APK_VIP::money($s['dl_rate'])) : __('Downloads earn nothing until you set a rate per 1,000 in Settings.', 'y4apk')); ?></li>
+							<li><?php echo esc_html((float) $s['dl_rate'] > 0 ? sprintf(__('Each download of a creator’s file earns them %s per 1,000, counted once a day per device, and added the day after.', 'y4apk'), Y4APK_VIP::money($s['dl_rate'])) . (class_exists('Y4APK_Geo') && Y4APK_Geo::on() ? ' ' . __('That is the average: each country pays more or less, as Adsterra and Monetag pay there (Settings ▸ Pay by country).', 'y4apk') : '') : __('Downloads earn nothing until you set a rate per 1,000 in Settings.', 'y4apk')); ?></li>
 							<li><?php esc_html_e('A creator asks to withdraw: you get an email, pay them by hand (Binance, TrueMoney…), then press Paid in Withdrawals. Turn one down and the money goes back to them.', 'y4apk'); ?></li>
 						</ol>
 						<p class="y4ui-note"><?php echo esc_html(sprintf(__('Downloads counted in 30 days: %s.', 'y4apk'), number_format_i18n($dl30))); ?></p>
@@ -324,7 +328,7 @@ $member = function ($id) {
 						<div class="y4ui-card-b y4ui-fields">
 							<div class="y4ui-field"><label for="ws-fol"><?php esc_html_e('Followers needed', 'y4apk'); ?></label><input type="number" id="ws-fol" name="followers" min="0" value="<?php echo esc_attr($s['followers']); ?>" style="width:120px"></div>
 							<div class="y4ui-field"><label for="ws-share"><?php esc_html_e('The site’s share of a tip to a creator', 'y4apk'); ?></label><span><input type="text" id="ws-share" name="share" value="<?php echo esc_attr($s['share']); ?>" style="width:70px"> %</span></div>
-							<div class="y4ui-field"><label for="ws-rate"><?php esc_html_e('Paid per 1,000 downloads', 'y4apk'); ?></label><input type="text" id="ws-rate" name="dl_rate" value="<?php echo esc_attr($s['dl_rate']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Of a creator’s games and apps, once a day per device. 0: downloads earn nothing (tips still work). A change applies from the day not yet added.', 'y4apk'); ?></p></div>
+							<div class="y4ui-field"><label for="ws-rate"><?php esc_html_e('Paid per 1,000 downloads (average)', 'y4apk'); ?></label><input type="text" id="ws-rate" name="dl_rate" value="<?php echo esc_attr($s['dl_rate']); ?>" style="width:120px"><p class="description"><?php esc_html_e('Of a creator’s games and apps, once a day per device. 0: downloads earn nothing (tips still work). A change applies from the day not yet added.', 'y4apk'); ?></p></div>
 							<div class="y4ui-field"><label for="ws-minout"><?php esc_html_e('Smallest withdrawal', 'y4apk'); ?></label><input type="text" id="ws-minout" name="min_payout" value="<?php echo esc_attr($s['min_payout']); ?>" style="width:120px"></div>
 							<div class="y4ui-field"><label><?php esc_html_e('Ways you pay creators', 'y4apk'); ?></label>
 								<?php foreach ($W::methods() as $k => $m) : ?>
@@ -338,6 +342,47 @@ $member = function ($id) {
 			</div>
 			<div class="y4ui-savebar"><span class="y4ui-hint"><?php esc_html_e('Amounts are in the VIP page’s currency.', 'y4apk'); ?></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
 		</form>
+		<?php if (class_exists('Y4APK_Geo')) : // 2.67.1
+			$gs = Y4APK_Geo::settings();
+			$gd = Y4APK_Geo::data();
+			$gr = Y4APK_Geo::rates();
+			$gerr = get_option('y4apk_geo_last_err');
+			$base = (float) $s['dl_rate'];
+			?>
+		<div class="y4ui-card" id="geo" style="margin-top:16px">
+			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Pay by country', 'y4apk'); ?></h2><p><?php esc_html_e('Downloads from countries where ads pay more earn creators more, as Adsterra and Monetag pay you there. “Paid per 1,000 downloads” above stays the average: each country is that times how its CPM (both networks, the last 30 days) compares with all countries’. Members do not see the rates.', 'y4apk'); ?></p></div></div>
+			<form class="y4ui-card-b" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data">
+				<?php $form('geo', 'settings'); ?>
+				<label class="y4ui-opt"><input type="checkbox" name="geo_on" value="1" <?php checked($gs['on']); ?>><span><b><?php esc_html_e('Pay each country its own rate', 'y4apk'); ?></b><small><?php esc_html_e('Off: every download earns the average. Countries are known from Cloudflare; only the two letters are kept.', 'y4apk'); ?></small></span></label>
+				<div class="y4ui-fields" style="margin-top:12px">
+					<div class="y4ui-field"><label for="geo-key"><?php esc_html_e('Adsterra API key', 'y4apk'); ?></label><input type="password" id="geo-key" name="adsterra_key" value="" autocomplete="new-password" placeholder="<?php echo esc_attr($gs['adsterra_key'] !== '' ? '•••••••••• ' . __('(saved: leave empty to keep)', 'y4apk') : ''); ?>" <?php disabled(defined('Y4APK_ADSTERRA_KEY')); ?>>
+						<?php if ($gs['adsterra_key'] !== '' && !defined('Y4APK_ADSTERRA_KEY')) : ?><label style="margin-left:8px"><input type="checkbox" name="forget_key" value="1"> <?php esc_html_e('Remove it', 'y4apk'); ?></label><?php endif; ?>
+						<p class="description"><?php esc_html_e('Adsterra ▸ Profile (top right) ▸ API ▸ Generate new token. Read once a day; or put Y4APK_ADSTERRA_KEY in wp-config.php.', 'y4apk'); ?></p></div>
+					<div class="y4ui-field"><label for="geo-csv"><?php esc_html_e('Or a CSV by country', 'y4apk'); ?></label><span><select name="csv_net"><?php foreach (Y4APK_Geo::NETS as $k => $label) : ?><option value="<?php echo esc_attr($k); ?>"<?php selected($k, 'monetag'); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select> <input type="file" id="geo-csv" name="csv" accept=".csv,text/csv"></span>
+						<p class="description"><?php esc_html_e('Monetag ▸ Statistics ▸ the last 30 days ▸ Country ▸ Export to CSV (Adsterra: Statistics ▸ Group by Country ▸ Export CSV). Upload again now and then: it replaces that network’s numbers.', 'y4apk'); ?></p></div>
+					<div class="y4ui-field"><label><?php esc_html_e('Lowest and highest', 'y4apk'); ?></label><span><input type="text" name="low" value="<?php echo esc_attr($gs['low']); ?>" style="width:70px"> × … <input type="text" name="high" value="<?php echo esc_attr($gs['high']); ?>" style="width:70px"> × <?php esc_html_e('the average', 'y4apk'); ?></span></div>
+					<div class="y4ui-field"><label><?php esc_html_e('Impressions before a country gets its full rate', 'y4apk'); ?></label><input type="number" name="enough" min="100" value="<?php echo esc_attr($gs['enough']); ?>" style="width:120px"><p class="description"><?php esc_html_e('With fewer, its rate stays closer to the average (a few lucky impressions do not make it 4×).', 'y4apk'); ?></p></div>
+				</div>
+				<p class="y4ui-note"><?php foreach (Y4APK_Geo::NETS as $k => $label) {
+					echo '<b>' . esc_html($label) . ':</b> ' . esc_html(!empty($gd[$k]) ? sprintf(__('%1$s countries, %2$s impressions, %3$s (%4$s)', 'y4apk'), number_format_i18n(count($gd[$k]['c'])), number_format_i18n(array_sum(array_column($gd[$k]['c'], 0))), $gd[$k]['how'] === 'api' ? __('from the API', 'y4apk') : __('from a CSV', 'y4apk'), sprintf(__('%s ago', 'y4apk'), human_time_diff((int) $gd[$k]['at']))) : __('nothing yet', 'y4apk')) . '<br>';
+				} ?><?php if (is_array($gerr)) : ?><span style="color:#b32d2e"><?php echo esc_html(sprintf(__('Last daily read of Adsterra failed %1$s ago: %2$s', 'y4apk'), human_time_diff((int) $gerr['at']), $gerr['why'])); ?></span><?php endif; ?></p>
+				<div class="y4ui-savebar"><span class="y4ui-hint"><label><input type="checkbox" name="fetch" value="1"> <?php esc_html_e('Read Adsterra’s numbers now', 'y4apk'); ?></label></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
+			</form>
+			<?php if ($gr['c']) : ?>
+			<div class="y4ui-scroll"><table class="y4ui-table">
+				<thead><tr><th><?php esc_html_e('Country', 'y4apk'); ?></th><th><?php esc_html_e('Impressions', 'y4apk'); ?></th><th><?php esc_html_e('CPM', 'y4apk'); ?></th><th><?php esc_html_e('× average', 'y4apk'); ?></th><th><?php esc_html_e('Creators get per 1,000 downloads', 'y4apk'); ?></th></tr></thead>
+				<tbody>
+				<tr style="background:#f6f7f7"><td><b><?php esc_html_e('All countries (the average)', 'y4apk'); ?></b></td><td><?php echo esc_html(number_format_i18n($gr['imp'])); ?></td><td>$<?php echo esc_html(number_format_i18n($gr['avg'], 3)); ?></td><td>1.00×</td><td><b><?php echo esc_html(Y4APK_VIP::money($base)); ?></b></td></tr>
+				<?php foreach (array_slice($gr['c'], 0, 40, true) as $cc => $v) : ?>
+					<tr><td><?php echo esc_html(Y4APK_Geo::name($cc)); ?> <span class="y4ui-kpi-s"><?php echo esc_html($cc); ?></span></td><td><?php echo esc_html(number_format_i18n($v['imp'])); ?></td><td>$<?php echo esc_html(number_format_i18n($v['cpm'], 3)); ?></td>
+						<td><span class="y4ui-chip <?php echo $v['x'] >= 1.25 ? 'is-green' : ($v['x'] <= .75 ? 'is-amber' : ''); ?>"><?php echo esc_html(number_format_i18n($v['x'], 2)); ?>×</span></td><td><b><?php echo esc_html(Y4APK_VIP::money(round($base * $v['x'], 2))); ?></b></td></tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table></div>
+			<p class="y4ui-note" style="padding:0 16px 14px"><?php esc_html_e('Countries not listed, and downloads whose country is not known, earn the average.', 'y4apk'); ?></p>
+			<?php endif; ?>
+		</div>
+		<?php endif; ?>
 	<?php endif; ?>
 	<style>.y4wal-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.y4wal-act input[type=text]{width:220px;max-width:100%}.y4wal-to{display:inline-block;margin-top:4px;padding:2px 6px;border-radius:6px;background:#f6f7f7;font-size:12px;word-break:break-all;user-select:all}.y4wal-how{margin:0 0 0 18px;display:grid;gap:8px;line-height:1.55}</style>
 </div>

@@ -61,6 +61,7 @@ require $theme_dir . '/inc/help.php'; // Terms, Privacy, DMCA, Copyright, Contac
 require $theme_dir . '/inc/vip.php'; // VIP: no ads, no countdown, redeem codes (2.62)
 require $theme_dir . '/inc/pay.php'; // paying on the site: VIP or a gift code at once (2.63)
 require $theme_dir . '/inc/wallet.php'; // the wallet, tips and the creator program (2.64)
+require $theme_dir . '/inc/wallet-geo.php'; // download earnings by country (2.67.1)
 require $theme_dir . '/inc/link-check.php'; // broken download links, found in the background (2.66)
 require $theme_dir . '/inc/dashboard.php';
 require $theme_dir . '/inc/tgm/tgm.php';

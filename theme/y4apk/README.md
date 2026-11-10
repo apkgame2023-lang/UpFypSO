@@ -638,6 +638,36 @@ card with a lock, the one step and an *Unlock script* button.
 **Display names** keep capitals as typed (`Dez`, `DEZ`); the @username stays in
 small letters. The Edit profile page says so.
 
+## Download earnings by country (2.67.1)
+
+`inc/wallet-geo.php`. Wallet ▸ Settings ▸ *Pay by country*: what a creator
+earns per 1,000 downloads follows what the ad networks pay in each country.
+
+- *Paid per 1,000 downloads* stays the **average**. A country's rate is the
+  average times its CPM (revenue per 1,000 impressions, Adsterra and Monetag
+  together, the last 30 days) over the CPM of all countries: United States at
+  3× the average CPM pays creators 3× the average. A country with few
+  impressions stays near the average (*Impressions before a country gets its
+  full rate*, 2,000), and no country goes below or above the set limits
+  (0.25×–4×). Countries with no numbers, and downloads whose country is not
+  known, earn the average.
+- **Adsterra**: its Publishers API (`api3.adsterratools.com/publisher/stats.json`,
+  `group_by=country`, the token in `X-API-Key`; Adsterra ▸ Profile ▸ API), read
+  once a day before the day's downloads are added, or now with *Read Adsterra's
+  numbers now*. The key is stored encrypted (or `Y4APK_ADSTERRA_KEY` in
+  wp-config.php).
+- **Monetag** (no public API): a CSV from Monetag ▸ Statistics ▸ the last 30
+  days ▸ *Country* ▸ *Export to CSV*, uploaded there; it replaces Monetag's
+  numbers until the next one. An Adsterra CSV works the same way. Any file with
+  Country, Impressions and Revenue (or Profit) columns is read; country names or
+  two-letter codes, "2,316", "$5.39" all understood; the Total row skipped.
+- A counted download keeps its country: Cloudflare's `CF-IPCountry`, two letters
+  only, per day and creator (table `y4apk_dl_geo`, kept 400 days), never the
+  address. The Privacy page says so.
+- The table under the form lists each country: impressions, CPM, × the average
+  and what creators get per 1,000 downloads. Members no longer see a rate on the
+  wallet page ("Creators earn from tips and from every download…").
+
 ## Messages between members (2.67)
 
 `inc/dm.php` (page: `template/messages.php`, `assets/js/messages.js`,

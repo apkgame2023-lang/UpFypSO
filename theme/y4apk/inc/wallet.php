@@ -31,7 +31,7 @@ defined('ABSPATH') || exit;
 class Y4APK_Wallet {
 
 	const OPTION   = 'y4apk_wallet';
-	const DBV      = '1';
+	const DBV      = '2'; // 2.67.1: downloads by country (y4apk_dl_geo)
 	const SLUG     = 'y4apk-wallet';
 	const M        = 1000000;              // micro units in one dollar (or one of the currency)
 	const MODE     = 'y4apk_creator';      // usermeta: '' (by followers), 'on' (let in), 'off' (kept out)
@@ -127,6 +127,13 @@ class Y4APK_Wallet {
 			day date NOT NULL,
 			PRIMARY KEY  (fp,post_id,day),
 			KEY day (day)
+		) $cs;");
+		dbDelta('CREATE TABLE ' . self::t('dl_geo') . " (
+			day date NOT NULL,
+			user_id bigint(20) unsigned NOT NULL,
+			cc char(2) NOT NULL DEFAULT '',
+			n int(10) unsigned NOT NULL DEFAULT 0,
+			PRIMARY KEY  (day,user_id,cc)
 		) $cs;");
 		dbDelta('CREATE TABLE ' . self::t('dl_count') . " (
 			day date NOT NULL,
@@ -571,6 +578,9 @@ class Y4APK_Wallet {
 			return $none;
 		}
 		$wpdb->query($wpdb->prepare('INSERT INTO ' . self::t('dl_count') . ' (day, post_id, user_id, n) VALUES (%s, %d, %d, 1) ON DUPLICATE KEY UPDATE n = n + 1', $day, $pid, $author));
+		if (class_exists('Y4APK_Geo')) {
+			Y4APK_Geo::count($day, $author, Y4APK_Geo::visitor_country()); // 2.67.1: only the country's two letters
+		}
 		return $none;
 	}
 
@@ -590,6 +600,9 @@ class Y4APK_Wallet {
 
 	/** Each day's downloads into the creators' earnings, the day after; old fingerprints out. */
 	public static function daily() {
+		if (class_exists('Y4APK_Geo')) {
+			Y4APK_Geo::daily(); // 2.67.1: the networks' numbers by country, before the day is added
+		}
 		self::settle();
 		global $wpdb;
 		$wpdb->query($wpdb->prepare('DELETE FROM ' . self::t('dl_seen') . ' WHERE day < %s', wp_date('Y-m-d', time() - 2 * DAY_IN_SECONDS)));
@@ -612,7 +625,7 @@ class Y4APK_Wallet {
 		$where = $last !== '' ? $wpdb->prepare('day > %s AND day < %s', $last, $today) : $wpdb->prepare('day < %s', $today);
 		$rows = $wpdb->get_results("SELECT day, user_id, SUM(n) AS n FROM $t WHERE $where GROUP BY day, user_id ORDER BY day");
 		foreach ($rows as $r) {
-			$amount = intdiv((int) $r->n * $rate, 1000);
+			$amount = class_exists('Y4APK_Geo') ? Y4APK_Geo::earned((int) $r->user_id, (string) $r->day, (int) $r->n, $rate) : intdiv((int) $r->n * $rate, 1000); // 2.67.1: by country
 			if ($amount > 0 && (int) $r->user_id) {
 				self::add((int) $r->user_id, 0, $amount, 'downloads', (string) $r->day, 0, (string) (int) $r->n);
 			}
@@ -901,6 +914,8 @@ class Y4APK_Wallet {
 			}
 		} elseif ($do === 'paid' || $do === 'reject') {
 			$note = self::finish_payout(absint($_POST['id'] ?? 0), $do === 'paid', (string) wp_unslash($_POST['note'] ?? '')) ? $do : 'gone';
+		} elseif ($do === 'geo' && class_exists('Y4APK_Geo')) { // 2.67.1
+			$note = Y4APK_Geo::handle();
 		} elseif ($do === 'mode') {
 			$uid = absint($_POST['user'] ?? 0);
 			$mode = sanitize_key(wp_unslash($_POST['mode'] ?? ''));
