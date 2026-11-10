@@ -890,3 +890,27 @@
 .acc-btn-coin { background: #fff4dc; color: #8a5a00; } /* 2.69: a paid upload's price in My uploads */
 .acc a.acc-btn-coin:hover { background: #ffecc2; color: #8a5a00; }
 .acc-btn-small .y4-coin { flex: none; }
+
+/* 2.69.2: free or for coins, in the upload wizards */
+.acc-sell { display: flex; gap: .9rem; align-items: flex-start; margin: 1.25rem 0 0; padding: 1rem 1.1rem; border-radius: 1rem; background: #fffaf0; box-shadow: inset 0 0 0 1.5px rgba(245, 166, 35, .4); }
+.acc-sell > div { flex: 1; min-width: 0; }
+.acc-sell.is-off { background: #f6f8f9; box-shadow: inset 0 0 0 1px var(--acc-line); }
+.acc-sell-i { flex: none; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: .8rem; background: #fff; box-shadow: 0 .25rem .75rem -.4rem rgba(224, 142, 11, .6); }
+.acc-sell b { display: block; color: var(--acc-ink); font-size: .9375rem; }
+.acc-sell small { display: block; margin-top: .25rem; color: var(--acc-mute); font-size: .8125rem; line-height: 1.5; }
+.acc-sell-pick { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+.acc-sell-pick label { position: relative; cursor: pointer; }
+.acc-sell-pick input { position: absolute; opacity: 0; pointer-events: none; }
+.acc-sell-pick span { display: inline-flex; align-items: center; gap: .35rem; height: 2.5rem; padding: 0 1rem; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1.5px var(--acc-line); color: var(--acc-ink); font-size: .875rem; font-weight: 700; }
+.acc-sell-pick input:checked + span { box-shadow: 0 0 0 2.5px #f5a623; background: #fff4dc; color: #8a5a00; }
+.acc-sell-pick input:focus-visible + span { outline: 2px solid var(--acc-blue); outline-offset: 2px; }
+.acc-sell-set { display: grid; gap: .75rem; margin-top: .9rem; }
+.acc-sell-set[hidden] { display: none; }
+.acc-sell-price { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.acc-sell-price label { color: var(--acc-ink); font-size: .875rem; font-weight: 700; }
+.acc-sell-price > span { display: inline-flex; align-items: center; gap: .35rem; height: 2.75rem; padding: 0 .8rem; border-radius: .8rem; background: #fff; box-shadow: 0 0 0 1.5px var(--acc-line); }
+.acc-sell-price > span:focus-within { box-shadow: 0 0 0 2.5px #f5a623; }
+.acc-sell-price input { width: 7rem; border: 0; outline: 0; background: none; font: inherit; font-weight: 700; color: var(--acc-ink); }
+.acc-sell-price em { color: #b06d00; font-size: .8125rem; font-weight: 700; font-style: normal; }
+.acc-sell-own { display: flex; align-items: flex-start; gap: .6rem; cursor: pointer; color: var(--acc-mute); font-size: .8125rem; line-height: 1.5; }
+.acc-sell-own input { flex: none; width: 1.15rem; height: 1.15rem; margin-top: .1rem; accent-color: #e08e0b; }

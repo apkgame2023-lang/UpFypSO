@@ -712,6 +712,11 @@ class Y4APK_Share {
 			$ctx['errors'] = $err;
 			return;
 		}
+		$pe = class_exists('Y4APK_Paid') ? Y4APK_Paid::form_error($user, 'file', $old) : ''; // 2.69.2: free or for coins
+		if ($pe !== '') {
+			$ctx['errors'] = [$pe];
+			return;
+		}
 		$cover = class_exists('Y4APK_Cover') ? Y4APK_Cover::take($user) : null; // 2.55: checked before anything is saved
 		if (is_wp_error($cover)) {
 			$ctx['errors'] = [$cover->get_error_message()];
@@ -782,6 +787,9 @@ class Y4APK_Share {
 		delete_post_meta($id, Y4APK_Members::REJECT);
 		if (class_exists('Y4APK_Cover')) {
 			Y4APK_Cover::save($id, $user, $cover, !empty($_POST['cover_remove']));
+		}
+		if (class_exists('Y4APK_Paid')) {
+			Y4APK_Paid::from_form($id, $user); // 2.69.2: its files are hidden once it goes live
 		}
 		$meta = ['wp_title_GP' => $old['name'], 'wp_version_GP' => Y4APK_App_Updates::number($old['version']), 'wp_sizes_GP' => Y4APK_R2::size_text($main['size']), 'wp_mods' => $old['mods'] === 'Original' ? '' : $old['mods'],
 			'wp_requires_GP' => $old['requires'] !== '' ? $old['requires'] : ($parent ? (string) get_post_meta($parent, 'wp_requires_GP', true) : ''),

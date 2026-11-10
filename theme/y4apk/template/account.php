@@ -958,6 +958,7 @@ if ($screen === 'login') {
 							<pre class="acc-wiz-review-code" data-review-code></pre>
 						</div>
 					</div>
+					<?php if (class_exists('Y4APK_Paid')) { Y4APK_Paid::wizard_box($me, 'script', $editing ? (int) $c['post']->ID : 0); } // 2.69.2: free or for coins ?>
 					<ul class="acc-wiz-rules">
 						<li><?php esc_html_e('We check every script before it goes live, and email you when it does.', 'y4apk'); ?></li>
 						<li><?php esc_html_e('Keep the link working: scripts that stop working get removed.', 'y4apk'); ?></li>

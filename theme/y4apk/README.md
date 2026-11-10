@@ -709,6 +709,17 @@ address kept off. Wallet ▸ Sales ▸ *Paid files: links that expire* shows the
 steps and *Check now* (puts a small file in paid/, asks the public address for
 it: Protected when it is refused).
 
+2.69.2 — **"Free or for coins?" in the upload wizards.** The last step of
+*Share a script* and *Share a game/app* (and their Edit) has the choice: *Free*
+or *Sell for coins*, the price (with what the creator gets and what VIP
+members pay) and the own-work tick. It is checked before anything is saved (no
+tick, a price out of range, a Google Play app or a version of a post already on
+the site keep the wizard open with the reason) and saved with the upload; it
+sells once the upload is live (a game/app's files are hidden on R2 the moment
+it goes live). Members who are not creators yet see what selling is and how
+many followers they need (*Reach 300 followers… you have 18*). My uploads'
+coin button stays for changing it later.
+
 ## Y4 Coins and gifts (2.68)
 
 What members spend is now **coins**, like TikTok coins or Robux: bought in

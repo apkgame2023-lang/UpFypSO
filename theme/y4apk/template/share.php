@@ -260,6 +260,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 						<ul class="shr-card-files" data-r-files></ul>
 					</div>
 				</div>
+				<?php if (class_exists('Y4APK_Paid')) { Y4APK_Paid::wizard_box($me, 'file', $editing ? (int) $sh['post']->ID : 0); } // 2.69.2: free or for coins ?>
 				<ul class="acc-wiz-rules">
 					<li><?php esc_html_e('We check every file before it goes live, and email you when it does.', 'y4apk'); ?></li>
 					<li><?php esc_html_e('No viruses, no files that steal accounts, nothing you may not share: accounts that send them are closed.', 'y4apk'); ?></li>

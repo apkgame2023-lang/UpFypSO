@@ -50,6 +50,116 @@ class Y4APK_Paid {
 		add_action('before_delete_post', [__CLASS__, 'removed']);
 		add_action(self::SYNC, [__CLASS__, 'sync']);
 		add_action('save_post_post', [__CLASS__, 'saved'], 99);
+		add_action('transition_post_status', [__CLASS__, 'went_live'], 10, 3);
+	}
+
+	/** A paid upload goes live (its download folders are made then): its files are hidden once the request is done. */
+	public static function went_live($new, $old, $post) {
+		if ($new !== 'publish' || $old === 'publish' || $post->post_type !== 'post' || !get_post_meta($post->ID, self::PRICE, true)) {
+			return;
+		}
+		$id = (int) $post->ID;
+		add_action('shutdown', function () use ($id) {
+			self::sync($id, true);
+		});
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * In the upload wizards (2.69.2)
+	 * ---------------------------------------------------------------- */
+
+	/** The "Sell for coins" box of the script ($kind 'script') or game/app ('file') wizard. */
+	public static function wizard_box($user, $kind, $post_id = 0) {
+		if (!$user || !self::on()) {
+			return;
+		}
+		$cr = Y4APK_Wallet::creator($user->ID);
+		$off = (float) Y4APK_Wallet::settings()['vip_off'];
+		$share = (float) Y4APK_Wallet::settings()['sale_share'];
+		$coin = Y4APK_Wallet::coin_icon(20);
+		if (!$cr['ok']) {
+			?>
+			<div class="acc-sell is-off">
+				<span class="acc-sell-i" aria-hidden="true"><?php echo $coin; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+				<div><b><?php esc_html_e('Sell it for coins', 'y4apk'); ?></b>
+				<small><?php echo esc_html(sprintf(__('Creators can sell their own work for %1$s and keep %2$s%%. Reach %3$s followers to become one (you have %4$s).', 'y4apk'),
+					Y4APK_Wallet::coin_name(), number_format_i18n(100 - $share), number_format_i18n($cr['need']), number_format_i18n($cr['followers']))); ?></small></div>
+			</div>
+			<?php
+			return;
+		}
+		$stored = $post_id ? (int) get_post_meta($post_id, self::PRICE, true) : 0;
+		$sell = isset($_POST['paid_sell']) ? $_POST['paid_sell'] === '1' : $stored > 0; // phpcs:ignore WordPress.Security.NonceVerification
+		$price = isset($_POST['paid_price']) ? absint($_POST['paid_price']) : ($stored ?: 100); // phpcs:ignore WordPress.Security.NonceVerification
+		$own = isset($_POST['paid_own']) || ($post_id && get_post_meta($post_id, self::OWN, true) && !isset($_POST['paid_sell'])); // phpcs:ignore WordPress.Security.NonceVerification
+		?>
+		<div class="acc-sell" data-sell data-share="<?php echo esc_attr($share); ?>" data-off="<?php echo esc_attr($off); ?>" data-per="<?php echo esc_attr(Y4APK_Wallet::coins_per()); ?>" data-cur="<?php echo esc_attr(Y4APK_VIP::currencies()[Y4APK_VIP::settings()['currency']] ?? '$'); ?>">
+			<span class="acc-sell-i" aria-hidden="true"><?php echo $coin; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+			<div>
+				<b><?php esc_html_e('Free or for coins?', 'y4apk'); ?></b>
+				<div class="acc-sell-pick" role="radiogroup">
+					<label><input type="radio" name="paid_sell" value="0" <?php checked(!$sell); ?>><span><?php esc_html_e('Free', 'y4apk'); ?></span></label>
+					<label><input type="radio" name="paid_sell" value="1" <?php checked($sell); ?>><span><?php echo $coin; // phpcs:ignore WordPress.Security.EscapeOutput ?><?php esc_html_e('Sell for coins', 'y4apk'); ?></span></label>
+				</div>
+				<div class="acc-sell-set" data-sell-set<?php echo $sell ? '' : ' hidden'; ?>>
+					<div class="acc-sell-price"><label for="paid-price"><?php esc_html_e('Price', 'y4apk'); ?></label><span><?php echo $coin; // phpcs:ignore WordPress.Security.EscapeOutput ?><input type="number" id="paid-price" name="paid_price" min="<?php echo (int) self::MIN; ?>" max="<?php echo (int) self::MAX; ?>" step="1" value="<?php echo esc_attr($price); ?>"></span>
+						<em data-sell-gets data-t="<?php echo esc_attr__('You get %1$s a sale · VIP members pay %2$s', 'y4apk'); ?>"></em></div>
+					<label class="acc-sell-own"><input type="checkbox" name="paid_own" value="1" <?php checked($own); ?>><span><?php echo esc_html($kind === 'file'
+						? __('It is my own work: I made this app or tool myself and may sell it. A game or app from Google Play, or a mod of one, cannot be sold.', 'y4apk')
+						: __('It is my own work: I wrote this script myself and may sell it. Selling somebody else’s script is not allowed.', 'y4apk')); ?></span></label>
+					<small><?php echo esc_html(sprintf(__('Members unlock it once with %1$s; you keep %2$s%%, the site %3$s%%. It is sold once it is live.', 'y4apk'), Y4APK_Wallet::coin_name(), number_format_i18n(100 - $share), number_format_i18n($share))); ?></small>
+				</div>
+			</div>
+		</div>
+		<script>
+		(function () {
+			var b = document.querySelector('[data-sell]');
+			if (!b) { return; }
+			var set = b.querySelector('[data-sell-set]'), price = b.querySelector('input[name="paid_price"]'), gets = b.querySelector('[data-sell-gets]');
+			var share = +b.getAttribute('data-share'), off = +b.getAttribute('data-off'), per = +b.getAttribute('data-per') || 100, cur = b.getAttribute('data-cur');
+			var paint = function () {
+				var on = b.querySelector('input[name="paid_sell"]:checked');
+				set.hidden = !(on && on.value === '1');
+				var n = parseInt(price.value, 10) || 0;
+				gets.textContent = n > 0 ? gets.getAttribute('data-t').replace('%1$s', cur + (Math.floor(n / per * (100 - share)) / 100).toFixed(2)).replace('%2$s', String(Math.ceil(n * (100 - off) / 100))) : '';
+			};
+			b.addEventListener('change', paint); price.addEventListener('input', paint); paint();
+		})();
+		</script>
+		<?php
+	}
+
+	/** What is wrong with the wizard's price ('' when nothing): checked before anything is saved. */
+	public static function form_error($user, $kind, $d = []) {
+		if (!isset($_POST['paid_sell']) || $_POST['paid_sell'] !== '1' || !self::on() || !Y4APK_Wallet::creator($user->ID)['ok']) { // phpcs:ignore WordPress.Security.NonceVerification
+			return '';
+		}
+		$n = absint($_POST['paid_price'] ?? 0); // phpcs:ignore WordPress.Security.NonceVerification
+		if ($n < self::MIN || $n > self::MAX) {
+			return sprintf(__('A price is %1$s to %2$s coins.', 'y4apk'), number_format_i18n(self::MIN), number_format_i18n(self::MAX));
+		}
+		if (empty($_POST['paid_own'])) { // phpcs:ignore WordPress.Security.NonceVerification
+			return __('Tick that it is your own work: only what you made yourself can be sold.', 'y4apk');
+		}
+		if ($kind === 'file' && !empty($d['update_of'])) {
+			return __('A version of a game or app already on the site cannot be sold. Choose Free.', 'y4apk');
+		}
+		if ($kind === 'file' && !empty($d['play'])) {
+			return __('A game or app from Google Play is somebody else’s work, so it cannot be sold. Only your own apps and tools can. Choose Free.', 'y4apk');
+		}
+		return '';
+	}
+
+	/** Saves the wizard's choice on the post (after it is saved). */
+	public static function from_form($post_id, $user) {
+		if (!isset($_POST['paid_sell']) || !self::on()) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+		if ($_POST['paid_sell'] === '1') { // phpcs:ignore WordPress.Security.NonceVerification
+			self::set_price($post_id, $user, absint($_POST['paid_price'] ?? 0), !empty($_POST['paid_own'])); // phpcs:ignore WordPress.Security.NonceVerification
+		} elseif (get_post_meta($post_id, self::PRICE, true)) {
+			self::set_price($post_id, $user, 0, false);
+		}
 	}
 
 	public static function t() {
@@ -138,7 +248,10 @@ class Y4APK_Paid {
 		}
 		if ($kind === 'file') {
 			$d = Y4APK_Share::data($post->ID);
-			if (!empty($d['play']) || !empty($d['update_of']) || get_post_meta($post->ID, Y4APK_Share::PARENT, true)) {
+			if (!empty($d['update_of']) || get_post_meta($post->ID, Y4APK_Share::PARENT, true)) {
+				return __('A version of a game or app already on the site cannot be sold.', 'y4apk');
+			}
+			if (!empty($d['play'])) {
 				return __('A game or app from Google Play is somebody else’s work, so it cannot be sold. Only your own apps and tools can.', 'y4apk');
 			}
 		}
