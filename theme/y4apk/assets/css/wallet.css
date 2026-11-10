@@ -181,3 +181,4 @@
 	.unl-art.is-icon { width: 3.5rem; height: 3.5rem; }
 }
 .unl-files { display: grid; gap: .6rem; } /* 2.69.1: a buyer's downloads */
+.wal a.unl-go, .wal a.unl-get, .wal a.unl-go:hover, .wal a.unl-get:hover { color: #2b1a00; } /* 2.69.3: dark text on the gold links too */

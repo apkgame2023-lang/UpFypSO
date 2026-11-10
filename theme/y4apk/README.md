@@ -720,6 +720,10 @@ it goes live). Members who are not creators yet see what selling is and how
 many followers they need (*Reach 300 followers… you have 18*). My uploads'
 coin button stays for changing it later.
 
+2.69.3 — gold buttons that are links (*Get Y4 Coins* on the VIP page, *Get Y4
+Coins* and *Download* on the unlock page) had white text from
+`.acc a.acc-btn-primary` on their yellow: now dark, like the gold buttons.
+
 ## Y4 Coins and gifts (2.68)
 
 What members spend is now **coins**, like TikTok coins or Robux: bought in

@@ -141,3 +141,4 @@
 .vip-tipus .vip-perk-i { background: #fdeeee; color: var(--acc-red); }
 .vip-tipus .vip-perk-t { flex: 1; min-width: 0; }
 .vip-tipus-go { color: var(--acc-mute); font-size: 1.25rem; }
+.vip a.vip-pay-wallet, .vip a.vip-pay-wallet:hover { color: #3b2300; } /* 2.69.3: a link (Get Y4 Coins) kept white text from .acc a.acc-btn-primary */
