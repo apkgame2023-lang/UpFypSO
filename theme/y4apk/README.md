@@ -892,6 +892,29 @@ found".** `inc/dl-page.php` (Y4APK ▸ Download page).
 - Cloudflare's purge for a changed post now includes its `/download/N/`
   pages, which it kept up to a day before.
 
+2.75.1 — **Download links only from the site; a tab icon.**
+
+- **Tab icon:** Y4APK ▸ Download page ▸ *Tab icon* (made a 192 px square PNG
+  on R2 at `site/download-icon-….png`; PNG because the `files.y4apk.net`
+  redirect rule lets PNG through and every browser shows it). Without one:
+  the Site Icon (Appearance ▸ Customize ▸ Site Identity), followed when it
+  changes.
+- **Folder pages only from the site** (*Download folders only from the site*,
+  on): a `files.…/up/<folder>/` link pasted in a chat or another site, or
+  typed in, goes to the page set (the home page). "From the site" = the
+  browser's Referer is one of the site's hosts (home, with/without `www.`,
+  and the folders' host), or the `y4dl` mark (holds "1", 30 minutes, on the
+  site's domain so `files.` sees it) that a `/download/N/` page leaves — for
+  the few browsers that never send a Referer. The admin's *Open one to see
+  it* and Broken links' folder links send a Referer now.
+- **`/download/N/` only after its post** (*The site's download pages only
+  after their post*, on): opened by itself (its link pasted somewhere, or
+  from another site), it goes to its post first. The check is in the page
+  (Cloudflare keeps these pages, so the server cannot look at each
+  visitor): a Referer from the site, or this tab saw the post
+  (`sessionStorage`, set on the post page), else `location.replace(post)`.
+- Privacy page: the download mark in the cookie list.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

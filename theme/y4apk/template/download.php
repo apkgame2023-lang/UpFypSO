@@ -1,5 +1,8 @@
 <?php
 add_action('wp_head', function () {echo '<meta name="robots" content="noindex, nofollow">';}, 1);
+if (class_exists('Y4APK_DLPage')) {
+	add_action('wp_head', ['Y4APK_DLPage', 'download_guard'], 0); // 2.75.1: opened by itself, its post first
+}
 get_header();
 $download_timer = function_exists('y4apk_is_vip') && y4apk_is_vip() ? 1 : get_theme_mod('download_timer', 7); // VIP (2.62): no countdown
 ?>

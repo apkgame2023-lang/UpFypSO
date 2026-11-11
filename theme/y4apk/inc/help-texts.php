@@ -151,6 +151,7 @@ class Y4APK_Help_Texts {
 			], 'li' => [
 				__('Sign-in cookies that keep you signed in, and one that shows your name and picture in the header.', 'y4apk'),
 				__('Your language and location choices.', 'y4apk'),
+				__('A download mark (it holds nothing but “1” and ends after 30 minutes) so a download link opened from our pages works, and one copied elsewhere goes to our home page.', 'y4apk'),
 				__('In your browser only: recent searches, the progress of an upload, and whether you closed a message.', 'y4apk'),
 				__('If you turn on update notifications, your browser gives us an address to send them to. You can turn them off in your browser at any time.', 'y4apk'),
 			], 'after' => [
