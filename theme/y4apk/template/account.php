@@ -598,7 +598,7 @@ if ($screen === 'login') {
 		</div>
 		<h2 class="acc-h2"><?php esc_html_e('New from them', 'y4apk'); ?></h2>
 		<?php if ($c['feed']) : ?>
-			<div class="rbx-grid"><?php foreach ($c['feed'] as $p) { Y4APK_Roblox::card($p->ID, true); } ?></div>
+			<div class="rbx-grid"><?php foreach ($c['feed'] as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
 		<?php else : ?>
 			<div class="acc-card acc-empty"><p><?php esc_html_e('No scripts from them yet.', 'y4apk'); ?></p></div>
 		<?php endif; ?>
@@ -1213,35 +1213,35 @@ if ($screen === 'login') {
 			<ul class="prf-stats">
 				<li><button type="button" data-open="prf-followers"><b data-followers><?php echo esc_html(Y4APK_Roblox::short_number($c['followers'])); ?></b> <?php esc_html_e('Followers', 'y4apk'); ?></button></li>
 				<li><button type="button" data-open="prf-following"><b><?php echo esc_html(Y4APK_Roblox::short_number($c['following_n'])); ?></b> <?php esc_html_e('Following', 'y4apk'); ?></button></li>
-				<li><span><b><?php echo esc_html(number_format_i18n($c['count'])); ?></b> <?php echo esc_html(_n('Script', 'Scripts', $c['count'], 'y4apk')); ?></span></li>
+				<li><span><b><?php echo esc_html(number_format_i18n($c['count'])); ?></b> <?php echo esc_html(_n('Post', 'Posts', $c['count'], 'y4apk')); ?></span></li>
 				<li><span><b><?php echo esc_html(Y4APK_Roblox::short_number($c['views'])); ?></b> <?php esc_html_e('Views', 'y4apk'); ?></span></li>
 			</ul>
 		</div>
 	</section>
 	<nav class="prf-tabs">
-		<?php foreach (['scripts' => [__('Scripts', 'y4apk'), 'code'], 'activity' => [__('Activity', 'y4apk'), 'pulse'], 'stats' => [__('Statistics', 'y4apk'), 'chart']] as $k => $t) : ?>
+		<?php foreach (['scripts' => [__('Posts', 'y4apk'), 'code'], 'activity' => [__('Activity', 'y4apk'), 'pulse'], 'stats' => [__('Statistics', 'y4apk'), 'chart']] as $k => $t) : ?>
 		<a href="<?php echo esc_url($tab_url($k)); ?>"<?php echo $k === $tab ? ' class="is-on" aria-current="page"' : ''; ?>><?php echo $si($t[1]); ?><?php echo esc_html($t[0]); ?></a>
 		<?php endforeach; ?>
 	</nav>
 
 	<?php if ($tab === 'scripts') : $q = $c['query']; ?>
 		<div class="prf-bar">
-			<h2><?php esc_html_e('Scripts', 'y4apk'); ?> <span><?php echo esc_html(number_format_i18n($c['search'] !== '' ? $q->found_posts : $c['count'])); ?></span></h2>
+			<h2><?php esc_html_e('Posts', 'y4apk'); ?> <span><?php echo esc_html(number_format_i18n($c['search'] !== '' ? $q->found_posts : $c['count'])); ?></span></h2>
 			<div class="prf-sort">
 				<a href="<?php echo esc_url(remove_query_arg('sort', $c['search'] !== '' ? add_query_arg('q', rawurlencode($c['search']), $base) : $base)); ?>"<?php echo $c['sort'] === 'new' ? ' class="is-on"' : ''; ?>><?php esc_html_e('Recent', 'y4apk'); ?></a>
 				<a href="<?php echo esc_url(add_query_arg(array_filter(['sort' => 'views', 'q' => $c['search'] !== '' ? rawurlencode($c['search']) : '']), $base)); ?>"<?php echo $c['sort'] === 'views' ? ' class="is-on"' : ''; ?>><?php esc_html_e('Most viewed', 'y4apk'); ?></a>
 			</div>
 			<form class="prf-search" method="get" action="<?php echo esc_url($base); ?>" role="search">
 				<?php echo $si('search'); ?>
-				<input type="search" name="q" value="<?php echo esc_attr($c['search']); ?>" maxlength="60" placeholder="<?php esc_attr_e('Search scripts…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search this member’s scripts', 'y4apk'); ?>">
+				<input type="search" name="q" value="<?php echo esc_attr($c['search']); ?>" maxlength="60" placeholder="<?php esc_attr_e('Search posts…', 'y4apk'); ?>" aria-label="<?php esc_attr_e('Search this member’s posts', 'y4apk'); ?>">
 				<?php if ($c['sort'] === 'views') : ?><input type="hidden" name="sort" value="views"><?php endif; ?>
 			</form>
 		</div>
 		<?php if ($q->have_posts()) : ?>
-			<div class="rbx-grid"><?php foreach ($q->posts as $p) { Y4APK_Roblox::card($p->ID, true); } ?></div>
+			<div class="rbx-grid"><?php foreach ($q->posts as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
 			<?php y4apk_pagination(max(1, (int) get_query_var('paged')), (int) $q->max_num_pages); ?>
 		<?php else : ?>
-			<div class="acc-card acc-empty"><p><?php echo esc_html($c['search'] !== '' ? __('No scripts match that search.', 'y4apk') : __('No scripts here yet.', 'y4apk')); ?></p></div>
+			<div class="acc-card acc-empty"><p><?php echo esc_html($c['search'] !== '' ? __('No posts match that search.', 'y4apk') : __('No posts here yet.', 'y4apk')); ?></p></div>
 		<?php endif; ?>
 
 	<?php elseif ($tab === 'activity') : ?>
@@ -1266,7 +1266,7 @@ if ($screen === 'login') {
 	<?php else : $top = $c['top']; $max = $top ? max(1, max($top)) : 1; ?>
 		<div class="prf-numbers">
 			<div class="acc-card"><?php echo $si('eye'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($c['views'])); ?></b><span><?php esc_html_e('Views', 'y4apk'); ?></span></div>
-			<div class="acc-card"><?php echo $si('code'); ?><b><?php echo esc_html(number_format_i18n($c['count'])); ?></b><span><?php echo esc_html(_n('Script', 'Scripts', $c['count'], 'y4apk')); ?></span></div>
+			<div class="acc-card"><?php echo $si('code'); ?><b><?php echo esc_html(number_format_i18n($c['count'])); ?></b><span><?php echo esc_html(_n('Post', 'Posts', $c['count'], 'y4apk')); ?></span></div>
 			<div class="acc-card"><?php echo $si('star'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($c['followers'])); ?></b><span><?php esc_html_e('Followers', 'y4apk'); ?></span></div>
 			<div class="acc-card"><?php echo $si('chart'); ?><b><?php echo esc_html(Y4APK_Roblox::short_number($c['count'] ? (int) round($c['views'] / $c['count']) : 0)); ?></b><span><?php esc_html_e('Views per script', 'y4apk'); ?></span></div>
 		</div>

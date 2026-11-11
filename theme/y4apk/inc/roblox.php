@@ -554,8 +554,9 @@ class Y4APK_Roblox {
 		return !empty($shots[0]['ss_url']) ? $shots[0]['ss_url'] : y4apk_icon_url($post_id, 'medium_large');
 	}
 
-	public static function card($post_id, $show_game = true) {
+	public static function card($post_id, $show_game = true, $more = false) {
 		$title = get_the_title($post_id);
+		$x = $more ? self::card_facts($post_id) : null; // 2.73: profiles: what it is, its game, version, size, price
 		$img = self::thumb($post_id);
 		$views = (int) get_post_meta($post_id, 'wpb_post_views_count', true);
 		$game = $show_game ? self::game_of($post_id) : null;
@@ -569,22 +570,63 @@ class Y4APK_Roblox {
 						<span class="rbx-chip"><?php echo self::icon('eye'); ?><?php echo esc_html(self::short_number($views)); ?></span>
 						<span class="rbx-chip"><?php echo self::icon('clock'); ?><?php echo esc_html(self::ago(get_post_modified_time('U', true, $post_id))); ?></span>
 					</span>
-					<?php if (self::keyless($title)) : ?><span class="rbx-badge"><?php echo self::icon('key'); ?><?php esc_html_e('Keyless', 'y4apk'); ?></span><?php endif; ?>
+					<?php if ($x && $x['price']) : ?><span class="rbx-badge rbx-badge-coin"><?php echo Y4APK_Wallet::coin_icon(14); // phpcs:ignore WordPress.Security.EscapeOutput ?><?php echo esc_html(number_format_i18n($x['price'])); ?></span>
+					<?php elseif ($x && $x['kind'] !== 'script') : ?><span class="rbx-badge<?php echo $x['mod'] ? ' rbx-badge-mod' : ' rbx-badge-orig'; ?>"><?php echo esc_html($x['mod'] ? __('MOD', 'y4apk') : __('Original', 'y4apk')); ?></span>
+					<?php elseif (self::keyless($title)) : ?><span class="rbx-badge"><?php echo self::icon('key'); ?><?php esc_html_e('Keyless', 'y4apk'); ?></span><?php endif; ?>
 				</span>
 				<span class="rbx-card-body">
 					<span class="rbx-card-title"><?php echo esc_html(wp_strip_all_tags($title)); ?></span>
 					<span class="rbx-card-meta">
-						<?php if ($game) : ?>
+						<?php if ($x && $x['kind'] !== 'script' && $x['name'] !== '') : ?>
+							<?php if ($x['icon'] !== '') : ?><img class="rbx-card-game" src="<?php echo esc_url($x['icon']); ?>" alt="" width="20" height="20" loading="lazy"><?php endif; ?>
+							<span><?php echo esc_html($x['name']); ?></span>
+						<?php elseif ($game) : ?>
 							<img class="rbx-card-game" src="<?php echo esc_url(self::icon_url($game), ['http', 'https', 'data']); ?>" alt="" width="20" height="20" loading="lazy">
 							<span><?php echo esc_html($game->name); ?></span>
 						<?php elseif ($hub !== '') : ?>
 							<?php echo self::icon('code'); ?><span><?php echo esc_html($hub); ?></span>
 						<?php endif; ?>
 					</span>
+					<?php if ($x) : ?>
+					<span class="rbx-card-facts">
+						<span class="rbx-kind is-<?php echo esc_attr($x['kind']); ?>"><?php echo esc_html($x['label']); ?></span>
+						<?php foreach ($x['bits'] as $bit) : ?><span class="rbx-fact"><?php echo esc_html($bit); ?></span><?php endforeach; ?>
+					</span>
+					<?php endif; ?>
 				</span>
 			</a>
 		</article>
 		<?php
+	}
+
+	/**
+	 * 2.73: what a profile's card says about a post: ['kind' => script|game|app,
+	 * 'label', 'name' and 'icon' (a game's or app's), 'mod', 'price' (coins), 'bits'
+	 * (version, file type and size; for a script: no key / key system, how many codes)].
+	 */
+	public static function card_facts($post_id) {
+		$out = ['kind' => 'script', 'label' => __('Script', 'y4apk'), 'name' => '', 'icon' => '', 'mod' => false, 'price' => 0, 'bits' => []];
+		if (class_exists('Y4APK_Paid') && Y4APK_Paid::on()) {
+			$out['price'] = (int) Y4APK_Paid::price($post_id);
+		}
+		$d = class_exists('Y4APK_Share') ? Y4APK_Share::data($post_id) : null;
+		if ($d) {
+			$main = (int) get_post_meta($post_id, Y4APK_Share::PARENT, true) ?: (int) $post_id;
+			$out['kind'] = $d['kind'] === 'app' ? 'app' : 'game';
+			$out['label'] = $out['kind'] === 'app' ? __('App', 'y4apk') : __('Game', 'y4apk');
+			$out['name'] = html_entity_decode((string) get_post_meta($main, 'wp_title_GP', true), ENT_QUOTES, 'UTF-8') ?: (string) $d['name'];
+			$out['icon'] = (string) get_the_post_thumbnail_url($main, 'thumbnail');
+			$mods = trim((string) $d['mods']);
+			$out['mod'] = $mods !== '' && strcasecmp($mods, 'original') !== 0;
+			$v = Y4APK_App_Updates::number($d['version']);
+			$f = $d['files'] ? $d['files'][0] : null;
+			$out['bits'] = array_values(array_filter([$v !== '' ? 'v' . $v : '', $f ? (string) $f['label'] : '', $f && class_exists('Y4APK_R2') ? Y4APK_R2::size_text($f['size']) : (string) get_post_meta($post_id, 'wp_sizes_GP', true)]));
+			return $out;
+		}
+		$codes = class_exists('Y4APK_Scripts') ? count(Y4APK_Scripts::get($post_id)) : 0;
+		$out['bits'] = array_values(array_filter([self::keyless(get_the_title($post_id)) ? __('No key', 'y4apk') : __('Key system', 'y4apk'),
+			$codes > 1 ? sprintf(_n('%s code', '%s codes', $codes, 'y4apk'), number_format_i18n($codes)) : '']));
+		return $out;
 	}
 
 	/** In place of Name / Category / OS on a Roblox post: its game, the key, players now and views. */

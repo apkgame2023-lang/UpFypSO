@@ -272,3 +272,18 @@ a.rbx-tag:hover { color: #fff; background-color: rgba(255, 255, 255, .24); }
 
 /* Phones: 16px in the boxes people type in, so iOS does not zoom in on them (2.43) */
 @media (max-width: 47.99rem) { .rbx-search input[type="search"], .rbx-sort select { font-size: 1rem; } }
+
+/* 2.73: a profile's cards say more: what it is, version, file, size, price */
+.rbx-card-facts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .45rem; padding-top: .55rem; border-top: 1px solid rgba(23, 32, 33, .07); font-size: .6875rem; font-weight: 700; color: rgba(23, 32, 33, .6); }
+.rbx-card-meta + .rbx-card-facts { margin-top: 0; }
+.rbx-card-meta:empty + .rbx-card-facts { margin-top: auto; }
+.rbx-kind { display: inline-flex; align-items: center; height: 1.2rem; padding: 0 .45rem; border-radius: 999px; font-size: .625rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.rbx-kind.is-script { color: #1a7f9e; background: #e2f4fa; }
+.rbx-kind.is-game { color: #6b3fd6; background: #f0eafe; }
+.rbx-kind.is-app { color: #1c5cab; background: #e8f1fb; }
+.rbx-fact { white-space: nowrap; }
+.rbx-fact + .rbx-fact::before { content: "·"; margin-right: .45rem; color: rgba(23, 32, 33, .3); }
+.rbx-badge-mod { background-color: #3fc35a; }
+.rbx-badge-orig { color: #172021; background-color: rgba(255, 255, 255, .92); box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .18); }
+.rbx-badge-coin { gap: .3rem; color: #4a3200; background: linear-gradient(135deg, #ffd65a, #f5a623); box-shadow: 0 .25rem .75rem rgba(245, 166, 35, .45); text-transform: none; }
+.rbx-badge-coin svg { width: .875rem; height: .875rem; }

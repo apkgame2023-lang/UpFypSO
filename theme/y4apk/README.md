@@ -759,6 +759,47 @@ the arrows level with the numbers on phones.
   picture is kept in `_y4apk_vfb` (written when its page is shown) so
   versions.php, which loads only the database, can use it.
 
+2.73 — **Messages: photos, voice, replies, "typing…"; richer profile cards.**
+
+Messages (`inc/dm.php`, `assets/js/messages.js`, table version 2):
+
+- **Photos**: the photo button, paste, or drop one on the conversation; an
+  optional caption. A big photo is made smaller in the browser first (quicker
+  on a phone), then the site makes it at most 1600 px and saves it again as
+  WebP, which drops what a phone writes into it (place, camera, time). A GIF
+  up to 5 MB stays as it is (moving). Tap a photo to see it big.
+- **Voice messages**: the microphone button (when nothing is typed) records,
+  up to 3 minutes; the bin cancels, the arrow sends. WebM/Ogg/MP4 audio,
+  checked by its first bytes. One plays at a time, with its progress.
+- **Where they are kept**: on R2 at `dm/<32 random letters>.<ext>`, never on
+  this server and never by a public address: the page gets addresses signed
+  for 2–3 hours (the same for a whole hour, so the browser keeps them). Unsent,
+  removed by the team, or an account closed: taken off R2 too (many at once in
+  the background). A reported one stays until the report is handled. Add
+  `/dm/` to the Cloudflare rule that blocks `/paid/` on the files domain.
+- **Replies**: swipe a message to the right on a phone (or ↩ beside it on a
+  computer, or in its ⋮ menu); the answer shows a bit of it, tap it to go to
+  it. Holding a message down on a phone shows ↩ and ⋮ (a photo alone has no
+  words to tap).
+- **"typing…"**: in the header and as dots under the messages, for 6 seconds
+  after the last sign; the page sends the sign with its usual check, and
+  checks every 1.5 s instead of 3 s while the other one types.
+- **Steadier**: messages are put in order by their number (one sent and one
+  received at the same moment could appear the wrong way round, or one could
+  be skipped); a request that hangs gives up after 20 s (2 min for an upload)
+  so the checks go on; a sign-in key that ran out (a tab open for a day) is
+  renewed once (`y4apk_dm_nonce`); every message has the page's own ID (`cid`),
+  so one sent again after a lost answer is not saved twice; while the site
+  cannot be reached it checks less often and says so; opening two
+  conversations quickly shows the last one; Copy in the ⋮ menu.
+- **Y4APK ▸ Messages ▸ Settings**: photos on/off, voice on/off, how many a
+  member may send in a day (60). Reports show the photo or play the voice.
+
+Profiles: the tab and the count say **Posts** (they hold games and apps too).
+Each card says what it is (Script / Game / App), and for a file its game or
+app, version, file type and size, MOD or Original; for a script No key / Key
+system and how many codes; a coin badge when it is sold (`Y4APK_Roblox::card_facts`).
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

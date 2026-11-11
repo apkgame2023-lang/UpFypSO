@@ -72,6 +72,11 @@ $whys = ['spam' => __('Spam', 'y4apk'), 'scam' => __('Scam or phishing', 'y4apk'
 					<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('New conversations a member may start in a day', 'y4apk'); ?></span><input type="number" min="1" max="200" name="new_day" value="<?php echo esc_attr($s['new_day']); ?>"></label>
 					<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('…for an account less than a day old (spam)', 'y4apk'); ?></span><input type="number" min="0" max="50" name="young_new" value="<?php echo esc_attr($s['young_new']); ?>"></label>
 				</div>
+				<label class="y4ui-opt" style="margin-top:14px"><input type="checkbox" name="photos" value="1" <?php checked($s['photos']); ?>> <span><b><?php esc_html_e('Members can send photos', 'y4apk'); ?></b><br><span class="y4ui-hint"><?php esc_html_e('Made smaller and saved again (what a phone hides in a photo, like where it was taken, is dropped), then kept on R2, never on this server and never public: only the two members can open it, with addresses that stop working after a few hours.', 'y4apk'); ?></span></span></label>
+				<label class="y4ui-opt"><input type="checkbox" name="voice" value="1" <?php checked($s['voice']); ?>> <span><b><?php esc_html_e('Members can send voice messages', 'y4apk'); ?></b><br><span class="y4ui-hint"><?php esc_html_e('Up to 3 minutes, kept on R2 like photos.', 'y4apk'); ?></span></span></label>
+				<div class="y4ui-fields">
+					<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('Photos and voice messages a member may send in a day', 'y4apk'); ?></span><input type="number" min="0" max="1000" name="media_day" value="<?php echo esc_attr($s['media_day']); ?>"></label>
+				</div>
 				<div class="y4ui-savebar"><span class="y4ui-hint"><?php esc_html_e('Members with an unconfirmed email cannot send. A block stops both ways.', 'y4apk'); ?></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
 			</form>
 		</div>
@@ -84,6 +89,7 @@ $whys = ['spam' => __('Spam', 'y4apk'), 'scam' => __('Scam or phishing', 'y4apk'
 		<?php foreach ($rows as $r) :
 			$before = (array) $wpdb->get_results($wpdb->prepare("SELECT * FROM $tm WHERE thread_id = %d AND id < %d ORDER BY id DESC LIMIT 3", (int) $r->thread_id, (int) $r->msg_id));
 			$text = Y4APK_Mail::reveal((string) $r->copy);
+			$rm = !empty($r->media) ? $D::media_of((object) ['kind' => 'x', 'media' => $r->media]) : null; // 2.73: its photo or voice
 			?>
 			<div class="y4ui-card y4dm-rep">
 				<div class="y4ui-card-h"><div><h2><?php echo $member($r->about_id); // phpcs:ignore WordPress.Security.EscapeOutput ?> <span class="y4ui-chip is-amber"><?php echo esc_html($whys[$r->why] ?? $r->why); ?></span></h2>
@@ -92,7 +98,8 @@ $whys = ['spam' => __('Spam', 'y4apk'), 'scam' => __('Scam or phishing', 'y4apk'
 					<?php if ($before) : ?><div class="y4dm-ctx"><?php foreach (array_reverse($before) as $b) : ?>
 						<div class="y4dm-line<?php echo (int) $b->from_id === (int) $r->about_id ? ' is-them' : ''; ?>"><small>@<?php $bu = get_userdata((int) $b->from_id); echo esc_html($bu ? $bu->user_login : '—'); ?></small><span><?php echo (int) $b->gone ? '<i>' . esc_html__('unsent', 'y4apk') . '</i>' : $D::html(Y4APK_Mail::reveal((string) $b->body)); // phpcs:ignore WordPress.Security.EscapeOutput ?></span></div>
 					<?php endforeach; ?></div><?php endif; ?>
-					<div class="y4dm-line is-them is-reported"><small><?php esc_html_e('Reported message', 'y4apk'); ?></small><span><!--email_off--><?php echo $D::html($text); // phpcs:ignore WordPress.Security.EscapeOutput ?><!--/email_off--></span></div>
+					<div class="y4dm-line is-them is-reported"><small><?php esc_html_e('Reported message', 'y4apk'); ?></small><span><!--email_off--><?php echo $D::html($text); // phpcs:ignore WordPress.Security.EscapeOutput ?><!--/email_off-->
+						<?php if ($rm) : $ru = $D::media_url($rm); ?><span style="display:block;margin-top:6px"><?php if (strpos((string) ($rm['t'] ?? ''), 'audio/') === 0) : ?><audio controls preload="none" src="<?php echo esc_url($ru); ?>"></audio><?php else : ?><a href="<?php echo esc_url($ru); ?>" target="_blank" rel="noopener noreferrer"><img src="<?php echo esc_url($ru); ?>" alt="" style="max-width:240px;max-height:240px;border-radius:10px;display:block"></a><?php endif; ?></span><?php endif; ?></span></div>
 					<?php if ($tab !== 'done') : ?>
 					<div class="y4dm-acts">
 						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php $form('remove', $r->id); ?><button class="button"><?php esc_html_e('Remove the message', 'y4apk'); ?></button></form>
