@@ -743,6 +743,22 @@ its pill and the numbers overlapped a little; on a profile they also touched
 the cards above. Now a tidy pill with room inside, 2rem under the cards, and
 the arrows level with the numbers on phones.
 
+2.72 — **A title of their own, and versions as posts.**
+
+- **Post title is required** in the game/app wizard (and when an upload is
+  edited): 10 to 100 characters (`Y4APK_Share::TITLE_MIN`), no links, checked
+  in the browser at step 3 and again on the server. The grey title stays as an
+  example, and *Use the suggested title* puts it in the box to start from. So
+  every member's upload has its own title (no two versions of a game called
+  the same), and Write with AI keeps it.
+- **Versions from members are post cards**: a 16:9 picture (the member's
+  cover; else the main post's first screenshot; else its icon on a blurred
+  copy of itself), the views and date on it, MOD / Original, then the title,
+  the member, and the version, file type and size. Four across, two on
+  phones, as before; versions.php draws the same cards. The main post's
+  picture is kept in `_y4apk_vfb` (written when its page is shown) so
+  versions.php, which loads only the database, can use it.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

@@ -46,6 +46,7 @@ class Y4APK_Versions {
 	const HOOK    = 'y4apk_versions_tell';
 	const SLUG    = '[a-z][a-z0-9]{9}';     // a version's short address
 	const BATCH   = 500;                    // versions looked at per round of telling
+	const PICTURE = '_y4apk_vfb';           // 2.72: on a main post: the picture its versions' cards show without a cover of their own
 
 	/** What a version takes from its main post while it has none of its own. */
 	const INHERIT = ['wp_contentrated_GP' => 1, 'total_rating' => 1, 'total_votes' => 1, 'avg_rating' => 1, 'ss_images' => 1, 'wp_requires_GP' => 1,
@@ -359,6 +360,10 @@ class Y4APK_Versions {
 			}
 		}
 		$cfg = self::cfg_now();
+		$fb = self::picture_of($main); // 2.72: the cards' picture when a member added no cover (versions.php reads it too)
+		if (get_post_meta($main, self::PICTURE, true) !== $fb) {
+			update_post_meta($main, self::PICTURE, $fb);
+		}
 		$sort = isset($_GET['vs']) && $_GET['vs'] === 'views' ? 'views' : 'new';
 		$data = y4apk_vd_page($main, isset($_GET['vp']) ? absint($_GET['vp']) : 1, $sort, $parent ? $post_id : 0, $cfg);
 		$can_add = Y4APK_Share::open() && class_exists('Y4APK_R2') && Y4APK_R2::ready();
@@ -401,6 +406,20 @@ class Y4APK_Versions {
 		</section>
 		<?php
 		self::script();
+	}
+
+	/** A main post's picture for its versions' cards: ['u' => its first screenshot, else its icon; 'icon' => 1 when it is the icon]. */
+	public static function picture_of($main) {
+		$shots = get_post_meta($main, 'ss_images', true);
+		if (is_array($shots)) {
+			foreach ($shots as $sh) {
+				if (is_array($sh) && !empty($sh['ss_url']) && preg_match('~^https?://~i', (string) $sh['ss_url'])) {
+					return ['u' => (string) $sh['ss_url'], 'icon' => 0];
+				}
+			}
+		}
+		$icon = (string) get_the_post_thumbnail_url($main, 'medium');
+		return ['u' => $icon, 'icon' => $icon !== '' ? 1 : 0];
 	}
 
 	/** On a version's page: the main post, first. */

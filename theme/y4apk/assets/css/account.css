@@ -928,3 +928,5 @@
 .shr-reuse-t b { font-size: .875rem; color: var(--acc-ink); }
 .shr-reuse-t small { font-size: .78rem; line-height: 1.5; color: var(--acc-mute); }
 .shr-reuse:has(input:checked) { background: rgba(41, 177, 216, .07); box-shadow: inset 0 0 0 2px var(--acc-blue); }
+.shr-suggest { display: inline; margin: 0 0 0 .25rem; padding: 0; border: 0; font: inherit; font-weight: 700; color: var(--acc-blue-d); background: none; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.shr-suggest:hover { color: var(--acc-ink); }

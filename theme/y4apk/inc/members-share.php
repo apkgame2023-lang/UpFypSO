@@ -41,6 +41,7 @@ class Y4APK_Share {
 	const FROM     = '_y4apk_from';        // 2.71: the member's own upload this version was made from
 	const REUSED   = '_y4apk_reused';      // 2.71: … and whose article it took
 	const NEXT     = '_y4apk_next';        // 2.71: on that upload: the newer version that took its article (its canonical address)
+	const TITLE_MIN = 10;                  // 2.72: the post's title is the member's own, at least this long
 	const SHORT_DESC = 60;                 // fewer words than this from the member: Write with AI writes the version's article (2.47)
 	const DONE_UP  = '_y4apk_share_files'; // user meta: [R2 key => [size, name, time]] finished uploads not used yet
 	const OPEN_UP  = '_y4apk_share_open';  // user meta: [upload ID => [key, time]] uploads not finished
@@ -708,7 +709,10 @@ class Y4APK_Share {
 		$desc = trim(mb_substr(sanitize_textarea_field((string) ($p['desc'] ?? '')), 0, 1500));
 		// A title of their own (2.52), optional: empty, the site's usual one
 		$own_title = trim(preg_replace('/\s+/u', ' ', mb_substr(sanitize_text_field((string) ($p['post_title'] ?? '')), 0, 100)));
-		if ($own_title !== '' && preg_match('~https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|me|ly|link|app|site|top|info)\b~i', $name !== '' ? str_ireplace($name, '', $own_title) : $own_title)) { // "Agar.io" is a name, not a link
+		if ($own_title === '' || mb_strlen($own_title) < self::TITLE_MIN) { // 2.72: every upload has a title of its member's own
+			$err[] = $own_title === '' ? __('Write a title for your post.', 'y4apk') : sprintf(__('Make the title a little longer: at least %d characters.', 'y4apk'), self::TITLE_MIN);
+			$step = min($step, 3);
+		} elseif (preg_match('~https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|me|ly|link|app|site|top|info)\b~i', $name !== '' ? str_ireplace($name, '', $own_title) : $own_title)) { // "Agar.io" is a name, not a link
 			$err[] = __('No links in the title, please.', 'y4apk');
 			$step = 3;
 		}

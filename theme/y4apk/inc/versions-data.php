@@ -43,9 +43,12 @@ function y4apk_vd_page($parent, $page, $sort, $not, $cfg) {
 	}
 	$ids = implode(',', array_map(function ($r) { return (int) $r->ID; }, $rows));
 	$meta = [];
-	foreach ((array) $wpdb->get_results("SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($ids) AND meta_key IN ('wp_version_GP', 'wp_mods', 'wp_sizes_GP', 'wpb_post_views_count', 'repeatable_download_link')") as $m) {
+	foreach ((array) $wpdb->get_results("SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($ids) AND meta_key IN ('wp_version_GP', 'wp_mods', 'wp_sizes_GP', 'wpb_post_views_count', 'repeatable_download_link', '_y4apk_cover')") as $m) {
 		$meta[(int) $m->post_id][$m->meta_key] = $m->meta_value;
 	}
+	// 2.72: a card's picture: the member's cover, else the main post's (its first screenshot, or its icon), as Y4APK_Versions::render() keeps it
+	$fb = @unserialize((string) $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_y4apk_vfb' LIMIT 1", $parent)), ['allowed_classes' => false]);
+	$fb = is_array($fb) && !empty($fb['u']) && preg_match('~^https?://~i', (string) $fb['u']) ? ['u' => (string) $fb['u'], 'icon' => !empty($fb['icon'])] : ['u' => '', 'icon' => false];
 	$uids = implode(',', array_unique(array_map(function ($r) { return (int) $r->post_author; }, $rows)));
 	$users = [];
 	foreach ((array) $wpdb->get_results("SELECT ID, user_login FROM {$wpdb->users} WHERE ID IN ($uids)") as $u) {
@@ -67,6 +70,8 @@ function y4apk_vd_page($parent, $page, $sort, $not, $cfg) {
 		$m = isset($meta[$id]) ? $meta[$id] : [];
 		$u = isset($users[(int) $r->post_author]) ? $users[(int) $r->post_author] : ['login' => ''];
 		$links = isset($m['repeatable_download_link']) ? @unserialize($m['repeatable_download_link'], ['allowed_classes' => false]) : null;
+		$cv = isset($m['_y4apk_cover']) ? @unserialize($m['_y4apk_cover'], ['allowed_classes' => false]) : null;
+		$cover = is_array($cv) && !empty($cv['url']) && !empty($cfg['r2']) && strpos((string) $cv['url'], $cfg['r2'] . '/') === 0 ? (string) $cv['url'] : '';
 		$out['items'][] = [
 			'id'    => $id,
 			'url'   => y4apk_vd_url($r, $cfg),
@@ -78,6 +83,8 @@ function y4apk_vd_page($parent, $page, $sort, $not, $cfg) {
 			'time'  => $r->post_date_gmt && $r->post_date_gmt !== '0000-00-00 00:00:00' ? (int) strtotime($r->post_date_gmt . ' UTC') : 0,
 			'title' => html_entity_decode((string) $r->post_title, ENT_QUOTES, 'UTF-8'),
 			'who'   => y4apk_vd_person($u, $cfg),
+			'img'   => $cover !== '' ? $cover : $fb['u'],
+			'icon'  => $cover === '' && $fb['icon'],
 		];
 	}
 	return $out;
@@ -154,21 +161,30 @@ function y4apk_vd_avatar($who, $size = 40) {
 	return '<span class="acc-av" style="width:' . $size . 'px;height:' . $size . 'px;font-size:' . round($size * .46) . 'px;background:linear-gradient(135deg,hsl(' . $h . ',70%,52%),hsl(' . (($h + 40) % 360) . ',65%,38%))" aria-hidden="true">' . y4apk_vd_e($who['letter']) . '</span>';
 }
 
-/** One version: who shared it and when, the version and its MOD, the file, its views. */
+/**
+ * One version, as a post (2.72): its cover (or the main post's picture), its
+ * title, who shared it, the version, the file and its views.
+ */
 function y4apk_vd_card($it, $cfg) {
 	$mod = $it['mods'] !== '';
-	return '<li><a class="y4v-card" href="' . y4apk_vd_e($it['url']) . '">'
-		. '<span class="y4v-top"><span class="y4v-who">' . y4apk_vd_avatar($it['who']) . '</span>'
-		. '<span class="y4v-person"><b class="y4v-name">' . y4apk_vd_e($it['who']['name']) . '</b>'
-		. ($it['time'] ? '<time datetime="' . gmdate('c', $it['time']) . '">' . y4apk_vd_e(y4apk_vd_date($it['time'], $cfg)) . '</time>' : '') . '</span>'
-		. '<svg class="y4v-go" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
-		. '<span class="y4v-line"><b class="y4v-v">' . y4apk_vd_e($it['v'] !== '' ? 'v' . $it['v'] : $it['title']) . '</b>'
+	$title = $it['title'] !== '' ? $it['title'] : ($it['v'] !== '' ? 'v' . $it['v'] : '');
+	$eye = '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5Zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9Zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" fill="currentColor"/></svg>';
+	if ($it['img'] === '') {
+		$pic = '<span class="y4v-noimg" aria-hidden="true">' . y4apk_vd_e(function_exists('mb_substr') ? mb_substr($title, 0, 1) : substr($title, 0, 1)) . '</span>';
+	} elseif ($it['icon']) {
+		$pic = '<img class="y4v-blur" src="' . y4apk_vd_e($it['img']) . '" alt="" aria-hidden="true" loading="lazy" decoding="async"><img class="y4v-icon" src="' . y4apk_vd_e($it['img']) . '" alt="" width="72" height="72" loading="lazy" decoding="async">';
+	} else {
+		$pic = '<img src="' . y4apk_vd_e($it['img']) . '" alt="" width="480" height="270" loading="lazy" decoding="async">';
+	}
+	return '<li><a class="y4v-card" href="' . y4apk_vd_e($it['url']) . '"' . ($mod ? ' title="' . y4apk_vd_e('MOD: ' . $it['mods']) . '"' : '') . '>'
+		. '<span class="y4v-media' . ($it['icon'] ? ' is-icon' : '') . '">' . $pic
+		. '<span class="y4v-pills"><span class="y4v-pill" title="' . y4apk_vd_e(y4apk_vd_t($cfg, 'views', $it['views'])) . '">' . $eye . y4apk_vd_e(y4apk_vd_short($it['views'])) . '</span>'
+		. ($it['time'] ? '<time class="y4v-pill" datetime="' . gmdate('c', $it['time']) . '">' . y4apk_vd_e(y4apk_vd_date($it['time'], $cfg)) . '</time>' : '') . '</span>'
 		. '<span class="y4v-chip' . ($mod ? ' y4v-chip-mod' : '') . '">' . y4apk_vd_e(y4apk_vd_t($cfg, $mod ? 'MOD' : 'Original')) . '</span></span>'
-		. '<span class="y4v-mods">' . y4apk_vd_e($mod ? $it['mods'] : y4apk_vd_t($cfg, 'As released, not modded')) . '</span>'
-		. '<span class="y4v-foot"><span class="y4v-type">' . y4apk_vd_e($it['type']) . '</span>'
-		. ($it['size'] !== '' ? '<span class="y4v-size">' . y4apk_vd_e($it['size']) . '</span>' : '')
-		. '<span class="y4v-views" title="' . y4apk_vd_e(y4apk_vd_t($cfg, 'views', $it['views'])) . '"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5Zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9Zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" fill="currentColor"/></svg>'
-		. y4apk_vd_e(y4apk_vd_short($it['views'])) . '</span></span>'
+		. '<span class="y4v-body"><b class="y4v-title">' . y4apk_vd_e($title) . '</b>'
+		. '<span class="y4v-by"><span class="y4v-who">' . y4apk_vd_avatar($it['who'], 22) . '</span><span class="y4v-name">' . y4apk_vd_e($it['who']['name']) . '</span></span>'
+		. '<span class="y4v-foot">' . ($it['v'] !== '' ? '<b class="y4v-v">v' . y4apk_vd_e($it['v']) . '</b>' : '') . '<span class="y4v-type">' . y4apk_vd_e($it['type']) . '</span>'
+		. ($it['size'] !== '' ? '<span class="y4v-size">' . y4apk_vd_e($it['size']) . '</span>' : '') . '</span></span>'
 		. '</a></li>';
 }
 

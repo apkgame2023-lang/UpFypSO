@@ -42,6 +42,8 @@ $cfg = [
 		'icon'     => __('Add its icon: it is not on Google Play, so we have no picture of it.', 'y4apk'),
 		'cat'      => __('Choose its category.', 'y4apk'),
 		'version'  => __('Write the version of the file, like 1.2.3.', 'y4apk'),
+		'title'    => __('Write a title for your post.', 'y4apk'),
+		'titleMin' => sprintf(__('Make the title a little longer: at least %d characters.', 'y4apk'), Y4APK_Share::TITLE_MIN),
 		'file'     => __('Upload the file first.', 'y4apk'),
 		'wait'     => __('Wait for the upload to finish.', 'y4apk'),
 		'agree'    => __('Tick the box to say the file is safe and fine to share.', 'y4apk'),
@@ -195,10 +197,11 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 						: __('Filled in from your last version: check the version and the title, then upload the new file.', 'y4apk')); ?></span></div>
 				<?php endif; ?>
 				<div class="acc-field shr-title">
-					<label for="f-title"><?php esc_html_e('Post title', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
+					<label for="f-title"><?php esc_html_e('Post title', 'y4apk'); ?></label>
 					<span class="acc-wiz-count" data-count-for="f-title"></span>
-					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title data-counted></div>
-					<p class="acc-hint"><?php esc_html_e('A clear title of your own helps people find your post, here and on Google: the game’s or app’s name first, then what makes your version different, such as its MOD or the version. Up to 100 characters, no links. Left empty, the post gets the title shown in grey.', 'y4apk'); ?></p>
+					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" minlength="<?php echo (int) Y4APK_Share::TITLE_MIN; ?>" autocomplete="off" required data-own-title data-counted></div>
+					<p class="acc-hint"><?php echo esc_html(sprintf(__('Your own title helps people find your post, here and on Google: the game’s or app’s name first, then what makes your version different, such as its MOD or the version. %d to 100 characters, no links.', 'y4apk'), Y4APK_Share::TITLE_MIN)); ?>
+						<button type="button" class="shr-suggest" data-suggest><?php esc_html_e('Use the suggested title', 'y4apk'); ?></button></p>
 				</div>
 				<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $sh['post']->ID : 0, $from); } ?>
 				<div class="shr-row2">
@@ -533,7 +536,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 	function problem(n) {
 		if (n === 1) { if (!pick || !field('name').value.trim()) { return T.find; } if (pick.type === 'manual' && !iconFile.files.length && !pick.icon) { return T.icon; } }
 		if (n === 2 && !(pick && (pick.type === 'site' || pick.have)) && !+field('cat').value) { return T.cat; }
-		if (n === 3 && !num(field('version').value)) { return T.version; }
+		if (n === 3) { var tt = own ? own.value.replace(/\s+/g, ' ').trim() : 'x'.repeat(99); if (!tt) { return T.title; } if (tt.length < <?php echo (int) Y4APK_Share::TITLE_MIN; ?>) { return T.titleMin; } if (!num(field('version').value)) { return T.version; } }
 		if (n === 4) { if (busy()) { return T.wait; } if (slots[0].state !== 'done') { return T.file; } }
 		if (n === 5 && !$('[data-agree]').checked) { return T.agree; }
 		return '';
@@ -578,6 +581,8 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		titleHint();
 	}
 	field('version').addEventListener('input', swapVersion);
+	var sug = $('[data-suggest]');
+	if (sug && own) { sug.addEventListener('click', function () { own.value = autoTitle(); own.dispatchEvent(new Event('input', { bubbles: true })); own.focus(); }); }
 	function head() {
 		var hi = $('[data-head-icon]');
 		if (pick && pick.icon) { hi.innerHTML = '<img src="' + esc(pick.icon) + '" alt="">'; }
