@@ -295,12 +295,20 @@ class Y4APK_Writer {
 			$json = $json[0];
 		}
 		$err = isset($json['error']) && is_array($json['error']) ? $json['error'] : [];
+		$raw = isset($err['metadata']['raw']) && is_string($err['metadata']['raw']) ? trim(wp_strip_all_tags($err['metadata']['raw'])) : ''; // OpenRouter: what the model's host said
 		if (!$err && isset($json['errors'][0]) && is_array($json['errors'][0])) { // Cloudflare: {success: false, errors: [{code, message}]}
 			$err = ['message' => (string) ($json['errors'][0]['message'] ?? ''), 'type' => 'cf' . (int) ($json['errors'][0]['code'] ?? 0)];
 		} elseif (!$err && isset($json['error']) && is_string($json['error'])) {
 			$err = ['message' => $json['error']];
 		}
 		$msg = isset($err['message']) ? (string) $err['message'] : 'HTTP ' . $code;
+		$own = $msg; // the service's own words, before what a model's host added
+		if ($raw !== '' && strpos($msg, $raw) === false) {
+			$msg .= ' — ' . mb_substr($raw, 0, 200);
+		}
+		if ($provider === 'openrouter' && stripos($msg, 'data policy') !== false) { // its free models need the account's privacy switch
+			return new WP_Error('key', __('OpenRouter: its free models need “Enable free endpoints that may train on inputs” turned on at openrouter.ai/settings/privacy. Turn it on, then Test again.', 'y4apk'));
+		}
 		$what = strtolower(implode(' ', array_filter([
 			isset($err['code']) && is_string($err['code']) ? $err['code'] : '',
 			isset($err['type']) ? (string) $err['type'] : '',
@@ -318,16 +326,19 @@ class Y4APK_Writer {
 		}
 		if ($code === 429 || $code >= 500) {
 			$wait = (int) wp_remote_retrieve_header($r, 'retry-after');
+			$daily = false;
 			if (!$wait && preg_match('/retry in ([\d.]+)\s*s/i', $msg, $m)) {
 				$wait = (int) ceil((float) $m[1]);
 			}
 			// A free tier's daily limit: no use asking again before it resets.
-			if ($code === 429 && preg_match('/per[ -]?day|perday|\(rpd\)|\(tpd\)|daily|cf3036/i', $msg . ' ' . $what . ' ' . wp_json_encode($err))) {
+			// (On OpenRouter only its own words count: a free model's host saying "daily" is that model, not the account.)
+			if ($code === 429 && preg_match('/per[ -]?day|perday|\(rpd\)|\(tpd\)|daily|cf3036/i', $provider === 'openrouter' ? $own : $msg . ' ' . $what . ' ' . wp_json_encode($err))) {
 				// Workers AI and OpenRouter count the day from 00:00 UTC: asked again then; the others in an hour
 				$wait = in_array($provider, ['cloudflare', 'openrouter'], true) ? max($wait, strtotime('tomorrow 00:00:30 UTC') - time()) : max($wait, HOUR_IN_SECONDS);
+				$daily = true;
 				$msg = sprintf(__('%s’s daily limit is reached; the queue waits for it.', 'y4apk'), $info['name']) . ' ' . $msg;
 			}
-			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60)), 'status' => $code]);
+			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60)), 'status' => $code, 'daily' => $daily]);
 		}
 		if ($code === 404 || preg_match('/model_not_found|not_found/', $what)) {
 			return new WP_Error('model', sprintf(__('This %1$s account cannot use the model “%2$s”. Choose another in Settings.', 'y4apk'), $info['name'], $model));
@@ -513,8 +524,13 @@ class Y4APK_Writer {
 			return self::chat_gemini($system, $user, $model, $search);
 		}
 		$r = self::chat_compatible($system, $user, $provider, $model, $max);
-		// "Automatic" on Workers AI / OpenRouter: a model this account cannot use (gone, or not on the free plan): the next one, remembered
-		if (is_wp_error($r) && $r->get_error_code() === 'model' && in_array($provider, ['cloudflare', 'openrouter'], true) && self::settings()['models'][$provider] === 'auto') {
+		// "Automatic" on Workers AI / OpenRouter: a model this account cannot use (gone, or not on the free plan) — or, on OpenRouter,
+		// one free model whose host is full for now ("Provider returned error"; not the account's daily limit): the next one, remembered
+		$next_ok = function ($e) use ($provider) {
+			$d = $e->get_error_data();
+			return $e->get_error_code() === 'model' || ($provider === 'openrouter' && $e->get_error_code() === 'busy' && empty($d['daily']));
+		};
+		if (is_wp_error($r) && $next_ok($r) && in_array($provider, ['cloudflare', 'openrouter'], true) && self::settings()['models'][$provider] === 'auto') {
 			$ids = self::models($provider);
 			$tried = [$model];
 			foreach (self::candidates($provider, is_array($ids) ? $ids : []) as $next) {
@@ -530,7 +546,7 @@ class Y4APK_Writer {
 					set_transient('y4apk_writer_ok_' . $provider, $next, WEEK_IN_SECONDS);
 					break;
 				}
-				if ($r->get_error_code() !== 'model') {
+				if (!$next_ok($r)) {
 					break;
 				}
 			}

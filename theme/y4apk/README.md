@@ -960,6 +960,16 @@ found".** `inc/dl-page.php` (Y4APK ▸ Download page).
   the logo and text; the text keeps a thin light halo to stay readable over
   the lines.
 
+2.76.1 — **OpenRouter: a full free model is passed over.** Its free models run
+on hosts that are often full for a while ("Provider returned error", HTTP
+429, with the host's words in `error.metadata.raw`, e.g. "temporarily
+rate-limited upstream"). With *Automatic*, that model is passed over for the
+next free one, as a gone model already was; only OpenRouter's own
+`free-models-per-day` counts as the account's day (waiting until 00:00 UTC).
+Errors now show the host's words. "No endpoints found matching your data
+policy" says what to turn on (openrouter.ai/settings/privacy: free endpoints
+that may train on inputs) instead of trying every model.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;
