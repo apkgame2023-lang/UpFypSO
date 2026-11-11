@@ -1007,6 +1007,12 @@ Now a profile has its own:
 
 Without Rank Math the same tags are printed by the theme.
 
+2.77.1 — **A profile's canonical, also when Rank Math asks early.** On the live
+site the title, description, Open Graph and ProfilePage were right, but the
+canonical still said `https://y4apk.com/`: Rank Math works the canonical out
+before the profile page is built, and keeps it. A profile is now known from
+its address (`y4_acct=profile`, `y4_user`, a public member) from the start.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

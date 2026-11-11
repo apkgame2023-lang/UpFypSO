@@ -52,11 +52,23 @@ class Y4APK_Profile_SEO {
 
 	/** The profile being shown: ['user', 'count', 'followers', 'following', 'views'], or null. */
 	public static function current() {
+		static $early = null;
 		$c = class_exists('Y4APK_Members') ? Y4APK_Members::$ctx : null;
-		if (!is_array($c) || ($c['view'] ?? '') !== 'profile' || empty($c['profile'])) {
+		if (is_array($c) && ($c['view'] ?? '') === 'profile' && !empty($c['profile'])) {
+			return ['user' => $c['profile'], 'count' => (int) ($c['count'] ?? 0), 'followers' => (int) ($c['followers'] ?? 0), 'following' => (int) ($c['following_n'] ?? 0), 'views' => (int) ($c['views'] ?? 0)];
+		}
+		// Before the page is built: Rank Math works its canonical out early (and keeps it), so the address says whose profile it is
+		if (get_query_var('y4_acct') !== 'profile' || is_admin()) { // (the same rule as the page: a public member)
 			return null;
 		}
-		return ['user' => $c['profile'], 'count' => (int) ($c['count'] ?? 0), 'followers' => (int) ($c['followers'] ?? 0), 'following' => (int) ($c['following_n'] ?? 0), 'views' => (int) ($c['views'] ?? 0)];
+		if ($early === null) {
+			$login = strtolower(preg_replace('/[^a-z0-9_]/', '', (string) get_query_var('y4_user')));
+			$u = $login !== '' ? get_user_by('login', $login) : false;
+			$early = $u && Y4APK_Members::is_public($u)
+				? ['user' => $u, 'count' => (int) count_user_posts($u->ID, 'post', true), 'followers' => Y4APK_Social::followers_count($u->ID), 'following' => Y4APK_Social::following_count($u->ID), 'views' => 0]
+				: false;
+		}
+		return $early ?: null;
 	}
 
 	/** Offered to search engines: a public member with something published. */
