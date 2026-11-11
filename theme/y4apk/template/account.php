@@ -294,7 +294,7 @@ if ($screen === 'login') {
 			<button class="acc-btn acc-btn-ghost" type="submit"><?php esc_html_e('Send the confirmation email again', 'y4apk'); ?></button>
 		</form>
 	<?php endif; ?>
-	<?php if ($M::open()) : ?><p class="acc-alt"><?php esc_html_e('New here?', 'y4apk'); ?> <a href="<?php echo esc_url($M::url('register')); ?>"><?php esc_html_e('Create an account', 'y4apk'); ?></a></p><?php endif; ?>
+	<?php if ($M::open()) : ?><p class="acc-alt"><?php esc_html_e('New here?', 'y4apk'); ?> <a href="<?php echo esc_url($M::url('register', $M::next_args())); // 2.75.2: and back to where they were going ?>"><?php esc_html_e('Create an account', 'y4apk'); ?></a></p><?php endif; ?>
 	<?php
 	$shell_close();
 
@@ -329,7 +329,7 @@ if ($screen === 'login') {
 			<?php echo $M::trap_fields(); $M::turnstile_widget(); ?>
 			<button class="acc-btn acc-btn-primary" type="submit"><?php esc_html_e('Create account', 'y4apk'); ?></button>
 		</form>
-		<p class="acc-alt"><?php esc_html_e('Already have an account?', 'y4apk'); ?> <a href="<?php echo esc_url($M::url('login')); ?>"><?php esc_html_e('Sign in', 'y4apk'); ?></a></p>
+		<p class="acc-alt"><?php esc_html_e('Already have an account?', 'y4apk'); ?> <a href="<?php echo esc_url($M::url('login', $M::next_args())); ?>"><?php esc_html_e('Sign in', 'y4apk'); ?></a></p>
 	<?php endif;
 	$shell_close();
 

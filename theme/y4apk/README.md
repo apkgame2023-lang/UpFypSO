@@ -915,6 +915,22 @@ found".** `inc/dl-page.php` (Y4APK ▸ Download page).
   (`sessionStorage`, set on the post page), else `location.replace(post)`.
 - Privacy page: the download mark in the cookie list.
 
+2.75.2 — **Where a folder link opened elsewhere goes: your choice.** Under
+*Download folders only from the site*, *Send them to*:
+
+- **Sign in (or sign up), then the file's post** (the default): the folder
+  page sends the visitor to `/?y4apk_from=<folder>`; the site finds the
+  folder's post (Broken links' table, else the posts' download rows; kept a
+  day) and sends a visitor who is not signed in to
+  `/account/login/?next=post&pid=<post>`. Signing in — with a password,
+  Google or Discord — or signing up (with *in at once*) lands on the post;
+  the Sign in ⇄ Create an account links keep it. (`pid`, not `p`: `?p=` is
+  WordPress's own "show post N".) A signed-in member goes straight to the
+  post.
+- **The file's post**, **the home page**, or **this address…** (any URL).
+- A folder whose post is not known (or a made-up name): the home page, or the
+  sign-in page. A file that is gone still goes to *When the file is gone*.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

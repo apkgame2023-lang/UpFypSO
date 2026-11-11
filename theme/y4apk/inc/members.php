@@ -229,9 +229,17 @@ class Y4APK_Members {
 		return $args ? add_query_arg($args, $url) : $url;
 	}
 
-	/** ?next= on the sign-in page: 'upload', or 'game' / 'app' (with ?newer=, 2.46: "Share your version" on a post). */
+	/**
+	 * ?next= on the sign-in page: 'upload', or 'game' / 'app' (with ?newer=,
+	 * 2.46: "Share your version" on a post), or 'post' with ?pid= (2.75.2: a
+	 * download link opened elsewhere: sign in, then that post).
+	 */
 	public static function next_args() {
 		$next = isset($_GET['next']) ? sanitize_key(wp_unslash($_GET['next'])) : '';
+		if ($next === 'post') {
+			$p = absint($_GET['pid'] ?? 0); // not ?p=, which is WordPress's own "show post N"
+			return $p && get_post_status($p) === 'publish' ? ['next' => 'post', 'pid' => $p] : [];
+		}
 		if (!in_array($next, ['upload', 'game', 'app'], true)) {
 			return [];
 		}
@@ -240,11 +248,20 @@ class Y4APK_Members {
 
 	/** Where signing in goes: back to the upload the visitor started, or My uploads. */
 	public static function next_url() {
-		$a = self::next_args();
-		if (!$a) {
-			return self::url();
+		return self::next_url_of(self::next_args());
+	}
+
+	/** The same, for ?next= arguments kept elsewhere (a Google / Discord sign-in); $home_args go on My uploads. */
+	public static function next_url_of($a, $home_args = []) {
+		$a = (array) $a;
+		if (empty($a['next'])) {
+			return self::url('', $home_args);
 		}
-		return $a['next'] === 'upload' ? self::url('submit') : self::url('share/' . $a['next'], !empty($a['newer']) ? ['newer' => $a['newer']] : []);
+		if ($a['next'] === 'post') {
+			$p = absint($a['pid'] ?? 0);
+			return $p && get_post_status($p) === 'publish' ? get_permalink($p) : self::url('', $home_args);
+		}
+		return $a['next'] === 'upload' ? self::url('submit') : self::url('share/' . ($a['next'] === 'app' ? 'app' : 'game'), !empty($a['newer']) ? ['newer' => (int) $a['newer']] : []);
 	}
 
 	public static function profile_url($user) {
@@ -989,7 +1006,8 @@ class Y4APK_Members {
 		if (self::settings()['early']) { // 2.66: in at once; sharing, paying and tips wait for the email
 			wp_set_current_user($id);
 			wp_set_auth_cookie($id, true, is_ssl());
-			wp_safe_redirect(self::url('', ['ok' => 'welcome']));
+			$a = self::next_args();
+			wp_safe_redirect(!empty($a['next']) && $a['next'] === 'post' ? self::next_url_of($a) : self::url('', ['ok' => 'welcome'])); // 2.75.2: back to the post it came for
 			exit;
 		}
 		$ctx['screen'] = 'check';

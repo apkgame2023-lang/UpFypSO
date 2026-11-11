@@ -455,9 +455,7 @@ class Y4APK_OAuth {
 		wp_set_current_user($user->ID);
 		wp_set_auth_cookie($user->ID, true, is_ssl());
 		do_action('wp_login', $user->user_login, $user);
-		$next = (array) $next;
-		$url = !empty($next['next']) ? ($next['next'] === 'upload' ? Y4APK_Members::url('submit') : Y4APK_Members::url('share/' . ($next['next'] === 'app' ? 'app' : 'game'), !empty($next['newer']) ? ['newer' => (int) $next['newer']] : []))
-			: Y4APK_Members::url('', $ok ? ['ok' => $ok] : []);
+		$url = Y4APK_Members::next_url_of((array) $next, $ok ? ['ok' => $ok] : []);
 		self::go($url, $popup);
 	}
 
