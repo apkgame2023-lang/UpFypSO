@@ -680,6 +680,15 @@ menu (*Post covers (N)*), and covers of deleted posts are not counted or shown.
 Privacy: a line that shared scripts are checked by an AI service, without
 email addresses or account details.
 
+2.70.1 — **pages that answered 404 after plugin updates.** Updating plugins
+rebuilt WordPress's address rules at a moment the theme's were not in them, so
+/account/…, /upload/, /@name and the categories (/games/) answered 404, and
+LiteSpeed kept those 404 pages (an hour by default) after the rules were whole
+again. Now (`inc/core.php`) a page that finds the rules without the theme's
+rebuilds them at once (at most once in 5 minutes) and clears LiteSpeed's
+cache, and a 404 page is kept for one minute only. By hand, the same is
+Settings ▸ Permalinks ▸ Save Changes, then LiteSpeed Cache ▸ Purge All.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

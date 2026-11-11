@@ -568,3 +568,32 @@ function y4apk_cache_note() {
 		? __('The page cache is cleared: visitors get it now.', 'y4apk')
 		: __('Clear the page cache so visitors get it.', 'y4apk');
 }
+
+/* ------------------------------------------------------------------ *
+ * 2.70.1: the site's addresses after a plugin update
+ *
+ * A plugin that rebuilt WordPress's address rules at the wrong moment (while
+ * updating) left out the theme's (/account/…, /upload/, /@name…) and the
+ * categories' (/games/): those pages answered "404" for a while, and
+ * LiteSpeed kept the 404 pages for an hour. Now a page that finds the rules
+ * without the theme's own rebuilds them (once in 5 minutes at most) and
+ * clears the page cache; and a 404 page is kept by LiteSpeed for one minute
+ * only, so a passing problem passes with it.
+ * ------------------------------------------------------------------ */
+
+add_action('wp_loaded', function () {
+	$rules = get_option('rewrite_rules');
+	if (!is_array($rules) || !$rules || isset($rules['^account/?$']) || get_transient('y4apk_rules_fix')) {
+		return; // empty rules are rebuilt by WordPress itself
+	}
+	set_transient('y4apk_rules_fix', 1, 5 * MINUTE_IN_SECONDS);
+	flush_rewrite_rules(false);
+	update_option('y4apk_rules_fixed', time(), false);
+	y4apk_purge_pages(); // the 404 pages kept while the rules were missing
+}, 99);
+
+add_action('template_redirect', function () {
+	if (is_404()) {
+		do_action('litespeed_control_set_ttl', 60);
+	}
+}, 99);
