@@ -840,6 +840,15 @@ server's distance and load.
   editor's download rows warned about a missing "MOD info" on rows the theme
   made, and their save read fields that might not be sent.
 
+2.74.1 — **Cloudflare keeps pages; browsers do not.** On the live site the rule
+works (home 1.9 s → 0.22 s, /th/ 2.3 s → 0.18 s, /roblox/ 2.7 s → 0.17 s), but
+Cloudflare also told browsers to keep a kept page 4 hours (its Browser Cache
+TTL), so a visitor who then signed in could see the signed-out page, and a
+change could wait in the browser. Marked pages now also say
+`Cache-Control: public, max-age=0, must-revalidate` (browsers ask each time;
+Cloudflare answers from its copy). *Check now* read the marker Cloudflare
+takes off, so it said "not marked" on a HIT; it reads `X-Y4APK-Edge` now.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

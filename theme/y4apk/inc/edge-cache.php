@@ -103,7 +103,11 @@ class Y4APK_Edge {
 			return;
 		}
 		$ttl = $code === 404 ? 120 : self::ttl(); // a page not found: briefly (it may be made in a moment)
-		header('Cloudflare-CDN-Cache-Control: public, max-age=' . (int) $ttl . ', stale-while-revalidate=60');
+		header('Cloudflare-CDN-Cache-Control: public, max-age=' . (int) $ttl . ', stale-while-revalidate=60'); // Cloudflare reads it and takes it off
+		// 2.74.1: browsers ask again each time (Cloudflare answers from its copy, fast), so a visitor who signs in, or a page that
+		// changed, is never an old copy in the browser (Cloudflare would otherwise tell browsers to keep it 4 hours)
+		header('Cache-Control: public, max-age=0, must-revalidate');
+		header('X-Y4APK-Edge: ' . (int) $ttl); // for Y4APK ▸ Speed ▸ Check now (Cloudflare passes this one on)
 	}
 
 	/* ---------------------------------------------------------------- *
@@ -269,7 +273,7 @@ class Y4APK_Edge {
 				return ['status' => '', 'header' => '', 'error' => $r->get_error_message()];
 			}
 			$status = strtoupper((string) wp_remote_retrieve_header($r, 'cf-cache-status'));
-			$header = (string) wp_remote_retrieve_header($r, 'cloudflare-cdn-cache-control');
+			$header = (string) wp_remote_retrieve_header($r, 'x-y4apk-edge');
 		}
 		return ['status' => $status, 'header' => $header, 'error' => ''];
 	}
@@ -350,7 +354,7 @@ class Y4APK_Edge {
 				<div class="y4ui-card-b">
 					<?php if (is_array($chk)) : ?>
 						<p><span class="y4ui-chip <?php echo $chk['status'] === 'HIT' ? 'is-green' : ($chk['status'] === 'DYNAMIC' || $chk['error'] !== '' ? 'is-red' : 'is-amber'); ?>"><?php echo esc_html($chk['error'] !== '' ? $chk['error'] : ($chk['status'] !== '' ? $chk['status'] : __('No answer from Cloudflare', 'y4apk'))); ?></span>
-						<span class="y4ui-kpi-s"><?php echo esc_html($chk['header'] !== '' ? sprintf(__('The theme told Cloudflare: %s', 'y4apk'), $chk['header']) : __('The theme did not mark the home page (switched off below, or it was not for a visitor).', 'y4apk')); ?></span></p>
+						<span class="y4ui-kpi-s"><?php echo esc_html($chk['header'] !== '' ? sprintf(__('The theme lets Cloudflare keep it for %s; browsers ask again each time.', 'y4apk'), human_time_diff(0, (int) $chk['header'])) : __('The theme did not mark the home page (switched off below, or LiteSpeed still has a copy from before 2.74.1: Purge All).', 'y4apk')); ?></span></p>
 					<?php endif; ?>
 					<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php $form('check'); ?><button class="button"><?php esc_html_e('Check now', 'y4apk'); ?></button></form>
 				</div>
