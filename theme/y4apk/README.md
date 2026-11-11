@@ -970,6 +970,19 @@ Errors now show the host's words. "No endpoints found matching your data
 policy" says what to turn on (openrouter.ai/settings/privacy: free endpoints
 that may train on inputs) instead of trying every model.
 
+2.76.2 — **No grey squares while the first screen loads.** LiteSpeed Cache's
+lazy load put a 32×32 placeholder in place of every picture, also the ones
+on the first screen; the home page's banner had no width/height, so its
+placeholder was stretched into a big grey square (and the page moved when the
+banner came), and its `fetch-priority` was misspelt (browsers read
+`fetchpriority`). Now `y4apk_eager()` (`loading="eager" decoding="async"
+data-no-lazy="1" data-skip-lazy="1"`, which LiteSpeed leaves alone) is on: the
+home banner (with its real size from `y4apk_img_dims()`: the Media Library,
+else the file, kept a month) and the "Best of the best" badge, the first four
+cards' icons and pictures, a post's icon and the blurred picture behind it,
+its first three screenshots, a Roblox game's banner and icon. The rest still
+loads lazily.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

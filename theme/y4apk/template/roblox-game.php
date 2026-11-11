@@ -27,9 +27,9 @@ get_header();
 		<div class="list-heading rbx-crumbs"><div class="heading-bg"><?php if (function_exists('breadcrumbsX')) breadcrumbsX(); ?></div></div>
 
 		<section class="rbx-hero<?php echo $banner ? ' has-banner' : ''; ?>">
-			<img class="rbx-hero-bg" src="<?php echo esc_url($banner ?: $icon, ['http', 'https', 'data']); ?>" alt="" aria-hidden="true">
+			<img class="rbx-hero-bg" src="<?php echo esc_url($banner ?: $icon, ['http', 'https', 'data']); ?>" alt="" aria-hidden="true"<?php echo y4apk_eager(); // phpcs:ignore -- 2.76.2 ?>>
 			<div class="rbx-hero-in">
-				<img class="rbx-hero-icon" src="<?php echo esc_url($icon, ['http', 'https', 'data']); ?>" alt="<?php echo esc_attr($term->name); ?>" width="160" height="160" fetchpriority="high">
+				<img class="rbx-hero-icon" src="<?php echo esc_url($icon, ['http', 'https', 'data']); ?>" alt="<?php echo esc_attr($term->name); ?>" width="160" height="160" fetchpriority="high"<?php echo y4apk_eager(); // phpcs:ignore ?>>
 				<div class="rbx-hero-text">
 					<div class="rbx-tags">
 						<?php if ($hub) : ?><a class="rbx-tag" href="<?php echo esc_url($hub); ?>"><?php esc_html_e('All games', 'y4apk'); ?></a><?php endif; ?>

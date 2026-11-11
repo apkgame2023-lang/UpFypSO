@@ -418,6 +418,57 @@ function y4apk_prime_cards($rows) {
 }
 
 /** Posts (with their meta) and their featured images, in a few queries. */
+/**
+ * 2.76.2: a picture at the top of a page (the home page's banner and cards, a
+ * post's icon): loaded at once, not by LiteSpeed's lazy load, whose grey
+ * square stood in its place (and moved the page when the picture came).
+ */
+function y4apk_eager() {
+	return ' loading="eager" decoding="async" data-no-lazy="1" data-skip-lazy="1"';
+}
+
+/** A picture's width and height from its address ([0, 0] when not known), from the Media Library or the file; kept a month. */
+function y4apk_img_dims($url) {
+	$url = (string) $url;
+	if ($url === '' || preg_match('/\.svg(\?|$)/i', $url)) {
+		return [0, 0];
+	}
+	$key = 'y4apk_dims_' . md5($url);
+	$got = get_transient($key);
+	if (is_array($got)) {
+		return $got;
+	}
+	$dims = [0, 0];
+	$id = attachment_url_to_postid($url);
+	$meta = $id ? wp_get_attachment_metadata($id) : null;
+	if (is_array($meta) && !empty($meta['width']) && !empty($meta['height'])) {
+		$dims = [(int) $meta['width'], (int) $meta['height']];
+	} else {
+		$up = wp_get_upload_dir();
+		$path = '';
+		$root = '';
+		$clean = strtok($url, '?');
+		foreach ([[$up['baseurl'], $up['basedir']], [get_template_directory_uri(), get_template_directory()]] as $map) {
+			$base = set_url_scheme($map[0], 'https');
+			foreach ([$base, set_url_scheme($map[0], 'http')] as $b) {
+				if (strpos($clean, $b . '/') === 0) {
+					$path = $map[1] . substr($clean, strlen($b));
+					$root = $map[1];
+					break 2;
+				}
+			}
+		}
+		if ($path !== '' && is_file($path) && strpos((string) realpath($path), (string) realpath($root)) === 0) { // inside that folder (no ../)
+			$i = @getimagesize($path);
+			if ($i && $i[0] && $i[1]) {
+				$dims = [(int) $i[0], (int) $i[1]];
+			}
+		}
+	}
+	set_transient($key, $dims, $dims[0] ? MONTH_IN_SECONDS : DAY_IN_SECONDS);
+	return $dims;
+}
+
 function y4apk_prime_posts($ids) {
 	$ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
 	if (!$ids || !function_exists('_prime_post_caches')) {

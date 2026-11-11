@@ -32,7 +32,8 @@ $featured_posts = get_theme_mod('featured_posts', [
         </div>
         <figure class="h-intro-img" style="display:none;">
             <?php if($hero_banner) : ?>
-            <img src="<?php echo $hero_banner; ?>" alt="Hero Banner" fetch-priority="high" style="width: 100%; max-width: 37.75rem; height: auto; margin: -1.25rem 0 0 -3.25rem;" />
+            <?php list($y4_hw, $y4_hh) = y4apk_img_dims($hero_banner); // 2.76.2: its own size, loaded first ?>
+            <img src="<?php echo esc_url($hero_banner); ?>" alt="Hero Banner"<?php echo $y4_hw ? ' width="' . (int) $y4_hw . '" height="' . (int) $y4_hh . '"' : ''; ?> fetchpriority="high"<?php echo y4apk_eager(); // phpcs:ignore ?> style="width: 100%; max-width: 37.75rem; height: auto; margin: -1.25rem 0 0 -3.25rem;" />
             <?php else : ?>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 604 328" width="604" height="328">
                 <defs>
@@ -130,7 +131,7 @@ $featured_posts = get_theme_mod('featured_posts', [
         <div class="best-app-label" style="display:none;">
             <span><?php esc_html_e('Best of the best', 'y4apk'); ?></span>
             <i class="best-app-label-stars"></i>
-            <img class="best-app-label-bg" src="<?php echo get_template_directory_uri() . '/assets/img/bestapp-bg.svg'; ?>" width="220" height="220" alt="Best App Background">
+            <img class="best-app-label-bg" src="<?php echo get_template_directory_uri() . '/assets/img/bestapp-bg.svg'; ?>" width="220" height="220" alt="Best App Background"<?php echo y4apk_eager(); // phpcs:ignore ?>>
         </div>
         <?php if($featured_posts) : $y4_many = count($featured_posts) > 4; // 2.59: more than four slide sideways ?>
         <div class="y4row<?php echo $y4_many ? ' is-many' : ''; ?>">
@@ -139,7 +140,9 @@ $featured_posts = get_theme_mod('featured_posts', [
             <div class="best-app-list">
  <?php 
                     y4apk_prime_cards($featured_posts); // 2.74: in a few queries
+                    $y4_i = 0;
                     foreach($featured_posts as $post) : 
+                    $y4_top = $y4_i++ < 4; // 2.76.2: the four on the first screen load at once
                     list($post_name, $post_link) = y4apk_card($post); // the name and link set on the card, or the post's
                     $bg_image_url = $post['bg_image'] ?? '';
                     $bg_color = sanitize_hex_color($post['bg_color'] ?? '') ?: '#29b1d8';
@@ -148,7 +151,7 @@ $featured_posts = get_theme_mod('featured_posts', [
                     <a href="<?php echo esc_url($post_link); ?>">
                         <div class="best-app-img">
                             <figure>
-<img src="<?php echo esc_url(y4apk_card_icon($post, $post_name), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($post_name); ?>" loading="lazy">
+<img src="<?php echo esc_url(y4apk_card_icon($post, $post_name), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($post_name); ?>"<?php echo $y4_top ? y4apk_eager() : ' loading="lazy"'; // phpcs:ignore ?>>
                             </figure>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 76" width="90" height="76">
                                 <path fill="currentColor" d="M64,0H0V76A16,16,0,0,1,16,60.26H40a24,24,0,0,0,24-24V19.74A16,16,0,0,1,80,4H90V0Z"></path>
@@ -157,7 +160,7 @@ $featured_posts = get_theme_mod('featured_posts', [
                         <span class="best-app-title"><?php echo esc_html($post_name); ?></span>
                         <span class="best-app-download"><?php esc_html_e('Download', 'y4apk'); ?></span>
                         <div class="best-app-bg" style="background-color: <?php echo $bg_color; ?>;">
-                            <?php if ($bg_image_url !== '') : // a card without a picture: its colour only ?><img src="<?php echo esc_url($bg_image_url); ?>" width="190" height="144" alt="<?php echo esc_attr($post_name); ?> Background" decoding="async" loading="lazy"><?php endif; ?>
+                            <?php if ($bg_image_url !== '') : // a card without a picture: its colour only ?><img src="<?php echo esc_url($bg_image_url); ?>" width="190" height="144" alt="<?php echo esc_attr($post_name); ?> Background"<?php echo $y4_top ? y4apk_eager() : ' decoding="async" loading="lazy"'; // phpcs:ignore ?>><?php endif; ?>
                         </div>
                         <div class="best-app-shadow" style="box-shadow: 0 0 2rem 0 <?php echo $bg_color; ?>;"></div>
                     </a>
