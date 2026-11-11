@@ -91,6 +91,13 @@ class Y4APK_Writer {
 				'keys' => 'https://aistudio.google.com/apikey', 'limits' => 'https://aistudio.google.com/rate-limit', 'const' => 'Y4APK_GEMINI_KEY'],
 			'groq'   => ['name' => 'Groq', 'by' => 'Groq', 'free' => true, 'url' => 'https://api.groq.com/openai/v1',
 				'keys' => 'https://console.groq.com/keys', 'limits' => 'https://console.groq.com/settings/limits', 'const' => 'Y4APK_GROQ_KEY'],
+			// 2.76: Workers AI (10,000 free "neurons" a day; the account ID goes in its address), OpenRouter's ":free" models, DeepSeek (paid, cheap)
+			'cloudflare' => ['name' => 'Workers AI', 'by' => 'Cloudflare', 'free' => true, 'url' => 'https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1',
+				'keys' => 'https://dash.cloudflare.com/profile/api-tokens', 'limits' => 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai', 'const' => 'Y4APK_CF_AI_TOKEN'],
+			'openrouter' => ['name' => 'OpenRouter', 'by' => 'OpenRouter', 'free' => true, 'url' => 'https://openrouter.ai/api/v1',
+				'keys' => 'https://openrouter.ai/settings/keys', 'limits' => 'https://openrouter.ai/settings/credits', 'const' => 'Y4APK_OPENROUTER_KEY'],
+			'deepseek' => ['name' => 'DeepSeek', 'by' => 'DeepSeek', 'free' => false, 'url' => 'https://api.deepseek.com',
+				'keys' => 'https://platform.deepseek.com/api_keys', 'limits' => 'https://platform.deepseek.com/top_up', 'const' => 'Y4APK_DEEPSEEK_KEY'],
 			'openai' => ['name' => 'ChatGPT', 'by' => 'OpenAI', 'free' => false, 'url' => 'https://api.openai.com/v1',
 				'keys' => 'https://platform.openai.com/api-keys', 'limits' => 'https://platform.openai.com/settings/organization/billing', 'const' => 'Y4APK_OPENAI_KEY'],
 			'claude' => ['name' => 'Claude', 'by' => 'Anthropic', 'free' => false, 'url' => 'https://api.anthropic.com/v1',
@@ -126,6 +133,7 @@ class Y4APK_Writer {
 			'link_self'    => 1,
 			'fallback'     => 1, // an AI at its limit: go on with the next one that has a key (free ones)
 			'fallback_paid' => 0, // … and the paid ones too
+			'cf_account'   => '', // Workers AI: the Cloudflare account ID (2.76)
 			'facts'        => 1,
 			'link_name'    => 1,
 			'link_type'    => 1,
@@ -161,6 +169,10 @@ class Y4APK_Writer {
 		}
 		$o['key'] = $o['keys'][$o['provider']];
 		$o['model'] = $o['models'][$o['provider']];
+		if (defined('Y4APK_CF_AI_ACCOUNT') && Y4APK_CF_AI_ACCOUNT) {
+			$o['cf_account'] = (string) Y4APK_CF_AI_ACCOUNT;
+		}
+		$o['cf_account'] = preg_match('/^[a-f0-9]{32}$/', strtolower(trim((string) $o['cf_account']))) ? strtolower(trim((string) $o['cf_account'])) : '';
 		$o['per_run'] = max(1, min(10, (int) $o['per_run']));
 		$o['parts'] = (int) $o['parts'] & self::PARTS;
 		return $o;
@@ -196,6 +208,7 @@ class Y4APK_Writer {
 			'link_self'    => empty($in['link_self']) ? 0 : 1,
 			'fallback'     => empty($in['fallback']) ? 0 : 1,
 			'fallback_paid' => empty($in['fallback_paid']) ? 0 : 1,
+			'cf_account'   => strtolower(preg_replace('/[^A-Fa-f0-9]/', '', (string) ($in['cf_account'] ?? ''))),
 			'facts'        => empty($in['facts']) ? 0 : 1,
 			'link_name'    => empty($in['link_name']) ? 0 : 1,
 			'link_type'    => empty($in['link_type']) ? 0 : 1,
@@ -244,10 +257,18 @@ class Y4APK_Writer {
 	 */
 	private static function api($provider, $method, $path, $body = null, $timeout = 90, $headers = []) {
 		$info = self::providers()[$provider];
-		$key = self::settings()['keys'][$provider];
+		$o = self::settings();
+		$key = $o['keys'][$provider];
 		if ($key === '') {
 			return new WP_Error('key', sprintf(__('Add your %s API key in Settings first.', 'y4apk'), $info['name']));
 		}
+		if (strpos($info['url'], '{account}') !== false) {
+			if ($o['cf_account'] === '') {
+				return new WP_Error('key', __('Add your Cloudflare account ID next to the Workers AI token in Settings.', 'y4apk'));
+			}
+			$info['url'] = str_replace('{account}', $o['cf_account'], $info['url']);
+		}
+		$info['url'] = (string) apply_filters('y4apk_writer_api_base', $info['url'], $provider);
 		if ($provider === 'claude') {
 			$headers = array_merge(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'], $headers);
 		} elseif ($provider === 'gemini') {
@@ -274,6 +295,11 @@ class Y4APK_Writer {
 			$json = $json[0];
 		}
 		$err = isset($json['error']) && is_array($json['error']) ? $json['error'] : [];
+		if (!$err && isset($json['errors'][0]) && is_array($json['errors'][0])) { // Cloudflare: {success: false, errors: [{code, message}]}
+			$err = ['message' => (string) ($json['errors'][0]['message'] ?? ''), 'type' => 'cf' . (int) ($json['errors'][0]['code'] ?? 0)];
+		} elseif (!$err && isset($json['error']) && is_string($json['error'])) {
+			$err = ['message' => $json['error']];
+		}
 		$msg = isset($err['message']) ? (string) $err['message'] : 'HTTP ' . $code;
 		$what = strtolower(implode(' ', array_filter([
 			isset($err['code']) && is_string($err['code']) ? $err['code'] : '',
@@ -284,7 +310,10 @@ class Y4APK_Writer {
 		if ($code === 401 || preg_match('/invalid_api_key|authentication_error|permission_denied/', $what) || preg_match('/api key (not valid|expired)|invalid api key|incorrect api key/i', $msg)) {
 			return new WP_Error('key', sprintf(__('%s did not accept the API key. Check it in Settings.', 'y4apk'), $info['name']));
 		}
-		if ($code === 402 || preg_match('/insufficient_quota|billing_error/', $what) || stripos($msg, 'credit balance') !== false) {
+		if ($code === 403 && preg_match('/cf5035|upgrade|paid plan/i', $what . ' ' . $msg)) { // Workers AI: a model the free plan does not have
+			return new WP_Error('model', sprintf(__('This %1$s account cannot use the model “%2$s”. Choose another in Settings.', 'y4apk'), $info['name'], $model));
+		}
+		if ($code === 402 || preg_match('/insufficient_quota|billing_error/', $what) || stripos($msg, 'credit balance') !== false || stripos($msg, 'insufficient balance') !== false) {
 			return new WP_Error('credit', sprintf(__('The %1$s account has no credit left: add some at %2$s.', 'y4apk'), $info['name'], preg_replace('~^https?://|/$~', '', $info['limits'])));
 		}
 		if ($code === 429 || $code >= 500) {
@@ -293,8 +322,9 @@ class Y4APK_Writer {
 				$wait = (int) ceil((float) $m[1]);
 			}
 			// A free tier's daily limit: no use asking again before it resets.
-			if ($code === 429 && preg_match('/per ?day|perday|\(rpd\)|\(tpd\)|daily/i', $msg . ' ' . wp_json_encode($err))) {
-				$wait = max($wait, HOUR_IN_SECONDS);
+			if ($code === 429 && preg_match('/per[ -]?day|perday|\(rpd\)|\(tpd\)|daily|cf3036/i', $msg . ' ' . $what . ' ' . wp_json_encode($err))) {
+				// Workers AI and OpenRouter count the day from 00:00 UTC: asked again then; the others in an hour
+				$wait = in_array($provider, ['cloudflare', 'openrouter'], true) ? max($wait, strtotime('tomorrow 00:00:30 UTC') - time()) : max($wait, HOUR_IN_SECONDS);
 				$msg = sprintf(__('%s’s daily limit is reached; the queue waits for it.', 'y4apk'), $info['name']) . ' ' . $msg;
 			}
 			return new WP_Error('busy', sprintf(__('%1$s is busy: %2$s', 'y4apk'), $info['name'], mb_substr($msg, 0, 300)), ['wait' => max(20, min(DAY_IN_SECONDS, $wait ?: 60)), 'status' => $code]);
@@ -311,6 +341,11 @@ class Y4APK_Writer {
 		if (!$fresh && is_array($cached)) {
 			return $cached;
 		}
+		if ($provider === 'cloudflare') { // Workers AI's model list is not on the OpenAI-style address: the ones it writes well with
+			$ids = array_keys(self::cf_models());
+			set_transient('y4apk_writer_models_' . $provider, $ids, DAY_IN_SECONDS);
+			return $ids;
+		}
 		$path = ['claude' => '/models?limit=100', 'gemini' => '/models?pageSize=1000'];
 		$r = self::api($provider, 'GET', isset($path[$provider]) ? $path[$provider] : '/models', null, 20);
 		if (is_wp_error($r)) {
@@ -321,8 +356,12 @@ class Y4APK_Writer {
 			'gemini' => '/embed|tts|image|audio|live|computer|robotics|aqa|learnlm|gemma/',
 			'groq'   => '/whisper|tts|guard|playai|orpheus|distil/',
 			'claude' => '/^$/',
+			'openrouter' => '/embed|guard|vision|-vl|image|audio|tts|whisper|ocr/',
+			'deepseek' => '/vision|ocr|embed|prover|math/',
 		];
-		$want = ['openai' => '/^(gpt-\d|o\d)/', 'gemini' => '/^gemini-/', 'groq' => '/./', 'claude' => '/^claude-/'];
+		$want = ['openai' => '/^(gpt-\d|o\d)/', 'gemini' => '/^gemini-/', 'groq' => '/./', 'claude' => '/^claude-/',
+			'openrouter' => '/:free$/', // only the free ones: this is the free stand-in
+			'deepseek' => '/^deepseek-/'];
 		$ids = [];
 		// Gemini: {models: [{name: "models/…", supportedGenerationMethods}]}; the others: {data: [{id}]}.
 		$list = isset($r['models']) ? (array) $r['models'] : (isset($r['data']) ? (array) $r['data'] : []);
@@ -350,6 +389,27 @@ class Y4APK_Writer {
 	 * Llama 3.3 70B. Claude has no automatic choice (Claude Opus 5.5 by default).
 	 */
 	public static function pick($provider, $ids) {
+		$ok = get_transient('y4apk_writer_ok_' . $provider); // the one that last wrote, when "Automatic" had to look further
+		if ($ok && in_array($ok, $ids, true)) {
+			return $ok;
+		}
+		if ($provider === 'cloudflare' || $provider === 'openrouter') {
+			$c = self::candidates($provider, $ids);
+			return $c ? $c[0] : ($provider === 'cloudflare' ? '@cf/openai/gpt-oss-120b' : 'openai/gpt-oss-120b:free');
+		}
+		if ($provider === 'deepseek') {
+			foreach (['deepseek-v4-flash', 'deepseek-chat'] as $id) {
+				if (in_array($id, $ids, true)) {
+					return $id;
+				}
+			}
+			foreach ($ids as $id) {
+				if (strpos($id, 'flash') !== false) {
+					return $id;
+				}
+			}
+			return $ids ? $ids[0] : 'deepseek-v4-flash';
+		}
 		if ($provider === 'groq') {
 			foreach (['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'] as $id) {
 				if (in_array($id, $ids, true)) {
@@ -372,6 +432,39 @@ class Y4APK_Writer {
 		}
 		$best = self::newest($ids, '/^gpt-(\d+(?:\.\d+)?)o?-mini$/');
 		return $best !== '' ? $best : 'gpt-4o-mini';
+	}
+
+	/** Workers AI models that write a good short article on the free plan, best first (2.76). */
+	public static function cf_models() {
+		return [
+			'@cf/openai/gpt-oss-120b'                  => 'gpt-oss 120B (OpenAI)',
+			'@cf/meta/llama-3.3-70b-instruct-fp8-fast' => 'Llama 3.3 70B (Meta)',
+			'@cf/qwen/qwen3-30b-a3b-fp8'               => 'Qwen3 30B (Alibaba)',
+			'@cf/openai/gpt-oss-20b'                   => 'gpt-oss 20B (OpenAI)',
+			'@cf/google/gemma-3-12b-it'                => 'Gemma 3 12B (Google)',
+		];
+	}
+
+	/** "Automatic" on Workers AI and OpenRouter: the models to try, best first (a model gone or not on the free plan: the next). */
+	public static function candidates($provider, $ids) {
+		if ($provider === 'cloudflare') {
+			return array_values(array_intersect(array_keys(self::cf_models()), $ids ?: array_keys(self::cf_models())));
+		}
+		$out = [];
+		foreach (['~^openai/gpt-oss-120b:free$~', '~^deepseek/deepseek-(v4|chat|v3)[^/]*:free$~', '~^meta-llama/llama-3\.3-70b-instruct:free$~', '~^qwen/qwen3-[^/]*:free$~',
+			'~^google/gemma-3-27b-it:free$~', '~^mistralai/[^/]*:free$~', '~^openai/gpt-oss-20b:free$~'] as $re) {
+			foreach ($ids as $id) {
+				if (preg_match($re, $id) && !in_array($id, $out, true)) {
+					$out[] = $id;
+				}
+			}
+		}
+		foreach ($ids as $id) {
+			if (!in_array($id, $out, true)) {
+				$out[] = $id;
+			}
+		}
+		return $out;
 	}
 
 	/** The newest release (version number: group 1); a preview (group 2) only when there is no release. */
@@ -416,7 +509,33 @@ class Y4APK_Writer {
 		if ($provider === 'claude') {
 			return self::chat_claude($system, $user, $model, $search);
 		}
-		return $provider === 'gemini' ? self::chat_gemini($system, $user, $model, $search) : self::chat_compatible($system, $user, $provider, $model, $max);
+		if ($provider === 'gemini') {
+			return self::chat_gemini($system, $user, $model, $search);
+		}
+		$r = self::chat_compatible($system, $user, $provider, $model, $max);
+		// "Automatic" on Workers AI / OpenRouter: a model this account cannot use (gone, or not on the free plan): the next one, remembered
+		if (is_wp_error($r) && $r->get_error_code() === 'model' && in_array($provider, ['cloudflare', 'openrouter'], true) && self::settings()['models'][$provider] === 'auto') {
+			$ids = self::models($provider);
+			$tried = [$model];
+			foreach (self::candidates($provider, is_array($ids) ? $ids : []) as $next) {
+				if (in_array($next, $tried, true)) {
+					continue;
+				}
+				if (count($tried) >= 3) {
+					break;
+				}
+				$tried[] = $next;
+				$r = self::chat_compatible($system, $user, $provider, $next, $max);
+				if (!is_wp_error($r)) {
+					set_transient('y4apk_writer_ok_' . $provider, $next, WEEK_IN_SECONDS);
+					break;
+				}
+				if ($r->get_error_code() !== 'model') {
+					break;
+				}
+			}
+		}
+		return $r;
 	}
 
 	/** Can this AI search the web while answering? */
@@ -494,13 +613,17 @@ class Y4APK_Writer {
 		return $text;
 	}
 
-	/** OpenAI, and Groq through its OpenAI-compatible endpoint. */
+	/** OpenAI, and the OpenAI-compatible ones: Groq, Workers AI, OpenRouter, DeepSeek. */
 	private static function chat_compatible($system, $user, $provider, $model, $max) {
 		$body = [
 			'model'    => $model,
 			'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
 		];
-		$body['max_completion_tokens'] = $max;
+		if ($provider === 'openai' || $provider === 'groq') {
+			$body['max_completion_tokens'] = $max;
+		} else {
+			$body['max_tokens'] = $max; // Workers AI, OpenRouter, DeepSeek
+		}
 		// Reasoning models think first; a little is plenty for a short article.
 		if (($provider === 'openai' && preg_match('/^(gpt-5|o\d)/', $model))
 			|| ($provider === 'groq' && strpos($model, 'gpt-oss') !== false)) {
@@ -669,7 +792,7 @@ class Y4APK_Writer {
 			list($system, $user) = $make($p);
 			$answer = self::chat($system, $user, $p, $model, $max, $search);
 			if (!is_wp_error($answer)) {
-				return [$answer, $p, $model];
+				return [$answer, $p, in_array($p, ['cloudflare', 'openrouter'], true) ? self::model($p) : $model]; // "Automatic" may have gone on to the next model
 			}
 			$code = $answer->get_error_code();
 			if ($code === 'busy') {
@@ -2324,7 +2447,7 @@ class Y4APK_Writer {
 		if (is_wp_error($reply)) {
 			wp_send_json_error(['message' => $reply->get_error_message(), 'models' => $models, 'model' => $model]);
 		}
-		wp_send_json_success(['models' => $models, 'model' => $model, 'reply' => mb_substr($reply, 0, 40)]);
+		wp_send_json_success(['models' => $models, 'model' => self::model($provider), 'reply' => mb_substr($reply, 0, 40)]); // "Automatic" may have gone on to the next model
 	}
 
 	/** A post from its ID, its edit or public address, or words from its title. */
@@ -2893,6 +3016,9 @@ class Y4APK_Writer {
 		$notes = [
 			'gemini' => __('Free: a number of requests a day set by Google (most with the “Flash-Lite” models). Google may use free-tier requests to improve its products.', 'y4apk'),
 			'groq'   => __('Free: open models (gpt-oss, Llama), with a daily limit set by Groq.', 'y4apk'),
+			'cloudflare' => __('Free: 10,000 “neurons” a day on your Cloudflare account (roughly a few dozen articles), no card; open models (gpt-oss, Llama, Qwen). Starts again at 07:00 Thai time.', 'y4apk'),
+			'openrouter' => __('Free: its “:free” models (gpt-oss, DeepSeek, Llama, Qwen …), 50 requests a day — 1,000 a day once $10 of credit was ever bought. Some free models’ hosts may learn from what is sent (an article about a public app).', 'y4apk'),
+			'deepseek' => __('Paid by use, very cheap: a fraction of a cent an article (half price at night, China time).', 'y4apk'),
 			'openai' => __('Paid by use, separately from a ChatGPT plan: well under a cent an article with a “mini” model.', 'y4apk'),
 			'claude' => __('Paid by use, separately from a Claude plan. Claude Opus 5.5 unless you choose another model; Haiku 5.5 costs far less.', 'y4apk'),
 		];
@@ -2906,6 +3032,15 @@ class Y4APK_Writer {
 			'groq'   => [sprintf(esc_html__('Sign up free at %s.', 'y4apk'), $link('https://console.groq.com/')),
 				esc_html__('API Keys ▸ Create API Key, copy it, paste it below, Save, then Test.', 'y4apk'),
 				sprintf(esc_html__('Your free limits: %s.', 'y4apk'), $link($all['groq']['limits']))],
+			'cloudflare' => [sprintf(esc_html__('Sign in at %s (the Cloudflare account the site already uses is fine).', 'y4apk'), $link('https://dash.cloudflare.com/')),
+				esc_html__('Copy your Account ID (on the account’s home page, or in the address: dash.cloudflare.com/<Account ID>/…) into the box below.', 'y4apk'),
+				sprintf(esc_html__('My Profile ▸ API Tokens (%s) ▸ Create Token ▸ the “Workers AI” template ▸ Continue ▸ Create Token; copy it, paste it below, Save, then Test.', 'y4apk'), $link($all['cloudflare']['keys']))],
+			'openrouter' => [sprintf(esc_html__('Sign up free at %s.', 'y4apk'), $link('https://openrouter.ai/')),
+				sprintf(esc_html__('Keys (%s) ▸ Create Key, copy it, paste it below, Save, then Test.', 'y4apk'), $link($all['openrouter']['keys'])),
+				esc_html__('Only its free models are used. Buying $10 of credit once (optional) raises the free limit from 50 to 1,000 requests a day.', 'y4apk')],
+			'deepseek' => [sprintf(esc_html__('Sign up at %s.', 'y4apk'), $link('https://platform.deepseek.com/')),
+				esc_html__('Top up: a few dollars last a long time.', 'y4apk'),
+				sprintf(esc_html__('API keys (%s) ▸ Create new API key, copy it, paste it below, Save, then Test.', 'y4apk'), $link($all['deepseek']['keys']))],
 			'openai' => [sprintf(esc_html__('Sign in at %s (your ChatGPT login works).', 'y4apk'), $link('https://platform.openai.com/')),
 				esc_html__('Settings ▸ Billing: add credit ($5 is plenty to start).', 'y4apk'),
 				esc_html__('API keys ▸ Create new secret key, copy it, paste it below, Save, then Test.', 'y4apk')],
@@ -2916,9 +3051,21 @@ class Y4APK_Writer {
 		$auto = [
 			'gemini' => __('Automatic: the newest Flash-Lite (the largest free allowance)', 'y4apk'),
 			'groq'   => __('Automatic: gpt-oss 120B, else Llama 3.3 70B', 'y4apk'),
+			'cloudflare' => __('Automatic: gpt-oss 120B, else the next that works', 'y4apk'),
+			'openrouter' => __('Automatic: the best free model, else the next that works', 'y4apk'),
+			'deepseek' => __('Automatic: the newest Flash (the cheapest)', 'y4apk'),
 			'openai' => __('Automatic: the newest “mini”', 'y4apk'),
 		];
-		$placeholder = ['gemini' => 'AQ.… / AIza…', 'groq' => 'gsk_…', 'openai' => 'sk-…', 'claude' => 'sk-ant-…'];
+		$placeholder = ['gemini' => 'AQ.… / AIza…', 'groq' => 'gsk_…', 'cloudflare' => __('API token', 'y4apk'), 'openrouter' => 'sk-or-…', 'deepseek' => 'sk-…', 'openai' => 'sk-…', 'claude' => 'sk-ant-…'];
+		$group = function ($free) use ($all) {
+			$n = [];
+			foreach ($all as $info) {
+				if ($info['free'] === $free) {
+					$n[] = $info['name'];
+				}
+			}
+			return implode(', ', $n);
+		};
 		?>
 		<div class="au-settings aw-settings">
 			<form class="au-card au-pad" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="grid-column:1/-1">
@@ -2940,8 +3087,8 @@ class Y4APK_Writer {
 				</div>
 
 				<div class="aw-fallback">
-					<label><input type="checkbox" name="fallback" value="1" <?php checked($o['fallback']); ?>> <?php esc_html_e('When this AI reaches its limit (Gemini’s day used up …), go on with the other free AIs that have a key — Gemini, Groq — and back to this one when it takes requests again', 'y4apk'); ?></label>
-					<label><input type="checkbox" name="fallback_paid" value="1" <?php checked($o['fallback_paid']); ?>> <?php esc_html_e('… and then the paid ones with a key (ChatGPT, Claude): they cost money', 'y4apk'); ?></label>
+					<label><input type="checkbox" name="fallback" value="1" <?php checked($o['fallback']); ?>> <?php echo esc_html(sprintf(__('When this AI reaches its limit (Gemini’s day used up …), go on with the other free AIs that have a key — %s — and back to this one when it takes requests again', 'y4apk'), $group(true))); ?></label>
+					<label><input type="checkbox" name="fallback_paid" value="1" <?php checked($o['fallback_paid']); ?>> <?php echo esc_html(sprintf(__('… and then the paid ones with a key (%s): they cost money', 'y4apk'), $group(false))); ?></label>
 					<?php
 					$turns = [];
 					foreach (self::order() as $p) {
@@ -2956,7 +3103,7 @@ class Y4APK_Writer {
 					$key = $o['keys'][$p];
 					$list = get_transient('y4apk_writer_models_' . $p);
 					$list = is_array($list) ? $list : [];
-					$names = $p === 'claude' ? self::claude_models() : [];
+					$names = $p === 'claude' ? self::claude_models() : ($p === 'cloudflare' ? self::cf_models() : []);
 					foreach ($list as $id) {
 						$names += [$id => $id];
 					}
@@ -2965,9 +3112,19 @@ class Y4APK_Writer {
 					} ?>
 					<div class="aw-panel" data-panel="<?php echo esc_attr($p); ?>" <?php echo $o['provider'] === $p ? '' : 'hidden'; ?>>
 						<ol class="aw-steps"><?php foreach ($steps[$p] as $step) : ?><li><?php echo $step; // escaped above ?></li><?php endforeach; ?></ol>
+						<?php if ($p === 'cloudflare') : ?>
+						<div style="margin:0 0 12px;max-width:520px">
+							<label class="au-label" for="aw-cf-account"><?php esc_html_e('Cloudflare Account ID', 'y4apk'); ?></label>
+							<?php if (defined('Y4APK_CF_AI_ACCOUNT') && Y4APK_CF_AI_ACCOUNT) : ?>
+								<p class="description"><?php esc_html_e('Set in wp-config.php (Y4APK_CF_AI_ACCOUNT).', 'y4apk'); ?></p>
+							<?php else : ?>
+								<input type="text" id="aw-cf-account" name="cf_account" value="<?php echo esc_attr($o['cf_account']); ?>" placeholder="<?php esc_attr_e('32 letters and digits', 'y4apk'); ?>" autocomplete="off" spellcheck="false" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace">
+							<?php endif; ?>
+						</div>
+						<?php endif; ?>
 						<div class="aw-fields">
 							<div>
-								<label class="au-label" for="aw-key-<?php echo esc_attr($p); ?>"><?php echo esc_html(sprintf(__('%s API key', 'y4apk'), $info['name'])); ?></label>
+								<label class="au-label" for="aw-key-<?php echo esc_attr($p); ?>"><?php echo esc_html(sprintf($p === 'cloudflare' ? __('%s API token', 'y4apk') : __('%s API key', 'y4apk'), $info['name'])); ?></label>
 								<?php if (defined($info['const']) && constant($info['const'])) : ?>
 									<p class="description"><?php echo esc_html(sprintf(__('Set in wp-config.php (%s).', 'y4apk'), $info['const'])); ?></p>
 								<?php else : ?>

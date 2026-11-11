@@ -931,6 +931,35 @@ found".** `inc/dl-page.php` (Y4APK ▸ Download page).
 - A folder whose post is not known (or a made-up name): the home page, or the
   sign-in page. A file that is gone still goes to *When the file is gone*.
 
+2.76 — **Write with AI: three more AIs; the download page without its white box.**
+
+- **Workers AI (Cloudflare, free):** 10,000 "neurons" a day on the Cloudflare
+  account, no card. Needs the **Account ID** (a box of its own in its panel,
+  or `Y4APK_CF_AI_ACCOUNT` in wp-config.php) and an API token from the
+  "Workers AI" template (or `Y4APK_CF_AI_TOKEN`). Calls
+  `api.cloudflare.com/client/v4/accounts/<id>/ai/v1/chat/completions`. Its
+  list of models is the theme's own (`cf_models()`: gpt-oss 120B, Llama 3.3
+  70B, Qwen3 30B, gpt-oss 20B, Gemma 3 12B), as that address has no model list.
+- **OpenRouter (free):** only its `:free` models (vision/audio ones left out);
+  50 requests a day, 1,000 once $10 was ever bought. `Y4APK_OPENROUTER_KEY`.
+- **DeepSeek (paid, cheap):** `api.deepseek.com`; *Automatic* is the newest
+  Flash (`deepseek-v4-flash`). `Y4APK_DEEPSEEK_KEY`. Comes first among the
+  paid ones when *… and then the paid ones* is on.
+- In turn: the chosen AI, then the free ones with a key (Gemini, Groq,
+  Workers AI, OpenRouter), then the paid ones (DeepSeek, ChatGPT, Claude).
+- *Automatic* on Workers AI and OpenRouter: a model the account cannot use
+  (Workers AI's 403 / 5035 "not on the free plan", OpenRouter's 404 "no
+  endpoints") goes on to the next (at most 3 a call) and the one that wrote
+  is remembered a week.
+- Their daily limits (Workers AI's 3036 "daily free allocation", OpenRouter's
+  "free-models-per-day") wait until 00:00 UTC (07:00 Thai time), when both
+  start again; Cloudflare's `{success: false, errors: [...]}` answers are read
+  like the others' errors. Workers AI, OpenRouter and DeepSeek get
+  `max_tokens` (OpenAI and Groq keep `max_completion_tokens`).
+- The folder page (`files/up/_y4apk/page.php`, version 4): no white box behind
+  the logo and text; the text keeps a thin light halo to stay readable over
+  the lines.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

@@ -44,7 +44,7 @@ class Y4APK_DLPage {
 	const HOOK   = 'y4apk_dlpage_run';
 	const SLUG   = 'y4apk-download-page';
 	const DIR    = '_y4apk';            // in files/up
-	const VER    = '3';                 // the page's own version: written again when the theme changes it
+	const VER    = '4';                 // the page's own version: written again when the theme changes it
 	const MARK   = 'y4dl';              // "came through a download page of the site" (30 minutes)
 
 	public static function init() {
@@ -719,7 +719,8 @@ $e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); 
 <style>
 body{margin:0;height:100vh;display:flex;justify-content:center;align-items:center;background:#fbfdfd;font-family:Arial,sans-serif;overflow:hidden;user-select:none}
 #bg{position:fixed;inset:0;z-index:-1}
-.c{text-align:center;margin:0 16px;padding:24px 20px;border-radius:24px;background:rgba(251,253,253,.88)}
+.c{text-align:center;margin:0 16px;padding:24px 20px}
+.t,.d{text-shadow:0 0 3px #fbfdfd,0 0 6px #fbfdfd,0 0 10px #fbfdfd}
 .c img{display:block;margin:0 auto;width:auto;height:auto;max-width:min(50vw,300px);max-height:28vh}
 .n{font-size:34px;font-weight:800;color:#ff2a2a;letter-spacing:.02em}
 .s{border:6px solid #eee;border-top:6px solid #ff2a2a;border-radius:50%;width:50px;height:50px;margin:20px auto;animation:r 1s linear infinite}
