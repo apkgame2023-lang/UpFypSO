@@ -17,10 +17,15 @@ $site = $update_of ? ['id' => $update_of, 'title' => wp_strip_all_tags(get_the_t
 $icon_id = (int) $v('icon', 0);
 $mods = array_filter(array_map('trim', explode(',', (string) $v('mods', ''))));
 $known = array_merge(Y4APK_Share::MODS, ['Original']);
-$mod_more = implode(', ', array_diff($mods, $known));
+$mod_more = Y4APK_Share::bare_mods(implode(', ', array_diff($mods, $known))); // 2.71: without the brackets the title adds
 $start = (int) $v('step', 0);
 $start = $start ?: ($c['errors'] ? 5 : 1);
 $files = array_values((array) $v('files', []));
+// 2.71: "Add a version" on their own upload: what it had, ready for the new file
+$from = $editing ? 0 : (int) $v('from', 0);
+$from_d = $from ? Y4APK_Share::data($from) : null;
+$from_v = $from_d ? Y4APK_App_Updates::number($from_d['version']) : '';
+$can_reuse = $from && Y4APK_Share::can_reuse($from);
 $cfg = [
 	'ajax'  => admin_url('admin-ajax.php'),
 	'nonce' => wp_create_nonce('y4apk_share'),
@@ -28,6 +33,7 @@ $cfg = [
 	'popular' => $sh['popular'],
 	'max'   => $sh['max'],
 	'start' => $start,
+	'fromVersion' => $from_v,
 	'files' => array_map(function ($f) { return ['key' => $f['key'], 'size' => (float) $f['size'], 'name' => $f['name'], 'label' => $f['label'], 'sizeText' => Y4APK_R2::size_text($f['size'])]; }, $files),
 	'pick'  => $site ? ['type' => 'site'] + $site : ($play ? ['type' => 'play', 'package' => $v('package'), 'title' => $play['title'] ?? $v('name'), 'developer' => $play['developer'] ?? '', 'icon' => $play['icon'] ?? '', 'genre' => $play['genre'] ?? '', 'version' => $play['version'] ?? '', 'rating' => $play['rating'] ?? 0]
 		: ($v('name') !== '' ? ['type' => 'manual', 'title' => $v('name'), 'icon' => $icon_id ? (string) wp_get_attachment_image_url($icon_id, 'thumbnail') : ''] : null)),
@@ -125,6 +131,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 			<?php $form_open($editing ? 'edit' : 'share', ' novalidate enctype="multipart/form-data"'); ?>
 			<input type="hidden" name="package" value="<?php echo esc_attr($v('package')); ?>" data-f="package">
 			<input type="hidden" name="update_of" value="<?php echo esc_attr($update_of ?: ''); ?>" data-f="update_of">
+			<?php if ($from) : ?><input type="hidden" name="from" value="<?php echo (int) $from; ?>"><?php endif; ?>
 
 			<!-- 1. What -->
 			<section class="acc-wiz-step" data-step="1">
@@ -181,13 +188,19 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 			<section class="acc-wiz-step" data-step="3" hidden>
 				<h2 class="acc-wiz-title"><?php esc_html_e('About this file', 'y4apk'); ?></h2>
 				<p class="acc-wiz-lead"><?php esc_html_e('What people get when they download it.', 'y4apk'); ?></p>
+				<?php if ($from) : ?>
+				<div class="shr-from"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 4V1L8 5l4 4V6a6 6 0 0 1 5.65 8.03l1.46 1.46A8 8 0 0 0 12 4Zm0 14a6 6 0 0 1-5.65-8.03L4.89 8.51A8 8 0 0 0 12 20v3l4-4-4-4v3Z"/></svg>
+					<span><?php echo esc_html($from_v !== ''
+						? sprintf(__('Filled in from your v%s: check the version and the title, then upload the new file.', 'y4apk'), $from_v)
+						: __('Filled in from your last version: check the version and the title, then upload the new file.', 'y4apk')); ?></span></div>
+				<?php endif; ?>
 				<div class="acc-field shr-title">
 					<label for="f-title"><?php esc_html_e('Post title', 'y4apk'); ?> <small><?php esc_html_e('(optional)', 'y4apk'); ?></small></label>
 					<span class="acc-wiz-count" data-count-for="f-title"></span>
 					<div class="acc-input"><input id="f-title" type="text" name="post_title" value="<?php echo esc_attr($v('own_title')); ?>" maxlength="100" autocomplete="off" data-own-title data-counted></div>
 					<p class="acc-hint"><?php esc_html_e('A clear title of your own helps people find your post, here and on Google: the game’s or app’s name first, then what makes your version different, such as its MOD or the version. Up to 100 characters, no links. Left empty, the post gets the title shown in grey.', 'y4apk'); ?></p>
 				</div>
-				<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $sh['post']->ID : 0); } ?>
+				<?php if (class_exists('Y4APK_Cover')) { Y4APK_Cover::field($editing ? (int) $sh['post']->ID : 0, $from); } ?>
 				<div class="shr-row2">
 					<div class="acc-field">
 						<label for="f-version"><?php esc_html_e('Version', 'y4apk'); ?></label>
@@ -212,6 +225,15 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 					<div class="acc-input"><textarea id="f-desc" name="desc" rows="4" maxlength="1500" placeholder="<?php esc_attr_e('What the MOD does, how to install it, what to watch out for…', 'y4apk'); ?>" data-counted><?php echo esc_textarea($v('desc')); ?></textarea></div>
 					<span class="acc-wiz-count" data-count-for="f-desc"></span>
 				</div>
+				<?php if ($can_reuse) : ?>
+				<label class="shr-reuse">
+					<input type="checkbox" name="reuse_article" value="1" <?php checked((bool) $v('reuse', true)); ?> data-reuse>
+					<span class="shr-reuse-i" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm4 18H6V4h7v5h5v11ZM8 12h8v2H8v-2Zm0 4h8v2H8v-2Z"/></svg></span>
+					<span class="shr-reuse-t"><b><?php esc_html_e('Use the article of your last version', 'y4apk'); ?></b>
+						<small><?php echo esc_html(($from_v !== '' ? sprintf(__('The same article as your v%s, with the new version number in it.', 'y4apk'), $from_v) : __('The same article as your last version, with the new version number in it.', 'y4apk'))
+							. ' ' . (Y4APK_Share::writer_ready() ? __('Untick it and a new article is written for this version from your words above.', 'y4apk') : __('Untick it and the post has only your words above.', 'y4apk'))); ?></small></span>
+				</label>
+				<?php endif; ?>
 				<div class="acc-wiz-nav"><button type="button" class="acc-btn acc-btn-ghost" data-back><?php echo $ic('back'); ?> <?php esc_html_e('Back', 'y4apk'); ?></button><button type="button" class="acc-btn acc-btn-primary" data-next><?php esc_html_e('Next: the file', 'y4apk'); ?> <?php echo $ic('arrow'); ?></button></div>
 			</section>
 
@@ -283,6 +305,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 	var field = function (k) { return $('[data-f="' + k + '"]'); };
 	var esc = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 	var num = function (v) { var m = String(v || '').match(/\d+(?:\.\d+)*/); return m ? m[0] : ''; };
+	var later = function (a, b) { a = num(a).split('.'); b = num(b).split('.'); for (var i = 0; i < Math.max(a.length, b.length); i++) { var x = +(a[i] || 0), y = +(b[i] || 0); if (x !== y) { return x > y; } } return false; };
 	var fmt = function (b) { return b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + ' MB'; };
 	var post = function (action, data) {
 		var fd = new FormData(); fd.append('action', 'y4apk_share_' + action); fd.append('nonce', C.nonce);
@@ -337,7 +360,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 				'<button type="button" class="acc-wiz-link" data-unpick>' + esc(<?php echo wp_json_encode(__('Change', 'y4apk')); ?>) + '</button>';
 			chosen.hidden = false;
 			var ver = field('version');
-			if (!ver.value && p.version) { ver.value = p.version; }
+			if (!ver.value && p.version && (!C.fromVersion || later(p.version, C.fromVersion))) { ver.value = p.version; } // 2.71: never a version older than their last
 			$('[data-version-hint]').textContent = p.version ? <?php echo wp_json_encode(__('Google Play has v%s.', 'y4apk')); ?>.replace('%s', p.version) : '';
 		} else {
 			chosen.hidden = true;
@@ -529,7 +552,9 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 	var mods = function () { var o = $$('input[name="mod[]"]:checked').map(function (x) { return x.value; }), more = $('input[name="mod_more"]').value.trim(); if (more) { o.push(more); } return o.indexOf('Original') > -1 ? [] : o; };
 	function autoTitle() {
 		var name = field('name').value.trim() || (pick && pick.title) || '', m = mods(), v = num(field('version').value), lb = slots[0].label || 'APK', type = ['XAPK', 'APKS', 'APKM'].indexOf(lb) > -1 ? lb : 'APK';
-		return (name + (m.length ? ' MOD ' : ' ') + type + (v ? ' v' + v : '') + (m.length ? ' (' + m.join(', ') + ')' : '')).trim();
+		var ms = m.join(', ').trim();
+		while (/^[(\[]([^()\[\]]*)[)\]]$/.test(ms)) { ms = ms.slice(1, -1).trim(); } // "(Unlimited Money)": the title adds its own brackets
+		return (name + (m.length ? ' MOD ' : ' ') + type + (v ? ' v' + v : '') + (ms ? ' (' + ms + ')' : '')).trim();
 	}
 	/* ---- The post's title (2.52): the member's own, with the name in it, or the usual one (shown in grey in the box) ---- */
 	var own = $('[data-own-title]');
@@ -541,6 +566,18 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 	var titleHint = function () { if (own) { own.placeholder = autoTitle(); } };
 	f.addEventListener('input', titleHint);
 	f.addEventListener('change', titleHint);
+	/* ---- 2.71: the title of their last version follows the new version number ---- */
+	var inTitle = C.fromVersion || '';
+	function swapVersion() {
+		var nv = num(field('version').value);
+		if (!own || !inTitle || !nv || nv === inTitle) { return; }
+		var re = new RegExp('(^|[^0-9.])' + inTitle.replace(/\./g, '\\.') + '(?![0-9]|\\.[0-9])', 'g');
+		if (!re.test(own.value)) { return; }
+		own.value = own.value.replace(re, '$1' + nv);
+		inTitle = nv;
+		titleHint();
+	}
+	field('version').addEventListener('input', swapVersion);
 	function head() {
 		var hi = $('[data-head-icon]');
 		if (pick && pick.icon) { hi.innerHTML = '<img src="' + esc(pick.icon) + '" alt="">'; }
@@ -580,6 +617,7 @@ $steps = [1 => __('Find it', 'y4apk'), 2 => __('Category', 'y4apk'), 3 => __('De
 		setTimeout(function () { b.disabled = true; }, 0);
 	});
 	if (pick) { choose(pick); } else { cats(); }
+	swapVersion(); // the version Google Play has, filled in by choose()
 	reached = Math.max(1, Math.min(5, C.start));
 	go(C.start);
 })();

@@ -60,6 +60,21 @@ class Y4APK_Cover {
 		return true;
 	}
 
+	/** 2.71: the member's next version keeps the cover of their last one (a copy of its own on R2). */
+	public static function copy_from($from, $post_id, $user) {
+		$c = get_post_meta((int) $from, self::META, true);
+		if (!is_array($c) || empty($c['key']) || get_post_meta((int) $post_id, self::META, true) || !class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			return false;
+		}
+		$ext = strtolower(pathinfo((string) $c['key'], PATHINFO_EXTENSION)) ?: 'jpg';
+		$key = 'members/' . (int) $user->ID . '/cover-' . (int) $post_id . '-' . strtolower(wp_generate_password(8, false, false)) . '.' . $ext;
+		if (strpos((string) $c['key'], 'members/') !== 0 || is_wp_error(Y4APK_R2::move((string) $c['key'], $key, 0, false))) {
+			return false;
+		}
+		update_post_meta((int) $post_id, self::META, ['key' => $key, 'url' => Y4APK_R2::public_url($key), 'at' => time()]);
+		return true; // already looked at on Pictures: not new
+	}
+
 	public static function drop($post_id) {
 		$c = get_post_meta((int) $post_id, self::META, true);
 		if (is_array($c) && !empty($c['key']) && strpos($c['key'], 'members/') === 0 && class_exists('Y4APK_R2') && Y4APK_R2::can_store()) {
@@ -76,8 +91,10 @@ class Y4APK_Cover {
 	}
 
 	/** The field in the share and script forms (the form needs enctype="multipart/form-data"). */
-	public static function field($post_id = 0) {
+	public static function field($post_id = 0, $from = 0) {
 		$now = $post_id ? self::url($post_id) : '';
+		$from = !$post_id && $from && self::url($from) !== '' ? (int) $from : 0; // 2.71: a new version shows (and keeps) the cover of the member's last one
+		$now = $from ? self::url($from) : $now;
 		$max = class_exists('Y4APK_Social') ? Y4APK_Social::upload_max() : wp_max_upload_size();
 		$max = min($max, wp_max_upload_size()); // it comes through this server
 		?>
@@ -92,6 +109,7 @@ class Y4APK_Cover {
 				</span>
 			</label>
 			<input id="f-cover" class="y4c-in" type="file" name="cover" accept="image/png,image/jpeg,image/webp,image/gif" data-cover-in>
+			<?php if ($from) : ?><input type="hidden" name="cover_from" value="<?php echo (int) $from; ?>"><?php endif; ?>
 			<div class="y4c-acts">
 				<label class="acc-btn acc-btn-ghost y4c-pick" for="f-cover"><?php echo esc_html($now !== '' ? __('Change', 'y4apk') : __('Choose a picture', 'y4apk')); ?></label>
 				<label class="y4c-rm" data-cover-rm-wrap<?php echo $now === '' ? ' hidden' : ''; ?>><input type="checkbox" name="cover_remove" value="1" data-cover-rm> <?php esc_html_e('Remove the cover', 'y4apk'); ?></label>

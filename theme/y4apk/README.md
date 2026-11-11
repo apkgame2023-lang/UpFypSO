@@ -717,6 +717,32 @@ at once"), then goes to the bin (Posts ▸ Bin, where the team can restore it);
 its files on R2 are kept, and buyers of a paid one get their coins back within
 the refund days, as when the team deletes it.
 
+2.71 — **"Add a version" starts from the member's last one.** On My uploads,
+*Add a version* on one of their own live uploads now fills the wizard from it:
+
+- **Title**: their own title, with the version number in it made the new one
+  (v1.3.4.3 → v1.3.4.4 as they type the version; "12.4.0" or "2.4.01" are
+  left alone).
+- **Version**: the newer one known (Google Play's, via App updates) when there
+  is one; never the site post's version when it is older than theirs.
+- **What is modded, Needs Android, A few words, Cover**: theirs (the cover is
+  copied on R2, so deleting one post never takes the other's cover).
+- **Article**: "Use the article of your last version" (on by default, only for
+  a version under a main post whose article is 200+ characters): the new post
+  gets the same article with its version numbers made new, and Write with AI
+  does not write another one. Untick it and it works as before. In Review,
+  the "Write the article with AI" box starts unticked for such a post.
+- **Search engines**: once the new one is live, the last one's canonical
+  address points at it (`_y4apk_next`; Rank Math, Yoast and WordPress's own
+  canonical), so Google shows the newest and the two same articles do not
+  compete. The old one stays open for its file.
+
+Also: a MOD typed with brackets, "(Unlimited Money/Gold)", no longer makes
+"((…))" in the title. **Page numbers**: the current page sat on the edge of
+its pill and the numbers overlapped a little; on a profile they also touched
+the cards above. Now a tidy pill with room inside, 2rem under the cards, and
+the arrows level with the numbers on phones.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

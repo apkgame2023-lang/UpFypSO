@@ -38,6 +38,9 @@ class Y4APK_Share {
 	const OK       = '_y4apk_share_ok';    // approved, Write with AI writing it before it goes live
 	const MERGED   = '_y4apk_share_into';  // 2.44–2.45 only: a version put into this post (now undone, see unmerge())
 	const PARENT   = '_y4apk_parent';      // 2.46: a member's own post of a game already on the site, shown under that post
+	const FROM     = '_y4apk_from';        // 2.71: the member's own upload this version was made from
+	const REUSED   = '_y4apk_reused';      // 2.71: … and whose article it took
+	const NEXT     = '_y4apk_next';        // 2.71: on that upload: the newer version that took its article (its canonical address)
 	const SHORT_DESC = 60;                 // fewer words than this from the member: Write with AI writes the version's article (2.47)
 	const DONE_UP  = '_y4apk_share_files'; // user meta: [R2 key => [size, name, time]] finished uploads not used yet
 	const OPEN_UP  = '_y4apk_share_open';  // user meta: [upload ID => [key, time]] uploads not finished
@@ -60,6 +63,53 @@ class Y4APK_Share {
 		add_action('admin_init', [__CLASS__, 'drop_by']);
 		add_action('admin_init', [__CLASS__, 'fix_rows']); // 2.66.4
 		add_action('admin_init', [__CLASS__, 'fix_titles']); // 2.66.5
+		add_action('transition_post_status', [__CLASS__, 'took_over'], 20, 3); // 2.71
+		add_filter('get_canonical_url', [__CLASS__, 'canonical_url'], 20, 2);
+		add_filter('rank_math/frontend/canonical', [__CLASS__, 'canonical_url'], 20);
+		add_filter('wpseo_canonical', [__CLASS__, 'canonical_url'], 20);
+	}
+
+	/**
+	 * 2.71: a version that took the article of the member's last one goes live:
+	 * the last one tells search engines that the newer one is the page to show
+	 * (the same article, a newer file). It stays open, for its file.
+	 */
+	public static function took_over($new, $old, $post) {
+		if ($new !== 'publish' || $old === 'publish' || $post->post_type !== 'post') {
+			return;
+		}
+		$from = (int) get_post_meta($post->ID, self::REUSED, true);
+		if ($from && $from !== (int) $post->ID && (int) get_post_field('post_author', $from) === (int) $post->post_author) {
+			update_post_meta($from, self::NEXT, (int) $post->ID);
+		}
+	}
+
+	/** The newest live version that took this one's article (along the chain), or 0. */
+	public static function newest_of($post_id) {
+		$id = (int) $post_id;
+		$seen = [$id => 1];
+		$out = 0;
+		for ($i = 0; $i < 10; $i++) {
+			$n = (int) get_post_meta($id, self::NEXT, true);
+			if (!$n || isset($seen[$n]) || get_post_status($n) !== 'publish') {
+				break;
+			}
+			$seen[$n] = 1;
+			$out = $id = $n;
+		}
+		return $out;
+	}
+
+	public static function canonical_url($url, $post = null) {
+		if (!$post instanceof WP_Post) {
+			$post = is_singular('post') ? get_queried_object() : null;
+		}
+		if (!$post instanceof WP_Post || !get_post_meta($post->ID, self::NEXT, true)) {
+			return $url;
+		}
+		$n = self::newest_of($post->ID);
+		$to = $n ? (string) get_permalink($n) : '';
+		return $to !== '' && untrailingslashit($to) !== untrailingslashit(home_url()) ? $to : $url; // never the home page (a post without its address yet)
 	}
 
 	/** 2.55: titles of members' uploads lose the "by …" they were given (once). */
@@ -161,6 +211,39 @@ class Y4APK_Share {
 		return (bool) get_post_meta($post_id, self::META, true);
 	}
 
+	/**
+	 * 2.71: "Add a version" on one of the member's own live uploads: that post
+	 * (its title, words, MOD, cover and article fill the new one), or null.
+	 */
+	public static function own_source($post_id, $user) {
+		$p = get_post((int) $post_id);
+		return $p && $user && (int) $p->post_author === (int) $user->ID && $p->post_type === 'post' && $p->post_status === 'publish' && self::is_share($p->ID) ? $p : null;
+	}
+
+	/** Its article can go into the member's next version: a version under a main post, with an article of some length. */
+	public static function can_reuse($post_id) {
+		return (bool) get_post_meta($post_id, self::PARENT, true) && mb_strlen(trim(wp_strip_all_tags((string) get_post_field('post_content', $post_id)))) >= 200;
+	}
+
+	/** "v1.2.3" and "1.2.3" become the new version (not inside a longer number). */
+	public static function swap_version($text, $from, $to) {
+		$from = Y4APK_App_Updates::number($from);
+		$to = Y4APK_App_Updates::number($to);
+		if ($from === '' || $to === '' || $from === $to) {
+			return (string) $text;
+		}
+		return (string) preg_replace('/(?<![0-9.])' . preg_quote($from, '/') . '(?![0-9]|\.[0-9])/u', $to, (string) $text);
+	}
+
+	/** "(Unlimited Money, Gold)" → "Unlimited Money, Gold": the title puts its own brackets around it. */
+	public static function bare_mods($mods) {
+		$mods = trim((string) $mods);
+		while (preg_match('/^[\(\[](.*)[\)\]]$/su', $mods, $m) && strpbrk($m[1], '()[]') === false) {
+			$mods = trim($m[1]);
+		}
+		return $mods;
+	}
+
 	/** The Games and Apps categories the header's menu shows: ['game' => [root, children], 'app' => …]. */
 	public static function roots() {
 		static $r = null;
@@ -226,7 +309,7 @@ class Y4APK_Share {
 	/** "Name MOD APK v1.2.3 (Unlimited Money)", as the site's titles go. */
 	public static function title($name, $version, $mods, $label = 'APK') {
 		$v = Y4APK_App_Updates::number($version);
-		$mods = trim((string) $mods);
+		$mods = self::bare_mods($mods);
 		$orig = $mods === '' || strtolower($mods) === 'original';
 		$type = in_array($label, ['XAPK', 'APKS', 'APKM'], true) ? $label : 'APK';
 		return trim($name . ($orig ? ' ' : ' MOD ') . $type . ($v !== '' ? ' v' . $v : '') . ($orig ? '' : ' (' . $mods . ')'));
@@ -514,6 +597,7 @@ class Y4APK_Share {
 				: ['kind' => $kind, 'package' => '', 'name' => '', 'play' => [], 'cat' => 0, 'version' => '', 'mods' => '', 'requires' => '', 'desc' => '', 'files' => [], 'update_of' => 0, 'icon' => 0];
 			// "Newer version" on My uploads, or a post on the site: that post, ready for its new file
 			$newer = !$post && isset($_GET['newer']) ? get_post(absint($_GET['newer'])) : null;
+			$src = $newer ? self::own_source($newer->ID, $user) : null; // 2.71: their own upload: its title, words, MOD, cover and article come along
 			if ($newer && ($up = (int) get_post_meta($newer->ID, self::PARENT, true)) && get_post($up)) {
 				$newer = get_post($up); // a version of a version: under the same main post
 			}
@@ -522,6 +606,12 @@ class Y4APK_Share {
 				$ctx['old']['name'] = html_entity_decode((string) get_post_meta($newer->ID, 'wp_title_GP', true), ENT_QUOTES, 'UTF-8') ?: wp_strip_all_tags(get_the_title($newer));
 				$ctx['old']['package'] = Y4APK_App_Updates::package_from(get_post_meta($newer->ID, 'wp_GP_ID', true));
 				$ctx['old']['mods'] = (string) get_post_meta($newer->ID, 'wp_mods', true);
+				if ($src) {
+					$sd = self::data($src->ID);
+					$ctx['old'] = array_merge($ctx['old'], ['from' => (int) $src->ID, 'reuse' => self::can_reuse($src->ID), 'own_title' => (string) ($sd['own_title'] ?? ''),
+						'mods' => (string) $sd['mods'], 'requires' => (string) $sd['requires'], 'desc' => (string) $sd['desc'],
+						'version' => class_exists('Y4APK_Versions') ? Y4APK_Versions::newer_for($src->ID) : '']); // the newer version out, if one is known
+				}
 			}
 		}
 		if (!Y4APK_Members::is_verified($user->ID)) {
@@ -609,7 +699,7 @@ class Y4APK_Share {
 				$mods[] = $m;
 			}
 		}
-		$mod_more = trim(mb_substr(sanitize_text_field((string) ($p['mod_more'] ?? '')), 0, 80));
+		$mod_more = self::bare_mods(mb_substr(sanitize_text_field((string) ($p['mod_more'] ?? '')), 0, 80));
 		if ($mod_more !== '') {
 			$mods[] = $mod_more;
 		}
@@ -650,8 +740,14 @@ class Y4APK_Share {
 		if (empty($p['agree'])) {
 			$err[] = __('Tick the box to say the file is safe and fine to share.', 'y4apk');
 		}
+		// 2.71: a version of their own upload, and whether its article comes along
+		$src = !$existing && $update_of ? self::own_source(absint($p['from'] ?? 0), $user) : null;
+		if ($src && (int) (get_post_meta($src->ID, self::PARENT, true) ?: $src->ID) !== $update_of) {
+			$src = null; // not a version of this game
+		}
 		$old = ['kind' => $kind, 'package' => $package, 'name' => $name, 'play' => $play, 'cat' => $cat, 'version' => $version, 'mods' => $mods, 'requires' => $requires, 'desc' => $desc,
-			'own_title' => $own_title, 'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step, 'agree' => !empty($p['agree'])];
+			'own_title' => $own_title, 'files' => $files, 'update_of' => $update_of, 'icon' => $icon, 'step' => $step, 'agree' => !empty($p['agree']),
+			'from' => $src ? (int) $src->ID : 0, 'reuse' => $src && !empty($p['reuse_article']) && self::can_reuse($src->ID)];
 		return [$old, $err];
 	}
 
@@ -729,6 +825,10 @@ class Y4APK_Share {
 		foreach (preg_split('/\n{2,}/', $old['desc'] !== '' ? $old['desc'] : sprintf(__('%1$s %2$s, shared by @%3$s.', 'y4apk'), $old['name'], $old['version'], $user->user_login)) as $para) {
 			$content .= "<!-- wp:paragraph -->\n<p>" . nl2br(esc_html($para)) . "</p>\n<!-- /wp:paragraph -->\n\n";
 		}
+		if (!empty($old['reuse'])) {
+			$was = self::data($old['from']);
+			$content = self::swap_version((string) get_post_field('post_content', $old['from']), $was ? $was['version'] : '', $old['version']); // 2.71: the article of their last version, its version number made new
+		}
 		$arr = ['post_title' => $title, 'post_content' => trim($content), 'post_status' => 'pending', 'post_type' => 'post', 'post_author' => $user->ID, 'post_category' => $old['cat'] ? [$old['cat']] : [],
 			'post_parent' => $parent]; // 2.47: a version is its main post's child (the list of versions reads post_parent)
 		if ($existing) {
@@ -787,6 +887,17 @@ class Y4APK_Share {
 		delete_post_meta($id, Y4APK_Members::REJECT);
 		if (class_exists('Y4APK_Cover')) {
 			Y4APK_Cover::save($id, $user, $cover, !empty($_POST['cover_remove']));
+			if (!$existing && $cover === null && empty($_POST['cover_remove']) && !empty($old['from']) && absint($_POST['cover_from'] ?? 0) === (int) $old['from']) {
+				Y4APK_Cover::copy_from($old['from'], $id, $user); // 2.71: the cover of their last version
+			}
+		}
+		if (!$existing && !empty($old['from'])) {
+			update_post_meta($id, self::FROM, (int) $old['from']);
+		}
+		if (!empty($old['reuse'])) {
+			update_post_meta($id, self::REUSED, (int) $old['from']);
+		} else {
+			delete_post_meta($id, self::REUSED);
 		}
 		if (class_exists('Y4APK_Paid')) {
 			Y4APK_Paid::from_form($id, $user); // 2.69.2: its files are hidden once it goes live
@@ -805,7 +916,7 @@ class Y4APK_Share {
 		if (self::file_ok($user, $old, $parent, $id)) {
 			// 2.50: its file is really that app: live at once (or once Write with AI has written its page)
 			$ai = self::writer_ready();
-			$r = self::go_live($id, $parent ? 'now' : ($ai ? 'ai' : 'now'), 0, $parent && $ai && self::words($old['desc']) < self::SHORT_DESC, true);
+			$r = self::go_live($id, $parent ? 'now' : ($ai ? 'ai' : 'now'), 0, $parent && $ai && empty($old['reuse']) && self::words($old['desc']) < self::SHORT_DESC, true);
 			if ($r[0] !== 'sharefail') {
 				wp_safe_redirect(Y4APK_Members::url('home', ['ok' => $r[0] === 'writing' ? 'autosoon' : 'autolive']));
 				exit;
@@ -994,10 +1105,12 @@ class Y4APK_Share {
 					<button class="button button-primary"><?php esc_html_e('Approve', 'y4apk'); ?></button>
 					<?php else : ?>
 					<input type="hidden" name="how" value="now">
-					<?php if (self::writer_ready()) : $words = self::words($d['desc']); ?>
-					<label class="y4sh-ai"><input type="checkbox" name="ai" value="1" <?php checked($words < self::SHORT_DESC); ?>> <?php echo esc_html($words
+					<?php if (self::writer_ready()) : $words = self::words($d['desc']); $reused = (int) get_post_meta($p->ID, self::REUSED, true); ?>
+					<label class="y4sh-ai"><input type="checkbox" name="ai" value="1" <?php checked(!$reused && $words < self::SHORT_DESC); ?>> <?php echo esc_html($reused
+						? __('Write a new article with AI (it has the article of the member’s last version)', 'y4apk')
+						: ($words
 						? sprintf(_n('Write the article with AI (the member wrote %s word)', 'Write the article with AI (the member wrote %s words)', $words, 'y4apk'), number_format_i18n($words))
-						: __('Write the article with AI (the member wrote nothing)', 'y4apk')); ?></label>
+						: __('Write the article with AI (the member wrote nothing)', 'y4apk'))); ?></label>
 					<?php endif; ?>
 					<button class="button button-primary"><?php echo esc_html(sprintf(__('Approve: publish under %s', 'y4apk'), html_entity_decode((string) get_post_meta($into->ID, 'wp_title_GP', true), ENT_QUOTES, 'UTF-8') ?: get_the_title($into))); ?></button>
 					<?php endif; ?>
