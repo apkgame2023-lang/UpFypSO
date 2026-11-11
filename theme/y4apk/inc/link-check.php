@@ -326,6 +326,56 @@ class Y4APK_Links {
 		return substr(wp_strip_all_tags($m), 0, 80);
 	}
 
+	/**
+	 * Is this download row's file surely gone (2.75)? Only what was found for
+	 * sure — a 404/410, a missing folder, a page with no file — not a host that
+	 * did not answer three times (that may be a host blocking robots), and not
+	 * a link the owner chose to ignore. Off in Y4APK ▸ Download page.
+	 */
+	public static function gone($post_id, $idx) {
+		static $rows = [];
+		$post_id = (int) $post_id;
+		if (!$post_id || get_option('y4apk_links_db') !== self::DBV) {
+			return false;
+		}
+		$o = get_option('y4apk_dlpage', []);
+		if (is_array($o) && isset($o['gone']) && !$o['gone']) {
+			return false;
+		}
+		if (!isset($rows[$post_id])) {
+			global $wpdb;
+			$rows[$post_id] = [];
+			foreach ((array) $wpdb->get_results($wpdb->prepare('SELECT idx, state, fails, ignored FROM ' . self::t() . ' WHERE post_id = %d', $post_id)) as $r) {
+				$rows[$post_id][(int) $r->idx] = self::sure_gone($r);
+			}
+		}
+		return !empty($rows[$post_id][(int) $idx]);
+	}
+
+	private static function sure_gone($r) {
+		return $r && $r->state === 'bad' && (int) $r->fails === 0 && !(int) $r->ignored;
+	}
+
+	/** A download folder whose file was just replaced: its rows are looked at again soon, and are not "gone" meanwhile. */
+	public static function recheck_url($url) {
+		global $wpdb;
+		if (get_option('y4apk_links_db') !== self::DBV) {
+			return;
+		}
+		$url = untrailingslashit((string) $url);
+		$t = self::t();
+		$hashes = [md5($url), md5($url . '/')];
+		$ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM $t WHERE uhash IN (%s, %s) AND state <> 'ok'", $hashes[0], $hashes[1])));
+		if (!$ids) {
+			return;
+		}
+		$wpdb->query($wpdb->prepare("UPDATE $t SET state = 'new', why = '', code = 0, fails = 0, checked = 0, since = 0 WHERE uhash IN (%s, %s)", $hashes[0], $hashes[1]));
+		delete_transient('y4apk_links_counts');
+		foreach ($ids as $id) {
+			do_action('litespeed_purge_post', $id); // its download pages, kept by LiteSpeed and Cloudflare
+		}
+	}
+
 	/** Look at one row and keep what was found. */
 	public static function check_row($row) {
 		global $wpdb;
@@ -339,6 +389,9 @@ class Y4APK_Links {
 		}
 		$since = $state === 'ok' ? 0 : ((int) $row->since ?: $now);
 		$wpdb->update(self::t(), ['state' => $state, 'why' => substr($r['why'], 0, 190), 'code' => $r['code'], 'fails' => $fails, 'checked' => $now, 'since' => $since], ['id' => (int) $row->id]);
+		if (self::sure_gone($row) !== self::sure_gone((object) ['state' => $state, 'fails' => $fails, 'ignored' => $row->ignored])) {
+			do_action('litespeed_purge_post', (int) $row->post_id); // 2.75: its download page says so, or no longer does
+		}
 		return $state;
 	}
 
@@ -427,6 +480,10 @@ class Y4APK_Links {
 			$note = $row ? (self::check_row($row) === 'ok' ? 'fixed' : 'still') : 'gone';
 		} elseif (($do === 'ignore' || $do === 'unignore') && $id) {
 			$wpdb->update($t, ['ignored' => $do === 'ignore' ? 1 : 0], ['id' => $id]);
+			$pid = (int) $wpdb->get_var($wpdb->prepare("SELECT post_id FROM $t WHERE id = %d", $id));
+			if ($pid) {
+				do_action('litespeed_purge_post', $pid); // its download page (2.75)
+			}
 			$note = $do;
 		} elseif ($do === 'recheck_bad') {
 			$rows = (array) $wpdb->get_results("SELECT * FROM $t WHERE ignored = 0 AND state IN ('bad','unsure') ORDER BY checked ASC LIMIT 25");

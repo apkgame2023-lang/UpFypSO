@@ -849,6 +849,49 @@ change could wait in the browser. Marked pages now also say
 Cloudflare answers from its copy). *Check now* read the marker Cloudflare
 takes off, so it said "not marked" on a HIT; it reads `X-Y4APK-Edge` now.
 
+2.75 — **One download page for every folder; a gone file never shows "not
+found".** `inc/dl-page.php` (Y4APK ▸ Download page).
+
+- **The shared page.** Each folder in `files/up` had its own copy of the
+  "Preparing the file" page (`default.php`), so the logo (a broken
+  `ds.y4apk.com` SVG), the page it opens after the download starts and its
+  3 seconds were in thousands of files. Now a folder's `default.php` is two
+  lines — `$apk = "<the file>"` and `require …/_y4apk/page.php` — and the page
+  is one file, `files/up/_y4apk/page.php`, with its settings in `page.json`
+  beside it (both written from the admin page; `.htaccess` keeps `page.json`,
+  `.orig` and `state/` closed). App updates, Write with AI, the link checker
+  and VIP links read and write the two-line kind as before (`$apk = "…"` was
+  already one of the kinds they know).
+- **Y4APK ▸ Download page:** the logo (PNG/JPG/WebP/GIF ≤ 5 MB, made at most
+  800 px WebP and kept on R2 at `site/download-logo-….webp`, not SVG, which
+  the `files.y4apk.net` redirect rule sends home; without one, the site name),
+  the page opened after the download starts and after how many seconds
+  (empty: none; 4–5 s suggested, so a slow phone's download is not cut off),
+  where to send visitors when the file is gone (the home page), the old
+  right-click/copy-key block (on; the old `debugger` trap, which could blank
+  the page, is gone). *Use it on every download page* turns every old page
+  into the two-line kind in the background (each keeps its own file; a page
+  whose file it cannot read is left as it is; the old one kept as
+  `default.php.orig`); *Undo* puts them back, each with its file of now. New
+  folders get the two-line kind once the shared page is there.
+- **A gone file never reaches R2's "Object not found".** Before sending the
+  visitor to a file on the site's R2, the page asks R2 (HEAD, 4 s; the answer
+  kept in `_y4apk/state/` 12 h, a missing one 30 min, an unclear one 10 min
+  and counted as there). A file that is gone (404/410, or a redirect), or a
+  folder still waiting for its file (`#`), sends the visitor to the page set
+  (home). Replacing a folder's file in App updates forgets that answer.
+- **On the site:** a download row that Broken links found *surely* gone (a
+  404/410, a missing folder, a page with no file; not a host that only did
+  not answer three times, not an ignored link) shows "This file is not
+  available right now" on its `/download/N/` page, with the post's other
+  downloads and a way back, instead of the countdown; a VIP's button goes to
+  that page instead of the file. Replacing the file in App updates takes the
+  note off at once (the rows are looked at again on the next run); a row that
+  becomes gone or comes back clears the post's pages in LiteSpeed and
+  Cloudflare. Off with *Say so on the site when a file is gone*.
+- Cloudflare's purge for a changed post now includes its `/download/N/`
+  pages, which it kept up to a day before.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

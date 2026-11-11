@@ -473,7 +473,7 @@ class Y4APK_VIP {
 		}
 		$page = get_permalink($post_id) . 'download/' . (int) $index . '/';
 		$url  = is_array($download) ? trim((string) ($download['download_url'] ?? '')) : '';
-		if ($url === '' || !self::is_vip()) {
+		if ($url === '' || !self::is_vip() || (class_exists('Y4APK_Links') && Y4APK_Links::gone($post_id, $index))) { // 2.75: a file that is gone: its page says so
 			return 'href="' . esc_url($page) . '" rel="nofollow"';
 		}
 		return 'href="' . esc_url(self::file_url($url)) . '" target="_blank" rel="nofollow noopener" data-y4-dl="' . (int) $post_id . '"';

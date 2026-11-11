@@ -143,7 +143,12 @@ class Y4APK_Edge {
 		if (!$p || !self::can_purge()) {
 			return;
 		}
-		$urls = [home_url('/'), get_permalink($p)];
+		$link = get_permalink($p);
+		$urls = [home_url('/'), $link];
+		$rows = get_post_meta($p->ID, 'repeatable_download_link', true);
+		foreach (is_array($rows) && $link ? array_keys(array_values($rows)) : [] as $i) {
+			$urls[] = trailingslashit($link) . 'download/' . $i . '/'; // 2.75: its download pages too
+		}
 		foreach (wp_get_post_categories($p->ID) as $cat) {
 			$urls[] = get_category_link($cat);
 		}

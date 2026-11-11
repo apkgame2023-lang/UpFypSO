@@ -1,0 +1,557 @@
+<?php
+/**
+ * One download page for every folder (2.75): Y4APK ▸ Download page.
+ *
+ * Each download link of the site is a folder in files/up with its own
+ * default.php: the "Preparing the file" page that starts the download and then
+ * opens another page (the ads page). Before, every one held the whole page, so
+ * changing the logo or that page meant editing thousands of files.
+ *
+ * Now a folder's default.php is two lines — the file, and "the page is over
+ * there" — and the page itself is one file, files/up/_y4apk/page.php, with its
+ * settings in files/up/_y4apk/page.json, both written from here:
+ *
+ *   - the logo: uploaded here, made smaller and kept on R2 (not this server);
+ *   - the page it opens after the download starts, and after how many seconds;
+ *   - where a visitor goes when the file is not there (the home page);
+ *   - right-click and copy keys blocked, as before (the old "debugger" trap,
+ *     which emptied the page, is gone).
+ *
+ * The page asks R2 whether the file is there before sending the visitor to it
+ * (the answer kept 12 hours, a missing one 30 minutes): a file that is gone
+ * sends the visitor to the home page instead of Cloudflare's "Object not
+ * found". "Use it on every download page" turns the old pages into the
+ * two-line kind in the background (each one's file kept; a page it cannot read
+ * is left as it is), and keeps each old page as default.php.orig, so "Undo"
+ * puts them all back. New folders get the two-line kind.
+ */
+
+defined('ABSPATH') || exit;
+
+class Y4APK_DLPage {
+
+	const OPTION = 'y4apk_dlpage';      // ['logo', 'logo_key', 'ads', 'delay', 'missing', 'guard', 'check', 'gone']
+	const JOB    = 'y4apk_dlpage_job';  // ['do' => convert|undo, 'pos', 'done', 'kept', 'at']
+	const HOOK   = 'y4apk_dlpage_run';
+	const SLUG   = 'y4apk-download-page';
+	const DIR    = '_y4apk';            // in files/up
+	const VER    = '1';                 // the page's own version: written again when the theme changes it
+
+	public static function init() {
+		add_action(self::HOOK, [__CLASS__, 'run']);
+		if (is_admin()) {
+			add_action('admin_menu', [__CLASS__, 'menu'], 41);
+			add_action('admin_post_y4apk_dlpage', [__CLASS__, 'handle']);
+			add_action('admin_init', [__CLASS__, 'keep_installed']);
+		}
+	}
+
+	public static function settings() {
+		$o = get_option(self::OPTION, []);
+		return wp_parse_args(is_array($o) ? $o : [], ['logo' => '', 'logo_key' => '', 'ads' => 'https://y4apk.com/run-script-apk/', 'delay' => 3, 'missing' => home_url('/'), 'guard' => 1, 'check' => 1, 'gone' => 1]);
+	}
+
+	private static function up() {
+		return class_exists('Y4APK_R2') ? (string) Y4APK_R2::settings()['dir'] : '';
+	}
+
+	/** Is the shared page in files/up? */
+	public static function ready() {
+		$up = self::up();
+		return $up !== '' && is_file($up . '/' . self::DIR . '/page.php') && is_file($up . '/' . self::DIR . '/page.json');
+	}
+
+	/** A folder's default.php: its file, and the shared page. */
+	public static function stub($file) {
+		$file = (string) $file;
+		return "<?php \$apk = \"" . $file . "\"; // the file (App updates writes it here)\nrequire dirname(__DIR__) . '/" . self::DIR . "/page.php'; // the page: Y4APK ▸ Download page\n";
+	}
+
+	public static function is_stub($html) {
+		return strpos((string) $html, '/' . self::DIR . '/page.php') !== false;
+	}
+
+	/** A file address a stub may hold: http(s), no quotes, $ or backslash. */
+	private static function safe_url($u) {
+		return $u === '#' || (bool) preg_match('~^https?://[^\s"\'$\\\\<>]+$~i', (string) $u);
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * The shared page and its settings, in files/up/_y4apk
+	 * ---------------------------------------------------------------- */
+
+	/** Writes page.php (when the theme's is newer) and page.json (always). True or a message. */
+	public static function install() {
+		$up = self::up();
+		if ($up === '' || !is_dir($up)) {
+			return __('The download pages folder is not set (App updates ▸ Settings).', 'y4apk');
+		}
+		$dir = $up . '/' . self::DIR;
+		if (!is_dir($dir) && !wp_mkdir_p($dir)) {
+			return sprintf(__('Could not make the folder %s.', 'y4apk'), $dir);
+		}
+		if (!is_file($dir . '/.htaccess')) {
+			@file_put_contents($dir . '/.htaccess', self::deny('<FilesMatch "\\.(json|txt|orig)$">', '</FilesMatch>'), LOCK_EX);
+		}
+		if (!is_dir($dir . '/state')) {
+			wp_mkdir_p($dir . '/state');
+			@file_put_contents($dir . '/state/.htaccess', self::deny(), LOCK_EX);
+		}
+		if ((string) get_option('y4apk_dlpage_v') !== self::VER || !is_file($dir . '/page.php')) {
+			if (file_put_contents($dir . '/page.php', self::RENDER, LOCK_EX) === false) {
+				return sprintf(__('Could not write %s.', 'y4apk'), $dir . '/page.php');
+			}
+			update_option('y4apk_dlpage_v', self::VER, false);
+		}
+		$s = self::settings();
+		$r2 = class_exists('Y4APK_R2') ? (string) Y4APK_R2::settings()['public'] : '';
+		$cfg = [
+			'logo'    => (string) $s['logo'],
+			'name'    => (string) get_bloginfo('name'),
+			'ads'     => (string) $s['ads'],
+			'delay'   => max(0, min(30, (int) $s['delay'])),
+			'missing' => (string) ($s['missing'] !== '' ? $s['missing'] : home_url('/')),
+			'guard'   => (int) (bool) $s['guard'],
+			'check'   => (int) (bool) $s['check'],
+			'r2_host' => strtolower((string) wp_parse_url($r2, PHP_URL_HOST)),
+		];
+		if (file_put_contents($dir . '/page.json', wp_json_encode($cfg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
+			return sprintf(__('Could not write %s.', 'y4apk'), $dir . '/page.json');
+		}
+		return true;
+	}
+
+	/** "Nobody may open these", for Apache 2.2 and 2.4 and LiteSpeed alike. */
+	private static function deny($open = '', $close = '') {
+		$in = "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\n";
+		return $open !== '' ? $open . "\n" . $in . $close . "\n" : $in;
+	}
+
+	/** After a theme update: the newer page.php, once. */
+	public static function keep_installed() {
+		if (current_user_can('manage_options') && self::ready() && (string) get_option('y4apk_dlpage_v') !== self::VER) {
+			self::install();
+		}
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Every folder's page: to the two-line kind, or back
+	 * ---------------------------------------------------------------- */
+
+	/** The folders in files/up (their names), in order. */
+	private static function folders() {
+		$up = self::up();
+		$out = [];
+		foreach (is_dir($up) ? (array) scandir($up) : [] as $d) {
+			if ($d !== '.' && $d !== '..' && $d[0] !== '_' && $d[0] !== '.' && is_dir($up . '/' . $d)) {
+				$out[] = $d;
+			}
+		}
+		return $out;
+	}
+
+	/** How many use the shared page, how many do not, and how many it cannot read. */
+	public static function counts() {
+		$up = self::up();
+		$n = ['all' => 0, 'shared' => 0, 'old' => 0, 'none' => 0];
+		foreach (self::folders() as $d) {
+			$f = $up . '/' . $d . '/default.php';
+			$n['all']++;
+			if (!is_file($f)) {
+				$n['none']++;
+				continue;
+			}
+			$head = (string) file_get_contents($f, false, null, 0, 400);
+			$n[self::is_stub($head) ? 'shared' : 'old']++;
+		}
+		return $n;
+	}
+
+	/** One folder: old page → two lines (the old one kept as default.php.orig). 'done', 'kept' (cannot read its file) or 'skip'. */
+	private static function convert_one($d) {
+		$f = self::up() . '/' . $d . '/default.php';
+		$html = is_file($f) ? (string) file_get_contents($f) : '';
+		if ($html === '' || self::is_stub($html)) {
+			return 'skip';
+		}
+		$to = class_exists('Y4APK_Links') ? Y4APK_Links::page_target($html) : '';
+		if ($to === '' || !self::safe_url($to)) {
+			return 'kept'; // a page of its own kind: left as it is
+		}
+		if (!is_file($f . '.orig') && !@copy($f, $f . '.orig')) {
+			return 'kept';
+		}
+		return file_put_contents($f, self::stub($to), LOCK_EX) !== false ? 'done' : 'kept';
+	}
+
+	private static function undo_one($d) {
+		$f = self::up() . '/' . $d . '/default.php';
+		if (!is_file($f . '.orig')) {
+			return 'skip';
+		}
+		$now = (string) file_get_contents($f);
+		if (!self::is_stub($now)) {
+			return 'skip';
+		}
+		// The file it had then may have been replaced since (App updates): the old page gets the file of now
+		$old = (string) file_get_contents($f . '.orig');
+		$to = class_exists('Y4APK_Links') ? Y4APK_Links::page_target($now) : '';
+		if ($to !== '' && $to !== '#' && class_exists('Y4APK_R2')) {
+			list($old) = Y4APK_R2::fill_page($old, $to);
+		}
+		if (file_put_contents($f, $old, LOCK_EX) === false) {
+			return 'kept';
+		}
+		@unlink($f . '.orig');
+		return 'done';
+	}
+
+	public static function start($do) {
+		update_option(self::JOB, ['do' => $do === 'undo' ? 'undo' : 'convert', 'pos' => 0, 'done' => 0, 'kept' => 0, 'at' => time()], false);
+		self::run(8);
+		if (get_option(self::JOB) && !wp_next_scheduled(self::HOOK)) {
+			wp_schedule_single_event(time() + 5, self::HOOK);
+		}
+	}
+
+	/** Some folders (for $budget seconds), then again in the background until all are done. */
+	public static function run($budget = 20) {
+		$job = get_option(self::JOB);
+		if (!is_array($job)) {
+			return;
+		}
+		$list = self::folders();
+		$t0 = microtime(true);
+		$pos = (int) $job['pos'];
+		while ($pos < count($list) && microtime(true) - $t0 < $budget) {
+			$r = $job['do'] === 'undo' ? self::undo_one($list[$pos]) : self::convert_one($list[$pos]);
+			if ($r === 'done') {
+				$job['done']++;
+			} elseif ($r === 'kept') {
+				$job['kept']++;
+			}
+			$pos++;
+		}
+		$job['pos'] = $pos;
+		if ($pos >= count($list)) {
+			delete_option(self::JOB);
+			update_option('y4apk_dlpage_last', $job + ['end' => time()], false);
+			if (function_exists('y4apk_purge_pages')) {
+				y4apk_purge_pages(); // and Cloudflare's copies of the folders' pages
+			}
+			return;
+		}
+		update_option(self::JOB, $job, false);
+		if (!wp_next_scheduled(self::HOOK)) {
+			wp_schedule_single_event(time() + 10, self::HOOK);
+		}
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * The logo, on R2
+	 * ---------------------------------------------------------------- */
+
+	private static function take_logo($f) {
+		if (!is_array($f) || (int) ($f['error'] ?? 1) !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
+			return new WP_Error('y4dl', __('The picture did not arrive. Try again.', 'y4apk'));
+		}
+		if ((int) $f['size'] > 5 * MB_IN_BYTES) {
+			return new WP_Error('y4dl', __('The picture can be up to 5 MB.', 'y4apk'));
+		}
+		$info = @getimagesize($f['tmp_name']);
+		if (!$info || !in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP, IMAGETYPE_GIF], true)) {
+			return new WP_Error('y4dl', __('Use a PNG, JPG, WebP or GIF picture.', 'y4apk'));
+		}
+		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
+			return new WP_Error('y4dl', __('R2 is not set up (App updates ▸ Settings).', 'y4apk'));
+		}
+		if ($info[2] === IMAGETYPE_GIF) {
+			$bytes = (string) file_get_contents($f['tmp_name']);
+			$ext = 'gif';
+			$type = 'image/gif';
+		} else {
+			$open = [IMAGETYPE_JPEG => 'imagecreatefromjpeg', IMAGETYPE_PNG => 'imagecreatefrompng', IMAGETYPE_WEBP => 'imagecreatefromwebp'];
+			$src = function_exists($open[$info[2]]) ? @call_user_func($open[$info[2]], $f['tmp_name']) : false;
+			if (!$src) {
+				return new WP_Error('y4dl', __('The picture could not be read.', 'y4apk'));
+			}
+			$w = imagesx($src);
+			$h = imagesy($src);
+			$k = min(1, 800 / max($w, $h));
+			$ow = max(1, (int) round($w * $k));
+			$oh = max(1, (int) round($h * $k));
+			$dst = imagecreatetruecolor($ow, $oh);
+			imagealphablending($dst, false);
+			imagesavealpha($dst, true);
+			imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+			imagecopyresampled($dst, $src, 0, 0, 0, 0, $ow, $oh, $w, $h);
+			imagedestroy($src);
+			ob_start();
+			$webp = function_exists('imagewebp');
+			$webp ? imagewebp($dst, null, 90) : imagepng($dst, null, 8);
+			$bytes = (string) ob_get_clean();
+			imagedestroy($dst);
+			$ext = $webp ? 'webp' : 'png';
+			$type = $webp ? 'image/webp' : 'image/png';
+		}
+		$key = 'site/download-logo-' . strtolower(wp_generate_password(10, false, false)) . '.' . $ext;
+		$put = Y4APK_R2::put($key, $bytes, $type);
+		if (is_wp_error($put)) {
+			return $put;
+		}
+		return ['key' => $key, 'url' => Y4APK_R2::public_url($key)];
+	}
+
+	/* ---------------------------------------------------------------- *
+	 * Y4APK ▸ Download page
+	 * ---------------------------------------------------------------- */
+
+	public static function menu() {
+		add_submenu_page(Y4APK_MENU, __('Download page', 'y4apk'), __('Download page', 'y4apk'), 'manage_options', self::SLUG, [__CLASS__, 'render']);
+	}
+
+	public static function handle() {
+		if (!current_user_can('manage_options')) {
+			wp_die(esc_html__('You are not allowed to do that.', 'y4apk'));
+		}
+		check_admin_referer('y4apk_dlpage');
+		$do = sanitize_key(wp_unslash($_POST['do'] ?? ''));
+		$note = '';
+		if ($do === 'save') {
+			$s = self::settings();
+			$in = wp_unslash($_POST);
+			$ads = trim((string) ($in['ads'] ?? ''));
+			$s['ads'] = $ads === '' ? '' : esc_url_raw($ads, ['http', 'https']);
+			$s['delay'] = max(0, min(30, (int) ($in['delay'] ?? 3)));
+			$miss = trim((string) ($in['missing'] ?? ''));
+			$s['missing'] = $miss === '' ? home_url('/') : esc_url_raw($miss, ['http', 'https']);
+			$s['guard'] = empty($in['guard']) ? 0 : 1;
+			$s['check'] = empty($in['check']) ? 0 : 1;
+			$s['gone'] = empty($in['gone']) ? 0 : 1;
+			if (!empty($_FILES['logo']['name'])) {
+				$l = self::take_logo($_FILES['logo']);
+				if (is_wp_error($l)) {
+					set_transient('y4apk_dlpage_msg', $l->get_error_message(), 120);
+					$note = 'err';
+				} else {
+					if ($s['logo_key'] !== '' && strpos($s['logo_key'], 'site/') === 0) {
+						Y4APK_R2::remove($s['logo_key']); // the one it replaces
+					}
+					$s['logo'] = $l['url'];
+					$s['logo_key'] = $l['key'];
+				}
+			} elseif (!empty($in['logo_remove'])) {
+				if ($s['logo_key'] !== '' && strpos($s['logo_key'], 'site/') === 0 && class_exists('Y4APK_R2')) {
+					Y4APK_R2::remove($s['logo_key']);
+				}
+				$s['logo'] = '';
+				$s['logo_key'] = '';
+			}
+			update_option(self::OPTION, $s, false);
+			$r = self::install();
+			if ($r !== true) {
+				set_transient('y4apk_dlpage_msg', $r, 120);
+				$note = 'err';
+			} elseif ($note === '') {
+				$note = 'saved';
+				if (function_exists('y4apk_purge_pages')) {
+					y4apk_purge_pages(); // the folders' pages, kept by LiteSpeed and Cloudflare
+				}
+			}
+		} elseif ($do === 'convert' || $do === 'undo') {
+			$r = self::install();
+			if ($r !== true) {
+				set_transient('y4apk_dlpage_msg', $r, 120);
+				$note = 'err';
+			} else {
+				self::start($do);
+				$note = $do === 'undo' ? 'undoing' : 'converting';
+			}
+		}
+		wp_safe_redirect(add_query_arg(['page' => self::SLUG, 'note' => $note], admin_url('admin.php')));
+		exit;
+	}
+
+	public static function render() {
+		$job = get_option(self::JOB);
+		if (is_array($job)) {
+			self::run(5); // a little more while the owner watches
+			$job = get_option(self::JOB);
+		}
+		$s = self::settings();
+		$n = self::counts();
+		$last = get_option('y4apk_dlpage_last');
+		$note = sanitize_key(wp_unslash($_GET['note'] ?? ''));
+		$msg = (string) get_transient('y4apk_dlpage_msg');
+		delete_transient('y4apk_dlpage_msg');
+		$example = '';
+		if (class_exists('Y4APK_R2')) {
+			$up = self::up();
+			foreach (self::folders() as $d) {
+				if (self::is_stub((string) @file_get_contents($up . '/' . $d . '/default.php', false, null, 0, 400))) {
+					$example = Y4APK_R2::settings()['dir_url'] . rawurlencode($d) . '/';
+					break;
+				}
+			}
+		}
+		$form = function ($do) {
+			echo '<input type="hidden" name="action" value="y4apk_dlpage"><input type="hidden" name="do" value="' . esc_attr($do) . '">';
+			wp_nonce_field('y4apk_dlpage');
+		};
+		$notes = ['saved' => __('Saved: every download page that uses the shared page shows it now.', 'y4apk'), 'converting' => __('Turning the download pages into the shared one, in the background.', 'y4apk'), 'undoing' => __('Putting the old pages back, in the background.', 'y4apk'), 'err' => $msg];
+		?>
+		<div class="wrap y4ui">
+			<?php if (is_array($job)) : ?><meta http-equiv="refresh" content="6"><?php endif; ?>
+			<?php Y4APK_Admin_UI::head(['icon' => 'globe', 'tint' => 'violet', 'title' => esc_html__('Download page', 'y4apk'),
+				'sub' => esc_html__('The “Preparing the file” page of every download (files/up/…): its logo, the page it opens after the download starts, and what happens when the file is gone. One place for all of them.', 'y4apk')]); ?>
+			<?php if ($note && !empty($notes[$note])) : ?><div class="notice notice-<?php echo $note === 'err' ? 'error' : 'success'; ?> is-dismissible"><p><?php echo esc_html($notes[$note]); ?></p></div><?php endif; ?>
+
+			<form class="y4ui-card" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+				<?php $form('save'); ?>
+				<div class="y4ui-card-h"><div><h2><?php esc_html_e('The page', 'y4apk'); ?></h2><p><?php esc_html_e('Changes show on every download page that uses the shared page at once.', 'y4apk'); ?><?php if ($example !== '') : ?> <a href="<?php echo esc_url($example); ?>" target="_blank" rel="noopener"><?php esc_html_e('Open one to see it', 'y4apk'); ?> ↗</a><?php endif; ?></p></div></div>
+				<div class="y4ui-card-b">
+					<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+						<div style="width:220px;height:90px;border-radius:12px;background:#fbfdfd;box-shadow:inset 0 0 0 1px #e3eaec;display:grid;place-items:center;overflow:hidden">
+							<?php if ($s['logo'] !== '') : ?><img src="<?php echo esc_url($s['logo']); ?>" alt="" style="max-width:200px;max-height:76px"><?php else : ?><b style="font-size:22px;color:#ff2a2a"><?php echo esc_html(get_bloginfo('name')); ?></b><?php endif; ?>
+						</div>
+						<div>
+							<label class="y4ui-label" for="y4dl-logo"><?php esc_html_e('Logo', 'y4apk'); ?></label><br>
+							<input type="file" id="y4dl-logo" name="logo" accept="image/png,image/jpeg,image/webp,image/gif">
+							<p class="y4ui-hint"><?php esc_html_e('PNG, JPG, WebP or GIF, up to 5 MB: made at most 800 px and kept on R2 (Cloudflare), not on this server. Without one, the site’s name is shown.', 'y4apk'); ?></p>
+							<?php if ($s['logo'] !== '') : ?><label class="y4ui-opt"><input type="checkbox" name="logo_remove" value="1"> <span><?php esc_html_e('Remove the logo', 'y4apk'); ?></span></label><?php endif; ?>
+						</div>
+					</div>
+					<div class="y4ui-fields">
+						<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('After the download starts, open this page', 'y4apk'); ?></span><input type="url" name="ads" value="<?php echo esc_attr($s['ads']); ?>" placeholder="https://"></label>
+						<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('…after (seconds)', 'y4apk'); ?></span><input type="number" min="0" max="30" name="delay" value="<?php echo esc_attr($s['delay']); ?>"></label>
+						<label class="y4ui-field"><span class="y4ui-label"><?php esc_html_e('When the file is not there, send visitors to', 'y4apk'); ?></span><input type="url" name="missing" value="<?php echo esc_attr($s['missing']); ?>"></label>
+					</div>
+					<p class="y4ui-hint"><?php esc_html_e('Empty: it does not open another page. On a slow phone a big file can take a few seconds to start; 4–5 seconds is safer than 3, so the next page never stops a download that has not started yet.', 'y4apk'); ?></p>
+					<label class="y4ui-opt" style="margin-top:10px"><input type="checkbox" name="check" value="1" <?php checked($s['check']); ?>> <span><b><?php esc_html_e('Check the file is there first', 'y4apk'); ?></b><br><span class="y4ui-hint"><?php esc_html_e('Asks R2 before sending a visitor to a file (the answer is kept 12 hours, a missing one 30 minutes): a file that is gone sends the visitor to the page above instead of Cloudflare’s “Object not found”.', 'y4apk'); ?></span></span></label>
+					<label class="y4ui-opt"><input type="checkbox" name="gone" value="1" <?php checked($s['gone']); ?>> <span><b><?php esc_html_e('Say so on the site when a file is gone', 'y4apk'); ?></b><br><span class="y4ui-hint"><?php esc_html_e('When Broken links found a file surely gone (not a host that only did not answer), its download page on the site shows “This file is not available right now” with the post’s other downloads, instead of the countdown.', 'y4apk'); ?></span></span></label>
+					<label class="y4ui-opt"><input type="checkbox" name="guard" value="1" <?php checked($s['guard']); ?>> <span><b><?php esc_html_e('Block right-click and copy keys', 'y4apk'); ?></b><br><span class="y4ui-hint"><?php esc_html_e('As the old pages did. It only stops the casual: the file’s address is in the page anyway. The old pages’ trap that emptied the page when developer tools were open is not used.', 'y4apk'); ?></span></span></label>
+					<div class="y4ui-savebar"><span class="y4ui-hint"><?php echo esc_html(self::ready() ? __('The shared page is in files/up/_y4apk.', 'y4apk') : __('Save once to put the shared page in files/up/_y4apk.', 'y4apk')); ?></span><button class="button button-primary button-large"><?php esc_html_e('Save', 'y4apk'); ?></button></div>
+				</div>
+			</form>
+
+			<div class="y4ui-card" style="margin-top:16px">
+				<div class="y4ui-card-h"><div><h2><?php esc_html_e('Every download page', 'y4apk'); ?></h2><p><?php echo esc_html(sprintf(__('%1$s download folders: %2$s use the shared page, %3$s still have a page of their own.', 'y4apk'), number_format_i18n($n['all']), number_format_i18n($n['shared']), number_format_i18n($n['old']))); ?></p></div></div>
+				<div class="y4ui-card-b">
+					<?php if (is_array($job)) : ?>
+						<p><span class="y4ui-chip is-amber"><?php echo esc_html($job['do'] === 'undo' ? __('Putting the old pages back…', 'y4apk') : __('Turning them into the shared page…', 'y4apk')); ?></span>
+						<span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('%1$s of %2$s folders looked at', 'y4apk'), number_format_i18n((int) $job['pos']), number_format_i18n($n['all']))); ?></span></p>
+					<?php else : ?>
+						<?php if (is_array($last)) : ?><p class="y4ui-hint"><?php echo esc_html(sprintf(__('Last time: %1$s changed, %2$s left as they were (a page whose file could not be read), %3$s ago.', 'y4apk'), number_format_i18n((int) $last['done']), number_format_i18n((int) $last['kept']), human_time_diff((int) ($last['end'] ?? time())))); ?></p><?php endif; ?>
+						<div style="display:flex;gap:10px;flex-wrap:wrap">
+							<?php if ($n['old']) : ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('<?php echo esc_js(__('Use the shared page on every download page? Each keeps its file; the old pages are kept (default.php.orig) so Undo can put them back.', 'y4apk')); ?>')"><?php $form('convert'); ?><button class="button button-primary"><?php esc_html_e('Use it on every download page', 'y4apk'); ?></button></form><?php endif; ?>
+							<?php if ($n['shared']) : ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('<?php echo esc_js(__('Put the old pages back (each with its file of now)?', 'y4apk')); ?>')"><?php $form('undo'); ?><button class="button"><?php esc_html_e('Undo: the old pages back', 'y4apk'); ?></button></form><?php endif; ?>
+						</div>
+					<?php endif; ?>
+					<p class="y4ui-hint" style="margin-top:10px"><?php esc_html_e('New folders (Write with AI, App updates, members’ uploads) use the shared page once it is there.', 'y4apk'); ?></p>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/** files/up/_y4apk/page.php: the page itself (plain PHP: no WordPress is loaded for a download). */
+	const RENDER = <<<'PHP'
+<?php
+/*
+ * Y4APK download page (2.75): every download folder's default.php sets $apk (its file) and comes here.
+ * Written by the theme (WordPress ▸ Y4APK ▸ Download page); its settings are in page.json beside it.
+ * Changes made here by hand are replaced when that page is saved after a theme update.
+ */
+if (!isset($apk)) { header('Location: /', true, 302); exit; }
+$y4c = json_decode((string) @file_get_contents(__DIR__ . '/page.json'), true);
+$y4c = is_array($y4c) ? $y4c : [];
+$y4file = trim((string) $apk);
+
+if (!function_exists('y4dl_there')) {
+	/* Is the file there? Only asked of the site's own R2 address, the answer kept a while; not sure: yes. */
+	function y4dl_there($url, $c) {
+		$host = strtolower((string) parse_url($url, PHP_URL_HOST));
+		if (empty($c['check']) || $host === '' || $host !== (string) ($c['r2_host'] ?? '')) { return true; }
+		$f = __DIR__ . '/state/' . md5($url);
+		$s = @file_get_contents($f);
+		if ($s !== false && preg_match('/^([012])\|(\d+)$/', $s, $m) && time() - (int) $m[2] < [1800, 43200, 600][(int) $m[1]]) { return $m[1] !== '0'; }
+		if (!function_exists('curl_init')) { return true; }
+		$ch = curl_init($url);
+		curl_setopt_array($ch, [CURLOPT_NOBODY => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => false, CURLOPT_USERAGENT => 'Y4APK-Download-Check']);
+		curl_exec($ch);
+		$code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+		if ($code >= 200 && $code < 300) { $ok = 1; }
+		elseif ($code === 404 || $code === 410 || ($code >= 300 && $code < 400)) { $ok = 0; } // a redirect: not a real file of the bucket
+		else { $ok = 2; } // no clear answer (a hiccup, a challenge): let the visitor try, and ask again in 10 minutes
+		@file_put_contents($f, $ok . '|' . time(), LOCK_EX);
+		return $ok !== 0;
+	}
+}
+
+if ($y4file === '' || $y4file === '#' || !preg_match('~^https?://~i', $y4file) || !y4dl_there($y4file, $y4c)) {
+	header('Cache-Control: no-store');
+	header('Location: ' . (!empty($y4c['missing']) ? $y4c['missing'] : '/'), true, 302);
+	exit;
+}
+header('Cache-Control: no-cache');
+header('X-Robots-Tag: noindex, nofollow');
+$y4delay = max(0, min(30, (int) ($y4c['delay'] ?? 3)));
+$y4ads = (string) ($y4c['ads'] ?? '');
+$y4ads = preg_match('~^https?://~i', $y4ads) && $y4delay > 0 ? $y4ads : '';
+$y4logo = (string) ($y4c['logo'] ?? '');
+$y4name = (string) ($y4c['name'] ?? 'Y4APK');
+$e = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+?><!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Preparing the file</title>
+<style>
+body{margin:0;height:100vh;display:flex;justify-content:center;align-items:center;background:#fbfdfd;font-family:Arial,sans-serif;overflow:hidden;user-select:none}
+#bg{position:fixed;inset:0;z-index:-1}
+.c{text-align:center;margin:0 16px;padding:24px 20px;border-radius:24px;background:rgba(251,253,253,.88)}
+.c img{display:block;margin:0 auto;width:auto;height:auto;max-width:min(50vw,300px);max-height:28vh}
+.n{font-size:34px;font-weight:800;color:#ff2a2a;letter-spacing:.02em}
+.s{border:6px solid #eee;border-top:6px solid #ff2a2a;border-radius:50%;width:50px;height:50px;margin:20px auto;animation:r 1s linear infinite}
+.t{color:#666;font-size:14px;margin-top:10px}
+.d{display:inline-block;margin-top:10px;color:#ff2a2a;text-decoration:none}
+@keyframes r{to{transform:rotate(360deg)}}
+@media(max-width:600px){.c img{max-width:min(70vw,300px)}.s{width:60px;height:60px}}
+@media(prefers-reduced-motion:reduce){.s{animation:none}}
+</style>
+</head>
+<body>
+<canvas id=bg></canvas>
+<div class=c>
+<?php if ($y4logo !== '') : ?><img src="<?php echo $e($y4logo); ?>" alt="<?php echo $e($y4name); ?>"><?php else : ?><div class=n><?php echo $e($y4name); ?></div><?php endif; ?>
+<div class=s></div>
+<p class=t>Preparing your download...</p>
+<?php if ($y4ads !== '') : ?><p class=t>Redirecting in <b id=cnt><?php echo (int) $y4delay; ?></b>s</p><?php endif; ?>
+<a class=d href="<?php echo $e($y4file); ?>" rel="nofollow">Manual download</a>
+</div>
+<script>
+<?php if (!empty($y4c['guard'])) : ?>
+document.oncontextmenu=()=>false;
+document.onselectstart=()=>false;
+document.onkeydown=e=>{if(e.key=="F12"||(e.ctrlKey&&["u","c","x","s"].includes(String(e.key).toLowerCase()))||(e.ctrlKey&&e.shiftKey))e.preventDefault()};
+<?php endif; ?>
+if(top!==self)top.location=self.location;
+(function(){var c=document.getElementById("bg"),x=c.getContext&&c.getContext("2d"),p=[];if(!x)return;
+var rs=function(){c.width=innerWidth;c.height=innerHeight};onresize=rs;rs();
+for(var i=0;i<50;i++)p.push({x:Math.random()*c.width,y:Math.random()*c.height,vx:(Math.random()-.5)*.6,vy:(Math.random()-.5)*.6});
+(function d(){x.clearRect(0,0,c.width,c.height);p.forEach(function(a){a.x+=a.vx;a.y+=a.vy;(a.x<0||a.x>c.width)&&(a.vx*=-1);(a.y<0||a.y>c.height)&&(a.vy*=-1);
+x.beginPath();x.arc(a.x,a.y,2,0,7);x.fillStyle="#ff2a2a";x.fill();p.forEach(function(b){var dx=a.x-b.x,dy=a.y-b.y;if(dx*dx+dy*dy<14400){x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.strokeStyle="rgba(255,40,40,.35)";x.stroke()}})});
+if(!document.hidden)requestAnimationFrame(d);else setTimeout(d,500)})()})();
+var f=<?php echo json_encode($y4file, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,ads=<?php echo json_encode($y4ads, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,t=<?php echo (int) $y4delay; ?>;
+setTimeout(function(){location.href=f},0);
+if(ads){var k=document.getElementById("cnt");setInterval(function(){if(t>0&&k)k.textContent=--t},1000);setTimeout(function(){location.href=ads},t*1000)}
+</script>
+</body>
+</html>
+PHP;
+}
+
+Y4APK_DLPage::init();

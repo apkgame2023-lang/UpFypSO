@@ -731,6 +731,9 @@ HTML;
 
 	/** The download page a new folder starts with (Settings ▸ Download page for new folders): "#" where the file goes. */
 	public static function page_template() {
+		if (class_exists('Y4APK_DLPage') && Y4APK_DLPage::ready()) { // 2.75: two lines, the page itself is Y4APK ▸ Download page
+			return Y4APK_DLPage::stub('#');
+		}
 		$page = (string) get_option('y4apk_r2_page', '');
 		return $page !== '' ? $page : self::PAGE;
 	}
@@ -799,6 +802,10 @@ HTML;
 		}
 		if (file_put_contents($file, $html, LOCK_EX) === false) {
 			return new WP_Error('y4apk_r2_write', sprintf(__('Could not write %s.', 'y4apk'), $folder . '/default.php'));
+		}
+		@unlink($o['dir'] . '/_y4apk/state/' . md5($file_url)); // 2.75: the shared page asks R2 again
+		if (class_exists('Y4APK_Links')) {
+			Y4APK_Links::recheck_url($o['dir_url'] . $folder); // a fixed file: the "not there" note goes at once
 		}
 		return true;
 	}
@@ -936,9 +943,13 @@ HTML;
 						<?php $field('dir_url', __('Download pages address', 'y4apk'), $o['dir_url']); ?>
 					</div>
 				</div>
+				<?php if (class_exists('Y4APK_DLPage') && Y4APK_DLPage::ready()) : ?>
+				<p class="au-note" style="margin:4px 0 10px"><?php printf(esc_html__('New folders use the shared download page: its logo, the page it opens and the rest are in %s.', 'y4apk'), '<a href="' . esc_url(admin_url('admin.php?page=' . Y4APK_DLPage::SLUG)) . '">' . esc_html__('Y4APK ▸ Download page', 'y4apk') . '</a>'); ?></p>
+				<?php else : ?>
 				<label style="display:block;margin:4px 0 10px"><span class="au-label"><?php esc_html_e('Download page for new folders', 'y4apk'); ?></span>
 					<textarea name="page" rows="8" spellcheck="false" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;border-radius:8px"><?php echo esc_textarea(self::page_template()); ?></textarea>
 					<small class="au-small"><?php esc_html_e('Write with AI puts this in the default.php of each folder it makes for a post with no file yet. Its two “#” (Manual download, and location.href="#",0) become the file’s address when you upload the file in “Need a new file”. Empty: the built-in page.', 'y4apk'); ?></small></label>
+				<?php endif; ?>
 				<p><button class="button button-primary"><?php esc_html_e('Save', 'y4apk'); ?></button>
 					<button type="button" class="button" id="au-r2-test" <?php disabled($o['account'] === '' || $o['key_id'] === '' || $o['secret'] === ''); ?>><?php esc_html_e('Test the connection', 'y4apk'); ?></button>
 					<span id="au-r2-test-result" class="au-meta"></span></p>
