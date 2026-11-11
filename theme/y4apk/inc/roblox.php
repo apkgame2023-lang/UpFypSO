@@ -283,6 +283,40 @@ class Y4APK_Roblox {
 		return is_array($terms) ? $terms : [];
 	}
 
+	/** 2.74: a grid of cards: the posts, their pictures, their games and the games' icons, read together. */
+	public static function prime_cards($ids) {
+		$ids = array_values(array_filter(array_map('intval', (array) $ids)));
+		if (!$ids) {
+			return;
+		}
+		if (function_exists('y4apk_prime_posts')) {
+			y4apk_prime_posts($ids);
+		}
+		update_object_term_cache($ids, 'post');
+		$games = [];
+		foreach ($ids as $id) {
+			$g = self::game_of($id);
+			if ($g) {
+				$games[$g->term_id] = $g;
+			}
+		}
+		self::prime_icons(array_values($games));
+	}
+
+	/** 2.74: the icon pictures of these games, read together. */
+	public static function prime_icons($terms) {
+		$atts = [];
+		foreach ((array) $terms as $t) {
+			$a = $t instanceof WP_Term ? (int) get_term_meta($t->term_id, self::M_ICON, true) : 0;
+			if ($a) {
+				$atts[] = $a;
+			}
+		}
+		if ($atts && function_exists('_prime_post_caches')) {
+			_prime_post_caches(array_values(array_unique($atts)), false, true);
+		}
+	}
+
 	public static function icon_url($term, $size = 'thumbnail') {
 		$att = (int) get_term_meta($term->term_id, self::M_ICON, true);
 		if ($att && ($url = wp_get_attachment_image_url($att, $size))) {
@@ -711,7 +745,8 @@ class Y4APK_Roblox {
 					<?php if (self::hub_url()) : ?><a class="rbx-more" href="<?php echo esc_url(self::hub_url()); ?>"><?php esc_html_e('All games', 'y4apk'); ?><?php echo self::icon('arrow'); ?></a><?php endif; ?>
 				</div>
 				<div class="rbx-games rbx-games-row">
-					<?php foreach ($others as $t) {
+					<?php self::prime_icons($others); // 2.74
+					foreach ($others as $t) {
 						self::tile($t);
 					} ?>
 				</div>
@@ -725,6 +760,7 @@ class Y4APK_Roblox {
 	public static function menu() {
 		$url = self::hub_url();
 		$games = self::games(self::MENU);
+		self::prime_icons($games); // 2.74: the icons in one query, not one each
 		$first = $games ? get_term_link($games[0]) : '';
 		?>
 		<div class="h-menu-item h-menu-roblox" style="display:none;">

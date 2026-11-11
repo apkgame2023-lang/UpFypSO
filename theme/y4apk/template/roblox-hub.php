@@ -52,7 +52,8 @@ get_header();
 				<?php endif; ?>
 			</div>
 			<div class="rbx-games" data-rbx-games>
-				<?php foreach ($games as $g) {
+				<?php Y4APK_Roblox::prime_icons($games); // 2.74
+				foreach ($games as $g) {
 					Y4APK_Roblox::tile($g);
 				} ?>
 			</div>
@@ -67,7 +68,8 @@ get_header();
 			<div class="rbx-head"><h2 class="section-title rbx-title"><?php esc_html_e('Latest scripts', 'y4apk'); ?></h2></div>
 			<?php if ($scripts->have_posts()) : ?>
 				<div class="rbx-grid">
-					<?php foreach ($scripts->posts as $p) {
+					<?php Y4APK_Roblox::prime_cards(wp_list_pluck($scripts->posts, 'ID')); // 2.74
+					foreach ($scripts->posts as $p) {
 						Y4APK_Roblox::card($p->ID, true);
 					} ?>
 				</div>

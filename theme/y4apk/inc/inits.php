@@ -172,10 +172,10 @@ function download_links_callback($post){
                         <tr>
                             <td class="handle_icon"><span class="handle">&#9776;</span></td>
                             <td><?= y4apk_download_type_select(isset($field['download_name']) ? $field['download_name'] : 'MOD'); ?></td>
-                            <td><input type="text" class="widefat" name="download_version[]" value="<?= esc_attr($field['download_version']); ?>" /></td>
-                            <td><input type="text" class="widefat" name="download_mod_info[]" value="<?= esc_attr($field['download_mod_info']); ?>" /></td>
-                            <td><input type="text" class="widefat" name="download_size[]" value="<?= esc_attr($field['download_size']); ?>" /></td>
-                            <td><input type="text" class="widefat" name="download_url[]" value="<?= esc_url($field['download_url']); ?>" /></td>
+                            <td><input type="text" class="widefat" name="download_version[]" value="<?= esc_attr($field['download_version'] ?? ''); ?>" /></td>
+                            <td><input type="text" class="widefat" name="download_mod_info[]" value="<?= esc_attr($field['download_mod_info'] ?? ''); ?>" /></td>
+                            <td><input type="text" class="widefat" name="download_size[]" value="<?= esc_attr($field['download_size'] ?? ''); ?>" /></td>
+                            <td><input type="text" class="widefat" name="download_url[]" value="<?= esc_url($field['download_url'] ?? ''); ?>" /></td>
                             <td><button type="button" class="remove-btn components-button is-destructive"><?php _e('Remove', 'y4apk'); ?></button></td>
                         </tr>
                     <?php endforeach; ?>
@@ -228,16 +228,19 @@ function save_download_links($post_id){
     $download_links = get_post_meta($post_id, 'repeatable_download_link', true);
     $new_data = [];
 
-    $download_version = $_POST['download_version'];
-    $download_name = $_POST['download_name'];
-    $download_size = $_POST['download_size'];
-    $download_url = $_POST['download_url'];
-    $download_mod_info = $_POST['download_mod_info'];
+    $download_version = (array) ($_POST['download_version'] ?? []); // still slashed: update_post_meta() unslashes
+    $download_name = (array) ($_POST['download_name'] ?? []); // still slashed: update_post_meta() unslashes
+    $download_size = (array) ($_POST['download_size'] ?? []); // still slashed: update_post_meta() unslashes
+    $download_url = (array) ($_POST['download_url'] ?? []); // still slashed: update_post_meta() unslashes
+    $download_mod_info = (array) ($_POST['download_mod_info'] ?? []); // still slashed: update_post_meta() unslashes
 
     $count = count($download_name);
 
     for ($i = 0; $i < $count; $i++) {
         // The hidden "Add Link" row has a Type picked but nothing else: not a download.
+        $download_version[$i] = (string) ($download_version[$i] ?? '');
+        $download_size[$i] = (string) ($download_size[$i] ?? '');
+        $download_url[$i] = (string) ($download_url[$i] ?? '');
         if ($download_name[$i] !== '' && ($download_version[$i] !== '' || $download_size[$i] !== '' || $download_url[$i] !== '')) {
             $new_data[$i]['download_name'] = sanitize_text_field($download_name[$i]);
             // Each field on its own (2.27): a link used to be kept only with a size, a version only with a link.

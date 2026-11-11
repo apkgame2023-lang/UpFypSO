@@ -137,7 +137,8 @@ $featured_posts = get_theme_mod('featured_posts', [
         <?php if ($y4_many) : ?><button type="button" class="y4row-nav is-prev" data-row-prev aria-label="<?php esc_attr_e('Previous', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg></button><button type="button" class="y4row-nav is-next" data-row-next aria-label="<?php esc_attr_e('Next', 'y4apk'); ?>"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z"/></svg></button><?php endif; ?>
         <div class="best-app-over">
             <div class="best-app-list">
-                <?php 
+ <?php 
+                    y4apk_prime_cards($featured_posts); // 2.74: in a few queries
                     foreach($featured_posts as $post) : 
                     list($post_name, $post_link) = y4apk_card($post); // the name and link set on the card, or the post's
                     $bg_image_url = $post['bg_image'] ?? '';

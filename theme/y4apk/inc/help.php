@@ -80,7 +80,12 @@ class Y4APK_Help {
 
 	/** The page's address (in the page's language). */
 	public static function url($key) {
+		static $primed = false;
 		$map = get_option(self::MAP, []);
+		if (!$primed && is_array($map) && $map && function_exists('_prime_post_caches')) {
+			$primed = true;
+			_prime_post_caches(array_values(array_filter(array_map('intval', $map))), false, false); // 2.74: the help pages in one query
+		}
 		if (is_array($map) && !empty($map[$key]) && get_post_status((int) $map[$key]) === 'publish') {
 			return get_permalink((int) $map[$key]);
 		}

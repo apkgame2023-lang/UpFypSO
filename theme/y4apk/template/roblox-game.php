@@ -115,7 +115,8 @@ get_header();
 				<?php if ($hub) : ?><a class="rbx-more" href="<?php echo esc_url($hub); ?>"><?php esc_html_e('All games', 'y4apk'); ?><?php echo Y4APK_Roblox::icon('arrow'); ?></a><?php endif; ?>
 			</div>
 			<div class="rbx-games rbx-games-row">
-				<?php foreach ($others as $t) {
+				<?php Y4APK_Roblox::prime_icons($others); // 2.74
+				foreach ($others as $t) {
 					Y4APK_Roblox::tile($t);
 				} ?>
 			</div>

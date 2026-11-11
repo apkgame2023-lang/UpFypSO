@@ -111,6 +111,9 @@ class Y4APK_Social {
 
 	private static function public_users($ids) {
 		$out = [];
+		if ($ids) {
+			cache_users(array_map('intval', (array) $ids)); // 2.74: the members and their details in two queries, not two each
+		}
 		foreach ($ids as $id) {
 			$u = get_userdata((int) $id);
 			if ($u && Y4APK_Members::is_public($u)) {

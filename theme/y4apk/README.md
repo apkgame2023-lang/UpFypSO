@@ -807,6 +807,39 @@ whatever the WAF did. Now it tries `paid/….apk` and `dm/….webp` (Messages'
 photos and voice) and shows both answers ("paid/ 403 · dm/ 403"); the steps
 give the whole Cloudflare expression for both, ready to paste.
 
+2.74 — **Speed: pages from Cloudflare; fewer queries; a review.**
+
+Measured on the live site: the server answers in 0.6–2.6 s even for a page
+LiteSpeed already has (TTFB), while a file Cloudflare keeps comes in 0.19 s.
+The theme's own work is small (50–90 ms a page here), so the time is the
+server's distance and load.
+
+- **Y4APK ▸ Speed** (`inc/edge-cache.php`): the theme marks each page a
+  visitor who is not signed in may get from Cloudflare
+  (`Cloudflare-CDN-Cache-Control`, which browsers ignore) — never an account,
+  form, profile, messages, wallet, a member's paid page, a 404, a POST or a
+  page that already said no-cache. A Cache Rule in Cloudflare (steps and the
+  expression on the page) keeps those pages, and skips anyone with a
+  WordPress sign-in, password-post or comment cookie. With a Cloudflare API
+  token (Zone · Cache Purge, saved encrypted, or `Y4APK_CF_ZONE` /
+  `Y4APK_CF_TOKEN` in wp-config.php) the theme clears a post's pages (the
+  post, home, its categories, its main post, its Roblox game and the hub, in
+  every language, 30 addresses a call) when it is published, edited, deleted
+  or gets a comment, and every page on any "Purge all" (LiteSpeed's too), in
+  the background (WP-Cron); pages are then kept a day, an hour without a
+  token. *Check now* asks for the home page twice and shows Cloudflare's
+  answer (HIT / MISS / DYNAMIC).
+- **Fewer database queries** (for members, and pages LiteSpeed does not
+  have): the Roblox menu's icons, the help pages' links, the home cards, the
+  Roblox and profile grids (posts, pictures, games, icons) and a profile's
+  followers are read together instead of one by one: home 86 → 60 queries,
+  wallet 62 → 42, a profile 132 → 68.
+- **Review**: every page type (guest and member, computer and phone, about
+  40) and 20 admin pages crawled: no PHP warnings or JavaScript errors from the
+  theme, no failed requests, nothing wider than the screen. Fixed: the post
+  editor's download rows warned about a missing "MOD info" on rows the theme
+  made, and their save read fields that might not be sent.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

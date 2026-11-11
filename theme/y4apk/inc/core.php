@@ -402,6 +402,40 @@ add_action('wp_footer', 'footer_code');
  * A home page card (Home Featured, Home Recommend): its name and its link (2.53). Each may be set on the
  * card in Customize; otherwise the post's game or app name and its page.
  */
+/**
+ * Speed (2.74): the posts of a row of cards, and their pictures, read in two
+ * queries instead of two for each card.
+ */
+function y4apk_prime_cards($rows) {
+	$ids = [];
+	foreach ((array) $rows as $r) {
+		$id = is_array($r) ? absint($r['post_id'] ?? 0) : absint($r);
+		if ($id) {
+			$ids[] = $id;
+		}
+	}
+	y4apk_prime_posts($ids);
+}
+
+/** Posts (with their meta) and their featured images, in a few queries. */
+function y4apk_prime_posts($ids) {
+	$ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+	if (!$ids || !function_exists('_prime_post_caches')) {
+		return;
+	}
+	_prime_post_caches($ids, false, true);
+	$thumbs = [];
+	foreach ($ids as $id) {
+		$t = (int) get_post_meta($id, '_thumbnail_id', true);
+		if ($t) {
+			$thumbs[] = $t;
+		}
+	}
+	if ($thumbs) {
+		_prime_post_caches(array_values(array_unique($thumbs)), false, true);
+	}
+}
+
 function y4apk_card($row) {
 	$id = absint($row['post_id'] ?? 0);
 	$name = trim((string) ($row['title'] ?? ''));

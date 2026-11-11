@@ -598,7 +598,7 @@ if ($screen === 'login') {
 		</div>
 		<h2 class="acc-h2"><?php esc_html_e('New from them', 'y4apk'); ?></h2>
 		<?php if ($c['feed']) : ?>
-			<div class="rbx-grid"><?php foreach ($c['feed'] as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
+			<div class="rbx-grid"><?php Y4APK_Roblox::prime_cards(wp_list_pluck($c['feed'], 'ID')); foreach ($c['feed'] as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
 		<?php else : ?>
 			<div class="acc-card acc-empty"><p><?php esc_html_e('No scripts from them yet.', 'y4apk'); ?></p></div>
 		<?php endif; ?>
@@ -1238,7 +1238,7 @@ if ($screen === 'login') {
 			</form>
 		</div>
 		<?php if ($q->have_posts()) : ?>
-			<div class="rbx-grid"><?php foreach ($q->posts as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
+			<div class="rbx-grid"><?php Y4APK_Roblox::prime_cards(wp_list_pluck($q->posts, 'ID')); foreach ($q->posts as $p) { Y4APK_Roblox::card($p->ID, true, true); } ?></div>
 			<?php y4apk_pagination(max(1, (int) get_query_var('paged')), (int) $q->max_num_pages); ?>
 		<?php else : ?>
 			<div class="acc-card acc-empty"><p><?php echo esc_html($c['search'] !== '' ? __('No posts match that search.', 'y4apk') : __('No posts here yet.', 'y4apk')); ?></p></div>

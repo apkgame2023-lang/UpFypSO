@@ -41,6 +41,7 @@ if(!empty($recommend_posts)) :
         <div class="recommend-over">
             <div class="recommend-list">
 				<?php
+				y4apk_prime_cards($recommend_posts); // 2.74: in a few queries
 				foreach($recommend_posts as $post) :
 					list($post_name, $post_link) = y4apk_card($post); // the name and link set on the card, or the post's
                     $bg_image_url = $post['bg_image'] ?? '';
