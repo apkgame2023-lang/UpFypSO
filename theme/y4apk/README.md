@@ -983,6 +983,30 @@ cards' icons and pictures, a post's icon and the blurred picture behind it,
 its first three screenshots, a Roblox game's banner and icon. The rest still
 loads lazily.
 
+2.77 — **Members' profiles can be found on Google.** `inc/members-seo.php`.
+A profile (`/@name`) is not a post, so Rank Math took it for the home page:
+the home page's title, description and canonical (`https://y4apk.com/`), so
+search engines read every profile as a copy of the home page and kept none.
+Now a profile has its own:
+
+- title `Name (@name) · Y4APK`, a description from its numbers and bio
+  ("… on Y4APK: 2 posts, 1 follower, 41 views. <bio>");
+- canonical `/@name` (`/th/@name` stays noindex and points to it, as every
+  translated page does; `?tab=` / `?sort=` / `?q=` stay noindex);
+- Open Graph type `profile`, the member's picture, `profile:username`;
+- schema.org **ProfilePage** (Rank Math's WebPage for the "home page" is
+  replaced): the Person — name, @handle, picture, bio, YouTube/Discord links
+  (`sameAs`), followers (`interactionStatistic` FollowAction), posts and
+  follows (`agentInteractionStatistic` WriteAction / FollowAction) —, when the
+  profile was made and last changed;
+- only profiles with at least one published post are offered to search
+  engines; the others say `noindex, follow` (empty profiles are thin, and what
+  spammers make). Filter: `y4apk_profile_indexable`;
+- **`/y4apk-profiles-sitemap.xml`**: those profiles with their last change
+  (kept 6 hours), added to Rank Math's sitemap index and to robots.txt.
+
+Without Rank Math the same tags are printed by the theme.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

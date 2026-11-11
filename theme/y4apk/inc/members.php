@@ -762,7 +762,9 @@ class Y4APK_Members {
 		header('X-LiteSpeed-Cache-Control: no-cache');
 		do_action('litespeed_control_set_nocache', 'y4apk member page');
 		$listed = $view === 'profile' && !isset($_GET['tab']) && !isset($_GET['sort']) && !isset($_GET['q']); // one address per profile in search engines
-		header('X-Robots-Tag: ' . ($listed ? 'index, follow' : 'noindex, nofollow'));
+		if (!$listed) {
+			header('X-Robots-Tag: noindex, ' . ($view === 'profile' ? 'follow' : 'nofollow'));
+		} // a profile: once it is known whether it has anything to show (view_profile, 2.77)
 
 		$user = wp_get_current_user();
 		$ctx = ['view' => $view, 'screen' => $view, 'errors' => [], 'ok' => '', 'old' => [], 'user' => $user->exists() ? $user : null, 'member' => self::is_member($user)];
@@ -1391,6 +1393,9 @@ class Y4APK_Members {
 		$ctx['count'] = count($all);
 		$ctx['followers'] = Y4APK_Social::followers_count($user->ID);
 		$ctx['following_n'] = Y4APK_Social::following_count($user->ID);
+		if (class_exists('Y4APK_Profile_SEO') && !Y4APK_Profile_SEO::indexable($user, $ctx['count']) && !headers_sent()) {
+			header('X-Robots-Tag: noindex, follow'); // 2.77: nothing published yet: not offered to search engines
+		}
 		$me = $ctx['user'];
 		$ctx['own'] = $me && (int) $me->ID === (int) $user->ID;
 		$ctx['can_follow'] = $me && !$ctx['own'] && self::is_public($me);
