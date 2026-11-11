@@ -70,7 +70,7 @@ class Y4APK_Home_Rows {
 	private static function row($r) {
 		$cards = array_values(array_filter($r['cards'], function ($c) {
 			$id = absint($c['post_id'] ?? 0);
-			return $id && get_post_status($id) === 'publish';
+			return $id ? get_post_status($id) === 'publish' : (trim((string) ($c['link'] ?? '')) !== '' && trim((string) ($c['title'] ?? '')) !== ''); // 2.70.2: or a link with a name
 		}));
 		if (!$cards) {
 			return;
@@ -120,7 +120,7 @@ class Y4APK_Home_Rows {
 		<div class="best-app-item">
 			<a href="<?php echo esc_url($link); ?>">
 				<div class="best-app-img">
-					<figure><img src="<?php echo esc_url(y4apk_icon_url($c['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($name); ?>" loading="lazy"></figure>
+					<figure><img src="<?php echo esc_url(y4apk_card_icon($c, $name), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($name); ?>" loading="lazy"></figure>
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 76" width="90" height="76"><path fill="currentColor" d="M64,0H0V76A16,16,0,0,1,16,60.26H40a24,24,0,0,0,24-24V19.74A16,16,0,0,1,80,4H90V0Z"></path></svg>
 				</div>
 				<span class="best-app-title"><?php echo esc_html($name); ?></span>
@@ -141,7 +141,7 @@ class Y4APK_Home_Rows {
 		<div class="recommend-app">
 			<a href="<?php echo esc_url($link); ?>">
 				<div class="recommend-app-img">
-					<figure><img src="<?php echo esc_url(y4apk_icon_url($c['post_id'], 'thumbnail'), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($name); ?>" loading="lazy"></figure>
+					<figure><img src="<?php echo esc_url(y4apk_card_icon($c, $name), ['http', 'https', 'data']); ?>" width="60" height="60" alt="<?php echo esc_attr($name); ?>" loading="lazy"></figure>
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 80" width="90" height="80"><path fill="currentColor" d="M20,0A20,20,0,0,0,0,20V80H4v-.26A16,16,0,0,1,19.83,64H44A20,20,0,0,0,64,44V19.74h0A16,16,0,0,1,80,4H90V0Z"></path></svg>
 				</div>
 				<div class="recommend-app-cont"><div class="recommend-app-cont-in">

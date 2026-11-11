@@ -418,6 +418,26 @@ function y4apk_card($row) {
 }
 
 /**
+ * A home card's small icon (2.70.2): its own icon, else its post's, else the
+ * first letter of its name (a card that is only a link, such as /roblox/).
+ */
+function y4apk_card_icon($row, $name = '') {
+	$icon = trim((string) ($row['icon'] ?? ''));
+	if ($icon !== '') {
+		return $icon;
+	}
+	$id = absint($row['post_id'] ?? 0);
+	if ($id) {
+		return y4apk_icon_url($id, 'thumbnail');
+	}
+	$name = trim((string) $name);
+	$letter = $name !== '' ? mb_strtoupper(mb_substr($name, 0, 1)) : '?';
+	$hue = abs(crc32($name)) % 360;
+	return 'data:image/svg+xml,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="26" fill="hsl(' . $hue . ',55%,46%)"/>'
+		. '<text x="60" y="60" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="62" font-weight="700" fill="#fff">' . htmlspecialchars($letter, ENT_QUOTES, 'UTF-8') . '</text></svg>');
+}
+
+/**
  * A home card row with more than four cards (2.59): it slides sideways — with ‹ › on computers, by swiping on
  * phones (as before). The look once, the few lines that work the arrows after each row.
  */

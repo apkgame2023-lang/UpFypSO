@@ -70,6 +70,7 @@ class Y4APK_Home_Admin {
 				'link'     => (string) ($r['link'] ?? ''),
 				'bg_image' => (string) ($r['bg_image'] ?? ''),
 				'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: self::tint($n),
+				'icon'     => (string) ($r['icon'] ?? ''), // 2.70.2
 			];
 		}
 		return $out;
@@ -105,8 +106,9 @@ class Y4APK_Home_Admin {
 		} elseif (mb_strlen($q) >= 2) {
 			global $wpdb; // titles only, on the posts table's own index: no post bodies, no meta
 			$ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' AND post_title LIKE %s ORDER BY post_date DESC LIMIT 12",
-				'%' . $wpdb->esc_like($q) . '%'
+				"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish' AND post_title LIKE %s
+				 ORDER BY (post_title LIKE %s) DESC, CHAR_LENGTH(post_title) ASC, post_date DESC LIMIT 15", // 2.70.2: "Roblox MOD APK" before the scripts that only name Roblox
+				'%' . $wpdb->esc_like($q) . '%', $wpdb->esc_like($q) . '%'
 			)));
 		}
 		wp_send_json_success(array_values(array_filter(array_map([__CLASS__, 'post_info'], $ids))));
@@ -125,20 +127,30 @@ class Y4APK_Home_Admin {
 		return esc_url_raw($v, ['http', 'https']);
 	}
 
-	/** The cards sent for one row: those with a post, in the order they stand on the page. */
+	/**
+	 * The cards sent for one row, in the order they stand on the page: those
+	 * with a post, and (2.70.2) those that are only a link with a name, such as
+	 * /roblox/. A card with neither is left out.
+	 */
 	private static function clean_cards($list) {
 		$rows = [];
 		foreach (array_slice(array_values(array_filter((array) $list, 'is_array')), 0, self::MAX) as $r) {
 			$id = absint($r['post_id'] ?? 0);
+			$title = mb_substr(sanitize_text_field($r['title'] ?? ''), 0, 60);
+			$link = self::clean_link($r['link'] ?? '');
 			if (!self::post_info($id)) {
-				continue;
+				if ($link === '' || $title === '') {
+					continue;
+				}
+				$id = 0;
 			}
 			$rows[] = [
-				'post_id'  => (string) $id,
-				'title'    => mb_substr(sanitize_text_field($r['title'] ?? ''), 0, 60),
-				'link'     => self::clean_link($r['link'] ?? ''),
+				'post_id'  => $id ? (string) $id : '',
+				'title'    => $title,
+				'link'     => $link,
 				'bg_image' => esc_url_raw(trim((string) ($r['bg_image'] ?? ''))),
 				'bg_color' => sanitize_hex_color($r['bg_color'] ?? '') ?: '#29b1d8',
+				'icon'     => esc_url_raw(trim((string) ($r['icon'] ?? ''))),
 			];
 		}
 		return $rows;
@@ -242,7 +254,7 @@ class Y4APK_Home_Admin {
 					</span>
 				</div>
 				<div class="y4hm-prev" data-prev style="--c: <?php echo esc_attr($r['bg_color']); ?>">
-					<i class="y4hm-prev-ic" data-prev-ic><?php if ($info && $info['icon']) : ?><img src="<?php echo esc_url($info['icon'], ['http', 'https', 'data']); ?>" alt=""><?php endif; ?></i>
+					<i class="y4hm-prev-ic" data-prev-ic data-post-ic="<?php echo esc_attr($info ? $info['icon'] : ''); ?>"><?php $ic = ($r['icon'] ?? '') !== '' ? $r['icon'] : ($info ? $info['icon'] : ''); if ($ic !== '') : ?><img src="<?php echo esc_url($ic, ['http', 'https', 'data']); ?>" alt=""><?php endif; ?></i>
 					<img class="y4hm-prev-bg" data-prev-bg src="<?php echo esc_url($r['bg_image']); ?>" alt=""<?php echo $r['bg_image'] === '' ? ' hidden' : ''; ?>>
 					<b data-prev-name><?php echo esc_html($r['title'] !== '' ? $r['title'] : ($info ? $info['name'] : __('Choose a post', 'y4apk'))); ?></b>
 					<small><?php esc_html_e('Download', 'y4apk'); ?></small>
@@ -266,6 +278,11 @@ class Y4APK_Home_Admin {
 					<input type="text" class="widefat code" name="<?php echo esc_attr($f); ?>[link]" value="<?php echo esc_attr($r['link']); ?>" placeholder="<?php echo esc_attr($info ? wp_make_link_relative($info['url']) : '/roblox/'); ?>" data-link>
 					<label><?php esc_html_e('Picture', 'y4apk'); ?></label>
 					<?php $img_field($f . '[bg_image]', $r['bg_image'], __('Choose', 'y4apk')); ?>
+					<label><?php esc_html_e('Icon', 'y4apk'); ?> <em><?php esc_html_e('optional: a square picture; empty: the post’s icon', 'y4apk'); ?></em></label>
+					<div class="y4hm-img">
+						<input type="url" class="regular-text code" name="<?php echo esc_attr($f); ?>[icon]" value="<?php echo esc_attr($r['icon'] ?? ''); ?>" placeholder="https://" data-img data-icon>
+						<button type="button" class="button" data-pick><?php esc_html_e('Choose', 'y4apk'); ?></button>
+					</div>
 					<label><?php esc_html_e('Colour', 'y4apk'); ?></label>
 					<input type="color" name="<?php echo esc_attr($f); ?>[bg_color]" value="<?php echo esc_attr($r['bg_color']); ?>" data-color>
 				</div>
@@ -319,7 +336,7 @@ class Y4APK_Home_Admin {
 						<div class="y4ui-card-h">
 							<div>
 								<h2><?php echo esc_html($s[2]); ?></h2>
-								<p><?php echo esc_html($s[3]); ?> <?php esc_html_e('A card without a post is left out.', 'y4apk'); ?></p>
+								<p><?php echo esc_html($s[3]); ?> <?php esc_html_e('A card needs a post, or a link and a name (such as /roblox/ for a category).', 'y4apk'); ?></p>
 							</div>
 							<label class="y4hm-switch"><input type="checkbox" name="show[<?php echo esc_attr($set); ?>]" value="1" <?php checked($show); ?>><span></span><?php esc_html_e('Show on the home page', 'y4apk'); ?></label>
 						</div>
@@ -505,11 +522,16 @@ class Y4APK_Home_Admin {
 			var initCard = function (el) {
 				var card = $(el), q = card.find('[data-q]'), hits = card.find('[data-hits]'), timer = null, seq = 0, base = card.find('[data-prev-name]').text();
 				var name = function () { var v = $.trim(card.find('[data-name]').val()); card.find('[data-prev-name]').text(v || base || T.choose); };
+				var paintIcon = function () { // 2.70.2: the card's own icon, else its post's
+					var own = $.trim(card.find('[data-icon]').val() || ''), ic = own || card.find('[data-prev-ic]').attr('data-post-ic') || '';
+					card.find('[data-prev-ic]').html(ic ? $('<img alt="">').attr('src', ic) : '');
+				};
 				var choose = function (p) {
 					card.find('[data-id]').val(p ? p.id : '');
 					card.find('[data-chosen-t]').text(p ? p.title : '');
 					card.find('[data-chosen]').prop('hidden', !p); card.find('[data-find]').prop('hidden', !!p);
-					card.find('[data-prev-ic]').html(p && p.icon ? $('<img alt="">').attr('src', p.icon) : '');
+					card.find('[data-prev-ic]').attr('data-post-ic', p && p.icon ? p.icon : '');
+					paintIcon();
 					card.find('[data-name]').attr('placeholder', p ? p.name : '');
 					card.find('[data-link]').attr('placeholder', p ? p.url.replace(/^https?:\/\/[^\/]+/, '') : '/roblox/');
 					base = p ? p.name : ''; name(); hits.prop('hidden', true).empty();
@@ -540,9 +562,20 @@ class Y4APK_Home_Admin {
 				$(document).on('click', function (e) { if (!$(e.target).closest(card.find('[data-find]')).length) { hits.prop('hidden', true); } });
 				card.find('[data-name]').on('input', name);
 				card.find('[data-color]').on('input', function () { card.find('[data-prev]').css('--c', this.value); });
-				card.find('[data-img]').on('input change', function () { var v = $.trim(this.value); card.find('[data-prev-bg]').attr('src', v).prop('hidden', !v); });
+				card.find('[data-img]').not('[data-icon]').on('input change', function () { var v = $.trim(this.value); card.find('[data-prev-bg]').attr('src', v).prop('hidden', !v); });
+				card.find('[data-icon]').on('input change', paintIcon);
 			};
 			$('[data-card]').each(function () { initCard(this); });
+			// 2.70.2: say so before Save leaves out a card that has something in it but neither a post nor a link with a name
+			$('#y4hm-form').on('submit', function (e) {
+				var lost = [];
+				$(this).find('[data-card]').each(function () {
+					var c = $(this), id = c.find('[data-id]').val(), link = $.trim(c.find('[data-link]').val()), nm = $.trim(c.find('[data-name]').val());
+					var something = nm || link || $.trim(c.find('[data-img]').not('[data-icon]').val());
+					if (!id && something && !(link && nm)) { lost.push(nm || c.find('[data-card-label]').text()); }
+				});
+				if (lost.length && !window.confirm(<?php echo wp_json_encode(__('These cards have no post, and no link with a name, so Save leaves them out: %s. Choose a post (Change ▸ search ▸ click it), or give it a link and a name. Save anyway?', 'y4apk')); ?>.replace('%s', lost.join(', ')))) { e.preventDefault(); }
+			});
 			// 2.59: more than four cards — add, move, remove; their order is the home page's
 			var made = 100;
 			var renumber = function (grid) {

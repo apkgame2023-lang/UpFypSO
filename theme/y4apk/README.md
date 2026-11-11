@@ -689,6 +689,16 @@ rebuilds them at once (at most once in 5 minutes) and clears LiteSpeed's
 cache, and a 404 page is kept for one minute only. By hand, the same is
 Settings ▸ Permalinks ▸ Save Changes, then LiteSpeed Cache ▸ Purge All.
 
+2.70.2 — **Home page cards that are only a link.** A card (Best of the best,
+Recommend, your own rows) without a post was left out when saving, with its
+picture: a Roblox card pointing at /roblox/ vanished. Now a card needs a post,
+**or a link and a name**; it shows with its own icon (a new optional *Icon*
+field on every card, which also replaces a post's icon) or the first letter of
+its name. Save asks before it leaves out a card that has something in it but
+neither. The post search puts titles that start with what you typed first, the
+shortest first ("Roblox MOD APK" before scripts that only name Roblox), 15 at
+most.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;
