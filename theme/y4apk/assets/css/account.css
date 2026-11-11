@@ -646,7 +646,10 @@
 /* ---------------------------------------------------------------- Share a game or app (2.44) */
 .acc-empty-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: .625rem; }
 .acc-badge-approved { color: #1c5cab; background: #e8f1fb; }
-.acc-kind { padding: .0625rem .5rem; border-radius: .375rem; font-size: .6875rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: #1c5cab; background: #e8f1fb; }
+.acc-item-meta .acc-type { gap: .3rem; height: 1.375rem; padding: 0 .55rem 0 .45rem; border-radius: 999px; font-size: .6875rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; line-height: 1; } /* 2.70.4: was .acc-kind, which the wizard's big kind cards also use */
+.acc-item-meta .acc-type svg { width: .8125rem; height: .8125rem; flex: none; }
+.acc-type.is-game { color: #6b3fd6; background: #f0eafe; box-shadow: inset 0 0 0 1px rgba(107, 63, 214, .18); }
+.acc-type.is-app { color: #1c5cab; background: #e8f1fb; box-shadow: inset 0 0 0 1px rgba(28, 92, 171, .18); }
 .acc-item-icon { display: grid; place-items: center; aspect-ratio: 16 / 10; background: radial-gradient(120% 120% at 0 0, #e9f7fc, #dbe9ee); }
 .acc-item-icon img { width: 3.25rem !important; height: 3.25rem !important; border-radius: 22%; box-shadow: 0 .5rem 1rem -.375rem rgba(0, 0, 0, .35); }
 @media (min-width: 40rem) { .acc-item-icon img { width: 4.5rem !important; height: 4.5rem !important; } }

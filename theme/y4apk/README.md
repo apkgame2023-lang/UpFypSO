@@ -707,6 +707,16 @@ games" and "All apps" (`y4apk_all_of()` in `inc/core.php`), translated like any
 text (Languages ▸ Thai: search "All games" / "All apps"); English still shows
 "All Games" and "All Apps". Other top categories keep "All %s".
 
+2.70.4 — **My uploads: the Game / App label, and deleting a live game.** The
+label under a game or app's name used the class of the upload wizard's big
+"Game / App" choice cards, so it showed as a large grey box; it is now a small
+coloured pill with an icon (`.acc-type`: purple *Game*, blue *App*). Members
+could only delete scripts and uploads that were not live yet; now every upload
+has the bin button. A live game or app asks first ("its page goes off the site
+at once"), then goes to the bin (Posts ▸ Bin, where the team can restore it);
+its files on R2 are kept, and buyers of a paid one get their coins back within
+the refund days, as when the team deletes it.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

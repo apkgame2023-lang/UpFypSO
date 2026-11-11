@@ -540,7 +540,9 @@ if ($screen === 'login') {
 					<h3><?php if ($go) : ?><a href="<?php echo esc_url($go); ?>"><?php echo esc_html($title); ?></a><?php else : echo esc_html($title); endif; ?></h3>
 					<p class="acc-item-meta">
 						<?php if ($sd) : ?>
-							<span class="acc-kind"><?php echo esc_html($sd['kind'] === 'app' ? __('App', 'y4apk') : __('Game', 'y4apk')); ?></span>
+							<span class="acc-type is-<?php echo $sd['kind'] === 'app' ? 'app' : 'game'; ?>"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><?php echo $sd['kind'] === 'app'
+															? '<path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/>'
+															: '<path d="M7.5 7h9a5.5 5.5 0 0 1 0 11c-1.6 0-2.6-.8-3.4-1.7l-.6-.6h-1l-.6.6C10.1 17.2 9.1 18 7.5 18a5.5 5.5 0 0 1 0-11ZM7 10v1.5H5.5v1.5H7v1.5h1.5V13H10v-1.5H8.5V10H7Zm9.5.25a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-2 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/>'; // phpcs:ignore WordPress.Security.EscapeOutput ?></svg><?php echo esc_html($sd['kind'] === 'app' ? __('App', 'y4apk') : __('Game', 'y4apk')); ?></span>
 							<?php foreach ($sd['files'] as $fl) : ?><span><?php echo esc_html($fl['label'] . ' · ' . Y4APK_R2::size_text($fl['size'])); ?></span><?php endforeach; ?>
 						<?php elseif ($g) : ?><span><img src="<?php echo esc_url(Y4APK_Roblox::icon_url($g), ['http', 'https', 'data']); ?>" alt="" width="18" height="18" loading="lazy"><?php echo esc_html($g->name); ?></span><?php elseif ($s['game'] !== '') : ?><span><?php echo $si('code'); ?><?php echo esc_html($s['game']); ?></span><?php endif; ?>
 						<?php if ($live) : ?><span><?php echo $si('eye'); ?><?php echo esc_html(sprintf(_n('%s view', '%s views', $s['views'], 'y4apk'), Y4APK_Roblox::short_number($s['views']))); ?></span><?php endif; ?>
@@ -558,12 +560,11 @@ if ($screen === 'login') {
 					<?php if (class_exists('Y4APK_Paid') && Y4APK_Paid::on() && Y4APK_Wallet::creator_ok($u->ID) && Y4APK_Paid::why_not($p, $u) === '') : $y4_price = (int) get_post_meta($p->ID, Y4APK_Paid::PRICE, true); // 2.69: what they may sell ?>
 					<a class="acc-btn acc-btn-small<?php echo $y4_price ? ' acc-btn-coin' : ''; ?>" href="<?php echo esc_url(Y4APK_Paid::url($p->ID)); ?>"><?php echo Y4APK_Wallet::coin_icon(16); // phpcs:ignore WordPress.Security.EscapeOutput ?><?php echo esc_html($y4_price ? number_format_i18n($y4_price) : __('Sell', 'y4apk')); ?></a>
 					<?php endif; ?>
-					<?php if (!$sd || !$live) : ?>
-					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js($sd ? __('Delete this upload? Its file is deleted too.', 'y4apk') : __('Delete this script?', 'y4apk')); ?>')">
+					<?php // 2.70.4: a live game or app can be deleted too (it goes to the bin: the site's team can bring it back) ?>
+					<form method="post" action="<?php echo esc_url($M::url()); ?>" onsubmit="return confirm('<?php echo esc_js($sd ? ($live ? __('Delete this game or app? Its page goes off the site at once.', 'y4apk') : __('Delete this upload? Its file is deleted too.', 'y4apk')) : __('Delete this script?', 'y4apk')); ?>')">
 						<input type="hidden" name="y4_do" value="delete"><input type="hidden" name="id" value="<?php echo esc_attr($p->ID); ?>"><?php echo $M::nonce('delete'); ?>
 						<button class="acc-ico acc-ico-danger" type="submit" title="<?php esc_attr_e('Delete', 'y4apk'); ?>"><?php echo $si('trash'); ?><span class="sr-only"><?php esc_html_e('Delete', 'y4apk'); ?></span></button>
 					</form>
-					<?php endif; ?>
 				</div>
 			</article>
 			<?php endforeach; ?>
