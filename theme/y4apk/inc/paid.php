@@ -462,16 +462,25 @@ class Y4APK_Paid {
 		if (!class_exists('Y4APK_R2') || !Y4APK_R2::can_store()) {
 			return null;
 		}
-		$key = 'paid/check-' . strtolower(wp_generate_password(12, false, false)) . '.txt';
-		$put = Y4APK_R2::put($key, 'y4apk', 'text/plain', 'no-store');
-		if (is_wp_error($put)) {
-			return null;
+		// 2.73: a file named as real ones are (.apk, .webp), so the files domain's redirect for other names (2.72) does not answer for it; messages' dm/ too
+		$c = ['at' => time(), 'open' => false, 'code' => 0, 'dm' => null];
+		foreach (['paid' => ['apk', 'application/vnd.android.package-archive'], 'dm' => ['webp', 'image/webp']] as $dir => $t) {
+			$key = $dir . '/check-' . strtolower(wp_generate_password(12, false, false)) . '.' . $t[0];
+			if (is_wp_error(Y4APK_R2::put($key, 'y4apk', $t[1], 'no-store'))) {
+				return null;
+			}
+			$r = wp_remote_get(Y4APK_R2::public_url($key), ['timeout' => 15, 'redirection' => 0]);
+			Y4APK_R2::remove($key);
+			$code = is_wp_error($r) ? 0 : (int) wp_remote_retrieve_response_code($r);
+			$open = $code === 200 && trim((string) wp_remote_retrieve_body($r)) === 'y4apk';
+			if ($dir === 'paid') {
+				$c['code'] = $code;
+				$c['open'] = $open;
+			} else {
+				$c['dm'] = ['open' => $open, 'code' => $code];
+				$c['open'] = $c['open'] || $open;
+			}
 		}
-		$r = wp_remote_get(Y4APK_R2::public_url($key), ['timeout' => 15, 'redirection' => 0]);
-		Y4APK_R2::remove($key);
-		$code = is_wp_error($r) ? 0 : (int) wp_remote_retrieve_response_code($r);
-		$open = $code === 200 && trim((string) wp_remote_retrieve_body($r)) === 'y4apk';
-		$c = ['at' => time(), 'open' => $open, 'code' => $code];
 		update_option(self::CHECK, $c, false);
 		return $c;
 	}

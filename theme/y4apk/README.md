@@ -800,6 +800,13 @@ Each card says what it is (Script / Game / App), and for a file its game or
 app, version, file type and size, MOD or Original; for a script No key / Key
 system and how many codes; a coin badge when it is sold (`Y4APK_Roblox::card_facts`).
 
+2.73.1 — **The paid-files check tests what the WAF protects.** Wallet ▸ Sales ▸
+*Check now* put a `.txt` file in paid/; since the files domain sends names that
+are not real files' to the site (2.72), it answered 302 and looked protected
+whatever the WAF did. Now it tries `paid/….apk` and `dm/….webp` (Messages'
+photos and voice) and shows both answers ("paid/ 403 · dm/ 403"); the steps
+give the whole Cloudflare expression for both, ready to paste.
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;

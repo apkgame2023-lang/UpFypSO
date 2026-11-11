@@ -313,20 +313,22 @@ $member = function ($id) {
 		$pc = get_option(Y4APK_Paid::CHECK);
 		$hidden = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", Y4APK_Paid::FILES));
 		$fhost = class_exists('Y4APK_R2') ? (string) wp_parse_url(Y4APK_R2::settings()['public'], PHP_URL_HOST) : '';
-		$fpath = (class_exists('Y4APK_R2') ? rtrim((string) wp_parse_url(Y4APK_R2::settings()['public'], PHP_URL_PATH), '/') : '') . '/paid/';
+		$fbase = class_exists('Y4APK_R2') ? rtrim((string) wp_parse_url(Y4APK_R2::settings()['public'], PHP_URL_PATH), '/') : '';
+		$fexpr = '(http.host eq "' . ($fhost !== '' ? $fhost : 'files') . '" and (starts_with(http.request.uri.path, "' . $fbase . '/paid/") or starts_with(http.request.uri.path, "' . $fbase . '/dm/")))';
 		?>
 		<div class="y4ui-card" style="margin-top:16px">
 			<div class="y4ui-card-h"><div><h2><?php esc_html_e('Paid files: links that expire', 'y4apk'); ?></h2><p><?php echo esc_html(sprintf(__('A paid file moves to paid/ on R2 (under a random name) and its download folder stops pointing at it. Whoever unlocked it gets a link R2 signs for %s minutes, made at each tap, so a shared link soon stops working.', 'y4apk'), number_format_i18n(Y4APK_Paid::TTL / 60)) . ' ' . sprintf(_n('%s post has hidden files.', '%s posts have hidden files.', $hidden, 'y4apk'), number_format_i18n($hidden))); ?></p></div></div>
 			<div class="y4ui-card-b">
 				<?php if (is_array($pc)) : ?>
-					<p><span class="y4ui-chip <?php echo $pc['open'] ? 'is-red' : 'is-green'; ?>"><?php echo esc_html($pc['open'] ? __('Not protected', 'y4apk') : __('Protected', 'y4apk')); ?></span> <span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('checked %1$s ago (the files address answered %2$s)', 'y4apk'), human_time_diff((int) $pc['at']), $pc['code'] ? (string) $pc['code'] : __('nothing', 'y4apk'))); ?></span></p>
+					<p><span class="y4ui-chip <?php echo $pc['open'] ? 'is-red' : 'is-green'; ?>"><?php echo esc_html($pc['open'] ? __('Not protected', 'y4apk') : __('Protected', 'y4apk')); ?></span> <span class="y4ui-kpi-s"><?php echo esc_html(sprintf(__('checked %1$s ago (the files address answered %2$s)', 'y4apk'), human_time_diff((int) $pc['at']), 'paid/ ' . ($pc['code'] ? (string) $pc['code'] : __('nothing', 'y4apk'))
+						. (isset($pc['dm']['code']) ? ' · dm/ ' . ($pc['dm']['code'] ? (string) $pc['dm']['code'] : __('nothing', 'y4apk')) : ''))); ?></span></p>
 				<?php else : ?>
 					<p><span class="y4ui-chip is-amber"><?php esc_html_e('Not checked yet', 'y4apk'); ?></span></p>
 				<?php endif; ?>
-				<p><?php esc_html_e('For it to protect anything, paid/ must not open on the public files address. Once, in Cloudflare:', 'y4apk'); ?></p>
+				<p><?php esc_html_e('For it to protect anything, paid/ (and dm/, where photos and voice messages from Messages are kept) must not open on the public files address. Once, in Cloudflare:', 'y4apk'); ?></p>
 				<ol class="y4wal-how">
 					<li><?php echo esc_html(sprintf(__('Open the zone of %s ▸ Security ▸ WAF ▸ Custom rules ▸ Create rule.', 'y4apk'), $fhost !== '' ? $fhost : 'files')); ?></li>
-					<li><?php echo esc_html(sprintf(__('Name: Paid files. Field: URI Path · Operator: starts with · Value: %s', 'y4apk'), $fpath)); ?></li>
+					<li><?php esc_html_e('Name: Paid files and messages. Edit expression, and paste:', 'y4apk'); ?><br><code style="user-select:all"><?php echo esc_html($fexpr); ?></code></li>
 					<li><?php esc_html_e('Action: Block. Deploy.', 'y4apk'); ?></li>
 					<li><?php esc_html_e('In R2 ▸ the bucket ▸ Settings ▸ Public access, keep the r2.dev address disabled (only the custom domain public).', 'y4apk'); ?></li>
 				</ol>
