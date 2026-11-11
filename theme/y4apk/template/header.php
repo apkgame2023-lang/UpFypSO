@@ -63,7 +63,7 @@ $cat_menu = function ($kind, $name, $link, $subs, $icons, $share, $share_label) 
 	}
 	usort($subs, function ($a, $b) { return ($b->count <=> $a->count) ?: strcasecmp($a->name, $b->name); });
 	$subs = array_slice(array_values($subs), 0, 12);
-	$all = sprintf(__('All %s', 'y4apk'), html_entity_decode($name, ENT_QUOTES, 'UTF-8'));
+	$all = y4apk_all_of($name, $kind); // 2.70.3: "All games", "All apps" as whole phrases, so they can be translated
 	?>
                 <div class="h-menu-item h-menu-<?php echo esc_attr($kind); ?>"<?php echo $kind === 'apps' ? ' style="display:none;"' : ''; ?>>
                     <a class="h-link" href="<?php echo esc_url($link); ?>">

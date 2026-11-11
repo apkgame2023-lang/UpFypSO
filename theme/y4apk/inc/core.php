@@ -418,6 +418,21 @@ function y4apk_card($row) {
 }
 
 /**
+ * "All Games" / "All Apps" (2.70.3): whole phrases, so each language words them
+ * its own way ("เกมทั้งหมด"); "All %s" with the category's name for any other.
+ * English keeps its capitals.
+ */
+function y4apk_all_of($name, $slug = '') {
+	$slug = strtolower((string) $slug);
+	if ($slug === 'games' || $slug === 'apps') {
+		$en = $slug === 'games' ? 'All games' : 'All apps';
+		$t = $slug === 'games' ? __('All games', 'y4apk') : __('All apps', 'y4apk');
+		return $t === $en ? ucwords($en) : $t;
+	}
+	return sprintf(__('All %s', 'y4apk'), html_entity_decode((string) $name, ENT_QUOTES, 'UTF-8'));
+}
+
+/**
  * A home card's small icon (2.70.2): its own icon, else its post's, else the
  * first letter of its name (a card that is only a link, such as /roblox/).
  */
@@ -491,7 +506,7 @@ function y4apk_category_chips() {
 	$top_term = get_term($top, 'category');
 	echo '<nav class="y4-cats" aria-label="' . esc_attr__('Categories', 'y4apk') . '">';
 	echo '<a href="' . esc_url(get_category_link($top)) . '"' . ($top === (int) $term->term_id ? ' class="is-on" aria-current="page"' : '') . '><span>'
-		. esc_html(sprintf(__('All %s', 'y4apk'), html_entity_decode($top_term && !is_wp_error($top_term) ? $top_term->name : '', ENT_QUOTES, 'UTF-8'))) . '</span></a>';
+		. esc_html(y4apk_all_of($top_term && !is_wp_error($top_term) ? $top_term->name : '', $top_term && !is_wp_error($top_term) ? $top_term->slug : '')) . '</span></a>';
 	foreach ($kids as $c) {
 		$icon = (string) get_term_meta($c->term_id, 'category_icon', true);
 		$on = (int) $c->term_id === (int) $term->term_id || in_array((int) $c->term_id, array_map('intval', $up), true);

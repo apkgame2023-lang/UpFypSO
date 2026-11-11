@@ -699,6 +699,14 @@ neither. The post search puts titles that start with what you typed first, the
 shortest first ("Roblox MOD APK" before scripts that only name Roblox), 15 at
 most.
 
+2.70.3 — **"All Games" / "All Apps" in other languages.** The Games and Apps
+menus (and the "All …" chip on category pages) said "All %s" + the category's
+name; both are kept in English by default, so Thai showed "All Games", and
+"All Apps" was in no list to translate. Now they are the whole phrases "All
+games" and "All apps" (`y4apk_all_of()` in `inc/core.php`), translated like any
+text (Languages ▸ Thai: search "All games" / "All apps"); English still shows
+"All Games" and "All Apps". Other top categories keep "All %s".
+
 ## Paid scripts and files (2.69)
 
 `inc/paid.php`, `template/unlock.php`. Creators sell their own work for coins;
